@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "proteus",
+  "project_id": "3b034aa5-6fa5-459d-9f58-343025f67807"
+}

@@ -1,0 +1,76 @@
+specification {
+  element module
+}
+
+model {
+  desktop = module "desktop" {
+    metadata {
+      package "@proteus-int/desktop"
+      path "apps/desktop"
+    }
+  }
+  brain-analyzator = module "brain-analyzator" {
+    metadata {
+      package "@proteus-int/brain-analyzator"
+      path "packages/brain-analyzator"
+    }
+  }
+  brain-scoring = module "brain-scoring" {
+    metadata {
+      package "@proteus-int/brain-scoring"
+      path "packages/brain-scoring"
+    }
+  }
+  contracts = module "contracts" {
+    metadata {
+      package "@proteus-int/contracts"
+      path "packages/contracts"
+    }
+  }
+  intelligence = module "intelligence" {
+    metadata {
+      package "@proteus-int/intelligence"
+      path "packages/intelligence"
+    }
+  }
+  person = module "person" {
+    metadata {
+      package "@proteus-int/person"
+      path "packages/person"
+    }
+  }
+  person-fabric = module "person-fabric" {
+    metadata {
+      package "@proteus-int/person-fabric"
+      path "packages/person-fabric"
+    }
+  }
+  stalker = module "stalker" {
+    metadata {
+      package "@proteus-int/stalker"
+      path "packages/stalker"
+    }
+  }
+  desktop -> contracts "imports"
+  desktop -> intelligence "imports"
+  brain-analyzator -> contracts "imports"
+  brain-analyzator -> intelligence "imports"
+  brain-analyzator -> brain-scoring "imports"
+  brain-scoring -> contracts "imports"
+  intelligence -> contracts "imports"
+  person -> contracts "imports"
+  person -> intelligence "imports"
+  person-fabric -> contracts "imports"
+  person-fabric -> intelligence "imports"
+  person-fabric -> stalker "imports"
+  person-fabric -> person "imports"
+  stalker -> contracts "imports"
+  stalker -> intelligence "imports"
+}
+
+views {
+  view modules {
+    include *
+    autoLayout LeftRight
+  }
+}

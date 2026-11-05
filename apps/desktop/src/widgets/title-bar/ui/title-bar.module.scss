@@ -1,0 +1,36 @@
+.title-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 48px;
+  padding: 0 20px;
+  border-bottom: 2px solid var(--line);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+
+  &__drag {
+    display: flex;
+    flex: 1;
+    gap: 24px;
+    padding: 16px 0;
+    user-select: none;
+  }
+
+  &__label {
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  &__controls {
+    display: flex;
+    gap: 6px;
+  }
+
+  &__controls button {
+    width: 30px;
+    height: 28px;
+    color: var(--text);
+    background: var(--panel);
+    border: 2px solid var(--line);
+  }
+}

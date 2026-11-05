@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+strictPeerDependencies: true
+saveExact: true
+allowBuilds:
+  esbuild: true
+  '@parcel/watcher': true
+verifyDepsBeforeRun: false

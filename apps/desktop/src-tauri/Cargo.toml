@@ -1,0 +1,20 @@
+[package]
+name = "proteus"
+version = "0.1.0"
+description = "PROTEUS persona laboratory"
+edition = "2021"
+rust-version = "1.99"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+panic = "abort"

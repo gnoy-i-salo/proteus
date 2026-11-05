@@ -1,0 +1,22 @@
+{
+  "name": "@proteus-int/pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@proteus-int/contracts": "workspace:*",
+    "@proteus-int/intelligence": "workspace:*",
+    "@proteus-int/stalker": "workspace:*",
+    "@proteus-int/person-fabric": "workspace:*",
+    "@proteus-int/person": "workspace:*",
+    "@proteus-int/brain-scoring": "workspace:*",
+    "@proteus-int/brain-analyzator": "workspace:*"
+  }
+}

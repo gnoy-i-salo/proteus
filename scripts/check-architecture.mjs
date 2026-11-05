@@ -3,12 +3,12 @@ import { workspaces, walk, readJson } from './workspace.mjs';
 import { checkImport, hasCycle, importsOf } from './architecture-rules.mjs';
 const packages = workspaces();
 const model = readJson('.cache/architecture.json');
-const elements = Object.values(model.elements);
+const elements = Object.values(model.elements).filter((element) => element.kind === 'module');
 const names = new Map(elements.map((element) => [element.id, element.metadata?.package]));
 const edges = new Set(
-  Object.values(model.relations).map(
-    (relation) => `${names.get(relation.source.model)}->${names.get(relation.target.model)}`,
-  ),
+  Object.values(model.relations)
+    .filter((relation) => relation.title === 'imports')
+    .map((relation) => `${names.get(relation.source.model)}->${names.get(relation.target.model)}`),
 );
 const errors = [];
 for (const element of elements) {

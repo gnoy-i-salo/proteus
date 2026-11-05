@@ -68,12 +68,18 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@fontsource/press-start-2p':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@proteus-int/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@proteus-int/intelligence':
         specifier: workspace:*
         version: link:../../packages/intelligence
+      '@proteus-int/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
       '@tauri-apps/api':
         specifier: ^2.10.1
         version: 2.12.4
@@ -131,6 +137,30 @@ importers:
       '@proteus-int/person':
         specifier: workspace:*
         version: link:../person
+      '@proteus-int/stalker':
+        specifier: workspace:*
+        version: link:../stalker
+
+  packages/pipeline:
+    dependencies:
+      '@proteus-int/brain-analyzator':
+        specifier: workspace:*
+        version: link:../brain-analyzator
+      '@proteus-int/brain-scoring':
+        specifier: workspace:*
+        version: link:../brain-scoring
+      '@proteus-int/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@proteus-int/intelligence':
+        specifier: workspace:*
+        version: link:../intelligence
+      '@proteus-int/person':
+        specifier: workspace:*
+        version: link:../person
+      '@proteus-int/person-fabric':
+        specifier: workspace:*
+        version: link:../person-fabric
       '@proteus-int/stalker':
         specifier: workspace:*
         version: link:../stalker
@@ -542,6 +572,9 @@ packages:
   '@eslint/plugin-kit@0.7.3':
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@fontsource/press-start-2p@5.3.0':
+    resolution: {integrity: sha512-gxWFxdeDglPhEYSwEeooomcaFK8kSQYLQwVxfnOJeYRj2sPEHXjpVtFgEaYfqzOjuAJGrIcJOipu2KY5YkbyuQ==}
 
   '@hpcc-js/wasm-graphviz@1.29.2':
     resolution: {integrity: sha512-AkArBAZERT5OxH52/+kvCHB07cZ6ZNd9GnOvjw+S880bR88D6i27XfK6xj4dBhUDxNA2QPPMdgEcky3x4TJ3KA==}
@@ -2838,6 +2871,8 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@fontsource/press-start-2p@5.3.0': {}
 
   '@hpcc-js/wasm-graphviz@1.29.2': {}
 

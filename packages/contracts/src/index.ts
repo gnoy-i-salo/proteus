@@ -18,6 +18,7 @@ export interface IntelligenceRequest {
   readonly task: string;
   readonly 'system-prompt': string;
   readonly effort: IntelligenceEffort;
+  readonly model?: string;
 }
 // Observable timing/output summaries only; never private model chain-of-thought.
 export interface IntelligenceTrace {
@@ -34,4 +35,19 @@ export interface PersonScore {
   readonly 'person-id': string;
   readonly 'reasoning-minutes': number;
   readonly bsc: number;
+}
+
+export interface PersonInput {
+  readonly label: string;
+  readonly context: string;
+  readonly 'public-urls': readonly string[];
+}
+export interface ExperimentInput {
+  readonly task: string;
+  readonly people: readonly [PersonInput, PersonInput];
+}
+export interface PersonaObservation {
+  readonly strengths: readonly string[];
+  readonly weaknesses: readonly string[];
+  readonly observations: readonly string[];
 }

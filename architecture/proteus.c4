@@ -1,8 +1,22 @@
 specification {
   element module
+  element runtime
+  element external
 }
 
 model {
+  pipeline = module "pipeline" {
+    description "Two public profiles → evidence → archetypes and skills → task attempts → BSC → comparison. Cancellation and failures preserve completed stages."
+    metadata {
+      package "@proteus-int/pipeline"
+      path "packages/pipeline"
+    }
+  }
+  native-host = runtime "Native CLI broker" {
+    description "Tauri IPC: bounded CLI execution, cancellation, observable events and local artifacts. Credentials remain with installed CLIs."
+  }
+  codex-cli = external "Installed Codex CLI"
+  kimi-cli = external "Installed Kimi CLI"
   desktop = module "desktop" {
     metadata {
       package "@proteus-int/desktop"
@@ -53,6 +67,17 @@ model {
   }
   desktop -> contracts "imports"
   desktop -> intelligence "imports"
+  desktop -> pipeline "imports"
+  pipeline -> contracts "imports"
+  pipeline -> intelligence "imports"
+  pipeline -> stalker "imports"
+  pipeline -> person-fabric "imports"
+  pipeline -> person "imports"
+  pipeline -> brain-scoring "imports"
+  pipeline -> brain-analyzator "imports"
+  desktop -> native-host "invoke / events / cancel"
+  native-host -> codex-cli "exec --json; read-only"
+  native-host -> kimi-cli "print stream-json; explicit tool allowlist"
   brain-analyzator -> contracts "imports"
   brain-analyzator -> intelligence "imports"
   brain-analyzator -> brain-scoring "imports"

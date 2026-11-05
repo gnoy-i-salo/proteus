@@ -11,10 +11,12 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
     "@proteus-int/contracts": "workspace:*",
     "@proteus-int/intelligence": "workspace:*",
+    "@tauri-apps/api": "^2.10.1",
     "solid-js": "^1.9.18",
-    "@tauri-apps/api": "^2.10.1"
+    "@proteus-int/pipeline": "workspace:*"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.4"

@@ -4,6 +4,7 @@ export type ComponentId = (typeof componentIds)[number];
 export interface ModelSettings {
   readonly 'global-model': ProviderId;
   readonly components: Readonly<Record<ComponentId, ProviderId>>;
+  readonly aliases: Readonly<Record<ComponentId, string>>;
 }
 export function isProviderId(value: unknown): value is ProviderId {
   return value === 'codex' || value === 'kimi';
@@ -11,6 +12,7 @@ export function isProviderId(value: unknown): value is ProviderId {
 export function createModelSettings(model: ProviderId = 'codex'): ModelSettings {
   return {
     'global-model': model,
+    aliases: { stalker: '', 'person-fabric': '', person: '', 'brain-analyzator': '' },
     components: {
       stalker: model,
       'person-fabric': model,
@@ -48,8 +50,23 @@ export function parseModelSettings(raw: string | null): ModelSettings {
       if (!isProviderId(model)) return createModelSettings();
       result = setComponentModel(result, component, model);
     }
+    if ('aliases' in value && value.aliases && typeof value.aliases === 'object') {
+      for (const component of componentIds) {
+        const alias: unknown = Reflect.get(value.aliases, component);
+        if (typeof alias === 'string' && alias.length <= 120)
+          result = setModelAlias(result, component, alias);
+      }
+    }
     return result;
   } catch {
     return createModelSettings();
   }
+}
+
+export function setModelAlias(
+  settings: ModelSettings,
+  component: ComponentId,
+  alias: string,
+): ModelSettings {
+  return { ...settings, aliases: { ...settings.aliases, [component]: alias.trim() } };
 }

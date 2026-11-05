@@ -1,13 +1,8 @@
 .app {
-  --accent: #65e3d2;
-  --accent-dim: #1d3f40;
-
-  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 38px minmax(0, 1fr);
+  height: 100dvh;
+  min-width: 640px;
   color: var(--text);
   background: var(--surface);
-
-  &[data-palette='violet'] {
-    --accent: #bd9cff;
-    --accent-dim: #322846;
-  }
 }

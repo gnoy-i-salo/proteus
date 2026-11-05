@@ -1,15 +1,12 @@
-import { createSignal } from 'solid-js';
-import type { PaletteId } from '@proteus-int/contracts';
-import { LaboratoryPage } from '../pages/laboratory';
+import { ExperimentPage } from '../pages/experiment';
 import { TitleBar } from '../widgets/title-bar';
 import '../shared/styles/global.scss';
 import styles from './app.module.scss';
 export function App() {
-  const [palette, setPalette] = createSignal<PaletteId>('turquoise');
   return (
-    <div class={styles['app']} data-palette={palette()}>
+    <div class={styles['app']}>
       <TitleBar />
-      <LaboratoryPage palette={palette()} onPaletteChange={setPalette} />
+      <ExperimentPage />
     </div>
   );
 }

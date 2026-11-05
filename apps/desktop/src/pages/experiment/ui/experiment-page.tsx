@@ -1,0 +1,561 @@
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  on,
+  onCleanup,
+  onMount,
+  Show,
+} from 'solid-js';
+import type { ExperimentInput, PersonInput } from '@proteus-int/contracts';
+import { createModelSettings, parseModelSettings } from '@proteus-int/intelligence';
+import type { ModelSettings } from '@proteus-int/intelligence';
+import { runExperiment, validateExperiment } from '@proteus-int/pipeline';
+import type { ExperimentResult, ProgressEvent } from '@proteus-int/pipeline';
+import { ModelSettingsPanel } from '../../../features/model-settings';
+import { cliProviders, cliStatus, saveExperiment } from '../../../shared/lib/cli';
+import type { CliStatus } from '../../../shared/lib/cli';
+import { paginateText } from '../../../shared/lib/pagination';
+import styles from './experiment-page.module.scss';
+const storageKey = 'proteus-model-settings';
+function readSettings() {
+  try {
+    return parseModelSettings(localStorage.getItem(storageKey));
+  } catch {
+    return createModelSettings();
+  }
+}
+function PagedField(props: {
+  label: string;
+  pages: string[];
+  onChange: (pages: string[]) => void;
+  compact?: boolean;
+}) {
+  const [page, setPage] = createSignal(0);
+  let editor: HTMLTextAreaElement | undefined;
+  const reflow = (value: string, replaceAll = false) => {
+    if (!editor) return;
+    const chunks = paginateText(
+      value,
+      Math.max(10, Math.floor((editor.clientWidth - 20) / 8)),
+      Math.max(1, Math.floor((editor.clientHeight - 18) / 18)),
+    );
+    const index = replaceAll ? 0 : page();
+    props.onChange(
+      replaceAll
+        ? chunks
+        : [...props.pages.slice(0, index), ...chunks, ...props.pages.slice(index + 1)],
+    );
+    setPage(replaceAll ? 0 : index + chunks.length - 1);
+  };
+  onMount(() => {
+    const observer = new ResizeObserver(() => reflow(props.pages.join('\n'), true));
+    if (editor) observer.observe(editor);
+    onCleanup(() => observer.disconnect());
+  });
+  return (
+    <label class={styles['experiment__field']} data-compact={props.compact ? 'true' : 'false'}>
+      <span>{props.label}</span>
+      <textarea
+        aria-label={props.label}
+        ref={(element) => {
+          editor = element;
+        }}
+        maxLength={4000}
+        value={props.pages[page()] ?? ''}
+        placeholder="Опишите своими словами…"
+        onInput={(event) => reflow(event.currentTarget.value)}
+      />
+      <span class={styles['experiment__pager']}>
+        <button
+          type="button"
+          aria-label={`Назад: ${props.label}`}
+          disabled={page() === 0}
+          onClick={() => setPage(page() - 1)}
+        >
+          ←
+        </button>
+        <small>
+          {page() + 1}/{props.pages.length}
+        </small>
+        <button
+          type="button"
+          aria-label={`Далее: ${props.label}`}
+          disabled={page() === props.pages.length - 1 && props.pages.length >= 35}
+          onClick={() => {
+            if (page() === props.pages.length - 1) props.onChange([...props.pages, '']);
+            setPage(page() + 1);
+          }}
+        >
+          →
+        </button>
+      </span>
+    </label>
+  );
+}
+function PagedText(props: { text: string }) {
+  const [page, setPage] = createSignal(0);
+  const [size, setSize] = createSignal({ columns: 38, rows: 7 });
+  let reading!: HTMLDivElement;
+  onMount(() => {
+    const observer = new ResizeObserver(() => {
+      const paragraph = reading.querySelector('p');
+      if (!paragraph) return;
+      const css = getComputedStyle(paragraph);
+      const frame = getComputedStyle(reading);
+      const width =
+        reading.clientWidth - parseFloat(frame.paddingLeft) - parseFloat(frame.paddingRight);
+      const height =
+        reading.clientHeight - parseFloat(frame.paddingTop) - parseFloat(frame.paddingBottom) - 48;
+      setSize({
+        columns: Math.max(15, Math.floor(width / (parseFloat(css.fontSize) * 0.61))),
+        rows: Math.max(2, Math.floor(height / parseFloat(css.lineHeight))),
+      });
+    });
+    observer.observe(reading);
+    onCleanup(() => observer.disconnect());
+  });
+  const chunks = createMemo(() =>
+    paginateText(props.text || 'Пока нет данных.', size().columns, size().rows),
+  );
+  createEffect(
+    on(
+      () => [props.text, size()],
+      () => setPage(0),
+    ),
+  );
+  return (
+    <div
+      ref={(element) => {
+        reading = element;
+      }}
+      class={styles['experiment__reading']}
+    >
+      <p>{chunks()[page()]}</p>
+      <nav aria-label="Страницы текста">
+        <button disabled={page() === 0} onClick={() => setPage(page() - 1)}>
+          ←
+        </button>
+        <span>
+          {page() + 1} / {chunks().length}
+        </span>
+        <button disabled={page() >= chunks().length - 1} onClick={() => setPage(page() + 1)}>
+          →
+        </button>
+      </nav>
+    </div>
+  );
+}
+export function ExperimentPage() {
+  const [screen, setScreen] = createSignal<'start' | 'progress' | 'result'>('start');
+  const [selected, setSelected] = createSignal(0);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [settings, setSettings] = createSignal(readSettings());
+  const [available, setAvailable] = createSignal<CliStatus[]>([]);
+  const [names, setNames] = createSignal(['Person A', 'Person B']);
+  const [urls, setUrls] = createSignal(['', '']);
+  const [contexts, setContexts] = createSignal<string[][]>([[''], ['']]);
+  const [task, setTask] = createSignal(['']);
+  const [events, setEvents] = createSignal<ProgressEvent[]>([]);
+  const [eventPage, setEventPage] = createSignal(0);
+  const [result, setResult] = createSignal<ExperimentResult>();
+  const [running, setRunning] = createSignal(false);
+  const [error, setError] = createSignal('');
+  const [savedPath, setSavedPath] = createSignal('');
+  const [activity, setActivity] = createSignal('Ожидаем запуск');
+  const [detail, setDetail] = createSignal('analysis');
+  let controller: AbortController | undefined;
+  onMount(() => {
+    void cliStatus()
+      .then(setAvailable)
+      .catch(() => setError('Не удалось проверить установленные CLI.'));
+  });
+  onCleanup(() => controller?.abort());
+  const persist = (value: ModelSettings) => {
+    setSettings(value);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(value));
+    } catch {
+      setError('Настройки применены, но не сохранены.');
+    }
+  };
+  const start = async () => {
+    setError('');
+    setSavedPath('');
+    const person = (index: number): PersonInput => ({
+      label: names()[index] ?? '',
+      context: contexts()[index]?.join('\n') ?? '',
+      'public-urls': (urls()[index] ?? '').split(/[\s,]+/u).filter(Boolean),
+    });
+    const input: ExperimentInput = { task: task().join('\n'), people: [person(0), person(1)] };
+    try {
+      validateExperiment(input);
+    } catch (failure) {
+      setError(String(failure));
+      return;
+    }
+    controller = new AbortController();
+    setRunning(true);
+    setEvents([]);
+    setEventPage(0);
+    setResult(undefined);
+    setScreen('progress');
+    try {
+      const output = await runExperiment(
+        input,
+        settings(),
+        cliProviders((event) =>
+          setActivity(
+            `${event.kind === 'search' ? 'Поиск источников' : event.kind === 'answer' ? 'Ответ получен' : 'CLI работает'} · ${(event['elapsed-ms'] / 1000).toFixed(1)} с`,
+          ),
+        ),
+        {
+          signal: controller.signal,
+          onProgress: (event) => {
+            setEvents((items) => [...items, event]);
+            setEventPage(Math.floor((events().length - 1) / 4));
+            if (event.person !== null) setSelected(event.person);
+          },
+        },
+      );
+      setResult(output);
+      setScreen('result');
+      setDetail('analysis');
+      try {
+        setSavedPath(await saveExperiment(output));
+      } catch {
+        setError('Результат готов, но не удалось сохранить его на диск. Скачайте JSON.');
+      }
+    } catch (failure) {
+      setError(
+        controller.signal.aborted
+          ? 'Эксперимент остановлен. Можно вернуться к вводу и запустить заново.'
+          : String(failure),
+      );
+    } finally {
+      setRunning(false);
+    }
+  };
+  const progress = () => events().at(-1)?.completed ?? 0;
+  const persona = () => result()?.people[selected()];
+  const text = () => {
+    const current = persona();
+    const output = result();
+    if (!current || !output) return '';
+    if (detail() === 'answer') return current.attempt.answer;
+    if (detail() === 'archetype')
+      return `${current.profile.archetype}\n\n${current.profile.skills.map((skill, index) => `${index + 1}. ${skill}`).join('\n\n')}`;
+    if (detail() === 'sources')
+      return current.report.evidence
+        .map(
+          (item) =>
+            `${item.kind === 'fact' ? 'ФАКТ' : 'ГИПОТЕЗА'} · ${item.summary}\n${item['source-url'] || 'Контекст пользователя'}`,
+        )
+        .join('\n\n');
+    const analysis = output.comparison.people[selected()];
+    return `${output.comparison.summary}\n\nСИЛЬНЫЕ СТОРОНЫ\n${analysis?.strengths.join('\n')}\n\nОГРАНИЧЕНИЯ\n${analysis?.weaknesses.join('\n')}\n\nНАБЛЮДЕНИЯ\n${analysis?.observations.join('\n')}\n\nРАЗЛИЧИЯ\n${output.comparison['key-differences'].join('\n')}`;
+  };
+  const download = () => {
+    const blob = new Blob([JSON.stringify(result(), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'proteus-experiment.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <main class={styles['experiment']} data-palette={selected() === 0 ? 'turquoise' : 'violet'}>
+      <Show
+        when={screen() === 'start'}
+        fallback={
+          <div class={styles['experiment__workspace']}>
+            <aside class={styles['experiment__sidebar']}>
+              <div class={styles['experiment__brand']}>
+                <img src="/proteus-logo.svg" alt="" />
+                <strong>PROTEUS</strong>
+              </div>
+              <span class={styles['experiment__eyebrow']}>SELECT PERSON</span>
+              <For each={names()}>
+                {(name, index) => (
+                  <button
+                    class={styles['experiment__person']}
+                    data-active={selected() === index()}
+                    data-tone={index() === 0 ? 'a' : 'b'}
+                    onClick={() => setSelected(index())}
+                  >
+                    <span class={styles['experiment__avatar']} aria-hidden="true">
+                      <img src={index() === 0 ? '/person-a.svg' : '/person-b.svg'} alt="" />
+                    </span>
+                    <span>
+                      {name}
+                      <small>PERSON {index() === 0 ? 'A' : 'B'}</small>
+                    </span>
+                  </button>
+                )}
+              </For>
+              <div class={styles['experiment__sidebar-bottom']}>
+                <small>
+                  ONE TASK.
+                  <br />
+                  MANY MINDS.
+                </small>
+                <button
+                  disabled={running()}
+                  onClick={() => {
+                    setScreen('start');
+                    setError('');
+                  }}
+                >
+                  ← Новый запуск
+                </button>
+                <button
+                  aria-label="Настройки PROTEUS"
+                  disabled={running()}
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  ⚙ Настройки
+                </button>
+              </div>
+            </aside>
+            <section class={styles['experiment__main']}>
+              <Show
+                when={screen() === 'progress'}
+                fallback={
+                  <>
+                    <header class={styles['experiment__result-banner']}>
+                      <span>EXPERIMENT COMPLETE</span>
+                      <h2>BSC × {result()?.comparison.ratio?.toFixed(2) ?? '—'}</h2>
+                      <p>Разница метрик двух подходов · не оценка интеллекта человека</p>
+                    </header>
+                    <div class={styles['experiment__result-body']}>
+                      <div class={styles['experiment__result-heading']}>
+                        <h3>{persona()?.profile.label}</h3>
+                        <span>
+                          {persona()?.score['reasoning-minutes'].toFixed(2)} мин. / BSC{' '}
+                          {persona()?.score.bsc.toFixed(3)}
+                        </span>
+                      </div>
+                      <nav class={styles['experiment__tabs']} aria-label="Разделы анализа">
+                        <For
+                          each={[
+                            ['analysis', 'Анализ'],
+                            ['answer', 'Ответ'],
+                            ['archetype', 'Архетип'],
+                            ['sources', 'Источники'],
+                          ]}
+                        >
+                          {(item) => (
+                            <button
+                              aria-pressed={detail() === item[0]}
+                              onClick={() => setDetail(item[0] ?? 'analysis')}
+                            >
+                              {item[1]}
+                            </button>
+                          )}
+                        </For>
+                      </nav>
+                      <PagedText text={text()} />
+                    </div>
+                    <footer class={styles['experiment__footer']}>
+                      <span title={savedPath()}>
+                        {savedPath() ? '✓ Сохранено локально' : 'Результат готов'}
+                      </span>
+                      <button onClick={download}>↓ JSON</button>
+                    </footer>
+                  </>
+                }
+              >
+                <header class={styles['experiment__progress-heading']}>
+                  <span>LIVE EXPERIMENT / {progress()} OF 7</span>
+                  <h2>
+                    Intelligence traces<span class={styles['experiment__blink']}>_</span>
+                  </h2>
+                  <p>{activity()}</p>
+                </header>
+                <div class={styles['experiment__traces']}>
+                  <For each={events().slice(eventPage() * 4, eventPage() * 4 + 4)}>
+                    {(event) => (
+                      <article class={styles['experiment__trace']}>
+                        <span>
+                          {event.person === null ? 'SYS' : event.person === 0 ? 'A' : 'B'}
+                        </span>
+                        <div>
+                          <strong>{event.stage.toUpperCase()}</strong>
+                          <p>{event.trace ? 'Этап завершён. Ответ получен.' : event.message}</p>
+                          <small>
+                            {event.trace
+                              ? `${event.trace.provider} · ${(event.trace['reasoning-ms'] / 1000).toFixed(1)} с`
+                              : 'Выполняется…'}
+                          </small>
+                        </div>
+                        <b>{event.trace ? '✓' : '◇'}</b>
+                      </article>
+                    )}
+                  </For>
+                </div>
+                <nav class={styles['experiment__trace-pages']}>
+                  <button
+                    disabled={eventPage() === 0}
+                    onClick={() => setEventPage(eventPage() - 1)}
+                  >
+                    ←
+                  </button>
+                  <span>
+                    {eventPage() + 1} / {Math.max(1, Math.ceil(events().length / 4))}
+                  </span>
+                  <button
+                    disabled={(eventPage() + 1) * 4 >= events().length}
+                    onClick={() => setEventPage(eventPage() + 1)}
+                  >
+                    →
+                  </button>
+                  <button
+                    disabled={!running()}
+                    onClick={() => {
+                      controller?.abort();
+                      setActivity('Останавливаем CLI…');
+                    }}
+                  >
+                    Остановить
+                  </button>
+                </nav>
+                <footer class={styles['experiment__progress']}>
+                  <span>PROGRESS {Math.round((progress() / 7) * 100)}%</span>
+                  <progress max={7} value={progress()} />
+                </footer>
+              </Show>
+            </section>
+          </div>
+        }
+      >
+        <form
+          class={styles['experiment__start']}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void start();
+          }}
+        >
+          <header class={styles['experiment__hero']}>
+            <div class={styles['experiment__topline']}>
+              <span>PERSONA LAB / 001</span>
+              <button
+                type="button"
+                aria-label="Настройки PROTEUS"
+                onClick={() => setSettingsOpen(true)}
+              >
+                ⚙ CONFIG
+              </button>
+            </div>
+            <img src="/proteus-logo.svg" alt="Трёхглавый символ PROTEUS" />
+            <div>
+              <h1>PROTEUS</h1>
+              <p>ONE TASK. MANY MINDS.</p>
+            </div>
+          </header>
+          <div class={styles['experiment__duel']}>
+            <For each={['A', 'B']}>
+              {(letter, index) => (
+                <section class={styles['experiment__input-card']} data-tone={letter.toLowerCase()}>
+                  <header>
+                    <span>
+                      PLAYER {index() + 1 < 10 ? '0' : ''}
+                      {index() + 1}
+                    </span>
+                    <strong>PERSON {letter}</strong>
+                    <span>◆</span>
+                  </header>
+                  <div class={styles['experiment__identity']}>
+                    <label>
+                      Имя
+                      <input
+                        aria-label={`Имя персоны ${letter}`}
+                        maxLength={40}
+                        value={names()[index()]}
+                        onInput={(event) =>
+                          setNames(
+                            names().map((name, i) =>
+                              i === index() ? event.currentTarget.value : name,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                    <label>
+                      Публичные ссылки
+                      <input
+                        aria-label={`Публичные ссылки ${letter}`}
+                        type="text"
+                        placeholder="https://…"
+                        value={urls()[index()]}
+                        onInput={(event) =>
+                          setUrls(
+                            urls().map((url, i) =>
+                              i === index() ? event.currentTarget.value : url,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+                  <PagedField
+                    label={`Контекст ${letter}`}
+                    pages={contexts()[index()] ?? ['']}
+                    onChange={(pages) =>
+                      setContexts(contexts().map((value, i) => (i === index() ? pages : value)))
+                    }
+                  />
+                </section>
+              )}
+            </For>
+            <span class={styles['experiment__versus']}>VS</span>
+          </div>
+          <div class={styles['experiment__task']}>
+            <span>
+              MISSION
+              <br />
+              <small>Одна задача для обоих</small>
+            </span>
+            <PagedField compact label="Общая задача" pages={task()} onChange={setTask} />
+          </div>
+          <footer class={styles['experiment__launch']}>
+            <span>
+              {available().length
+                ? available()
+                    .map((cli) => `${cli.provider.toUpperCase()} ${cli.available ? '●' : '○'}`)
+                    .join(' / ')
+                : 'DESKTOP CLI CONNECTION'}
+            </span>
+            <button type="submit" aria-label="Начать эксперимент">
+              START ▶
+            </button>
+            <small>PUBLIC DATA ONLY</small>
+          </footer>
+        </form>
+      </Show>
+      <Show when={error()}>
+        <div class={styles['experiment__error']} role="alert">
+          <p>{error()}</p>
+          <button aria-label="Закрыть сообщение" onClick={() => setError('')}>
+            ×
+          </button>
+        </div>
+      </Show>
+      <Show when={settingsOpen()}>
+        <div
+          class={styles['experiment__modal']}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setSettingsOpen(false);
+          }}
+        >
+          <ModelSettingsPanel
+            settings={settings()}
+            onChange={persist}
+            onClose={() => setSettingsOpen(false)}
+          />
+        </div>
+      </Show>
+    </main>
+  );
+}

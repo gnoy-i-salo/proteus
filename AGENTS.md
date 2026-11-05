@@ -36,14 +36,14 @@
 
 ## Product boundaries
 
-- Read `docs/requirements.md` for the original board and scope of this starter.
+- Read `docs/requirements.md` for the original board and full application scope.
 - Model selectors belong in PROTEUS settings, per component plus a global apply-all control. Brain Scoring is deterministic and has no model selector.
 - Preserve turquoise/violet persona palettes, the gray central logo head and pixel-style native window controls.
 - Provider integrations stay behind ports. Unconfigured adapters must fail explicitly; no fabricated model output or network activity from demo settings.
-- Native executable embeds the frontend; no Node server or CLI sidecar at runtime. Future adapters must preserve this boundary.
+- Native executable embeds the frontend and invokes the user's installed Codex/Kimi CLIs through Rust IPC. No separate application Node server; authentication stays with each CLI.
 - Use only permitted public source material; separate facts from hypotheses and remove direct identifiers before Person Fabric.
 - Traces mean observable timing and answer summaries, not private model reasoning. BSC is the board's experimental metric, not a validated human intelligence measure.
-- Keep provider credentials out of frontend code, storage and Git; future credentials belong in the native secure-storage layer.
+- Keep provider credentials out of frontend code, storage and Git. Installed CLIs own their authentication; do not read or copy their token files.
 
 ## Finish
 

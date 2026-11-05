@@ -8,11 +8,9 @@
 
 ---
 
-PROTEUS исследует, как разные персоны подходят к одной задаче. Этот репозиторий — стартовая основа по [архитектуре и пожеланиям из FigJam](https://www.figma.com/board/3hiDci4IiVhc7rSTiErcol/PROTEUS?node-id=2-2572): рабочая оболочка приложения, контракты модулей и проверяемые границы между ними.
+PROTEUS — настольная лаборатория, где две симулированные персоны решают одну задачу. Публичные источники и контекст превращаются в архетипы и навыки, затем приложение сравнивает реальные ответы моделей и экспериментальную метрику BSC.
 
-**Уже работает:** настройки моделей по компонентам и общий переключатель, сохранение настроек, смена палитры по персоне, безрамочное окно с собственными controls, расчёт BSC и автоматические проверки. **Следующий этап:** реальные подключения Kimi/Codex, поиск и построение персон, выполнение задач и аналитика. Стартовый экран не отправляет запросы моделям.
-
-![Стартовый экран PROTEUS](docs/assets/proteus-preview.png)
+**Работает полный сценарий:** STALKER → Person Fabric → Person → Brain Scoring → Brain Analyzator. Модели вызываются через установленные **Codex / Kimi CLI**. Три экрана по FigJam, настройки на компонент, отмена, локальные артефакты и пагинация без прокрутки. В браузере доступен интерфейс; вызов CLI работает в нативном приложении.
 
 ## Быстрый старт
 
@@ -32,9 +30,16 @@ pnpm dev
 ```sh
 pnpm desktop          # разработка в нативном окне
 pnpm build:desktop    # один release-бинарник для текущей ОС
+pnpm bundle:macos     # PROTEUS.app для macOS
 ```
 
 Результат: `apps/desktop/src-tauri/target/release/proteus` (`proteus.exe` на Windows). Frontend встроен, отдельный Node-процесс не нужен. Системный WebView и библиотеки ОС остаются необходимыми; это не универсальный бинарник для всех платформ.
+
+Для работы нужны установленные и авторизованные CLI: `codex login`, `kimi login`. Используется Kimi Code 2.x (проверено с 2.3.2). В настройках выберите провайдера и при необходимости имя модели/alias; пустое поле оставляет модель CLI по умолчанию. Ключи в PROTEUS вводить не нужно.
+
+На macOS сборка приложения: `apps/desktop/src-tauri/target/release/bundle/macos/PROTEUS.app`. Перенесите её в «Программы». Эксперименты сохраняются в `~/Library/Application Support/dev.proteus-int.desktop/experiments/`: JSON результата, AGENTS.md и SKILL.md каждой персоны. На других ОС используется системный каталог данных приложения.
+
+BSC = длительность модельного запроса в минутах / предполагаемый BSC. Длительность включает ожидание провайдера; это экспериментальное сравнение подходов, **не оценка интеллекта реальных людей**.
 
 ## Карта проекта
 
@@ -42,6 +47,7 @@ pnpm build:desktop    # один release-бинарник для текущей 
 apps/desktop/          SolidJS + FSD + SCSS Modules
   src-tauri/           Rust shell, capabilities, embedded frontend
 packages/
+  pipeline/            полный сценарий, прогресс, отмена
   contracts/           общие типы и наблюдаемые traces
   intelligence/        порты провайдеров и настройки моделей
   stalker/             публичные данные → обезличенный контекст
@@ -64,7 +70,7 @@ pnpm check:package intelligence   # пакет + его зависимые па�
 pnpm check:changed                # изменения относительно origin/trunk
 pnpm test:watch                   # TDD
 pnpm exec playwright install chromium
-pnpm test:e2e                    # настройки и палитра в браузере
+pnpm test:e2e                    # все экраны, настройки, отмена и отсутствие overflow
 pnpm check:rust                   # rustfmt + clippy + cargo test
 pnpm architecture                # интерактивная карта LikeC4
 ```
@@ -77,6 +83,6 @@ Husky запускает селективные проверки перед comm
 
 - [Архитектура и границы модулей](docs/architecture.md)
 - [Harness, селективные проверки и Beads](docs/harness.md)
-- [Соответствие пожеланиям и следующие этапы](docs/requirements.md)
+- [Соответствие пожеланиям](docs/requirements.md)
 
 <div align="center"><sub>PROTEUS · разные характеры, общая основа</sub></div>

@@ -1,0 +1,2 @@
+{"id":"int-65dbaba1f8a9d44c860f7f5d2307aebf","kind":"field_change","created_at":"2026-11-05T22:37:19.499136Z","actor":"dasha","issue_id":"proteus-v2v","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-b940e00cb8ddf6a1c3c28754467d8e83","kind":"field_change","created_at":"2026-11-05T22:50:39.222353Z","actor":"dasha","issue_id":"proteus-v2v","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Workspace, native shell, settings, architecture gates and CI implemented; local JS, browser and native checks passed"}}

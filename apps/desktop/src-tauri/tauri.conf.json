@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "PROTEUS",
-        "width": 1200,
-        "height": 900,
+        "width": 1376,
+        "height": 800,
         "minWidth": 640,
         "minHeight": 600,
         "decorations": false
@@ -25,5 +25,8 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost; connect-src ipc: http://ipc.localhost; font-src 'self'"
     }
   },
-  "bundle": { "active": false, "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"] }
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"]
+  }
 }

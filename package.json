@@ -34,7 +34,8 @@
     "check:rust": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check && cargo clippy --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "commitlint": "commitlint",
     "beads:init": "bd init --prefix proteus --skip-hooks --skip-agents --non-interactive --init-if-missing",
-    "beads:ready": "bd ready --json"
+    "beads:ready": "bd ready --json",
+    "bundle:macos": "pnpm --filter @proteus-int/desktop tauri build --bundles app -- --locked"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.3.1",

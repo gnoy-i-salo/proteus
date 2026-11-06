@@ -41,18 +41,24 @@ fn build_tdlib() {
         .define("OPENSSL_SSL_LIBRARY", library("ssl"))
         .define("OPENSSL_USE_STATIC_LIBS", "TRUE")
         .define("TD_ENABLE_JNI", "OFF")
+        .define("TD_ENABLE_LTO", "OFF")
         .build_target("tdjson_static");
-    if let Some(zlib) = env::var_os("PROTEUS_ZLIB_ROOT") {
+    let zlib_link_name = env::var_os("PROTEUS_ZLIB_ROOT").map(|zlib| {
         let zlib = PathBuf::from(zlib);
+        let name = ["zs", "zlib"]
+            .into_iter()
+            .find(|name| zlib.join(format!("lib/{name}.lib")).is_file())
+            .expect("PROTEUS_ZLIB_ROOT/lib must contain zs.lib or zlib.lib");
         config
             .define("ZLIB_ROOT", &zlib)
             .define("ZLIB_INCLUDE_DIR", zlib.join("include"))
-            .define("ZLIB_LIBRARY", zlib.join("lib/zlib.lib"));
+            .define("ZLIB_LIBRARY", zlib.join(format!("lib/{name}.lib")));
         println!(
             "cargo:rustc-link-search=native={}",
             zlib.join("lib").display()
         );
-    }
+        name
+    });
     // macOS Homebrew may contain Intel-only zlib on an ARM host. Use the SDK library.
     if apple {
         let output = std::process::Command::new("xcrun")
@@ -77,12 +83,7 @@ fn build_tdlib() {
             );
         }
     }
-    let mut libraries = vec!["tdjson_static", "tdjson_private", "tdclient"];
-    if windows {
-        libraries.extend(["tdcore_part1", "tdcore_part2"]);
-    } else {
-        libraries.push("tdcore");
-    }
+    let mut libraries = vec!["tdjson_static", "tdjson_private", "tdclient", "tdcore"];
     libraries.extend([
         "tdapi",
         "tdmtproto",
@@ -98,7 +99,8 @@ fn build_tdlib() {
     }
     openssl.print_cargo_metadata();
     if windows {
-        println!("cargo:rustc-link-lib=static=zlib");
+        let zlib = zlib_link_name.expect("Set PROTEUS_ZLIB_ROOT to the static zlib installation");
+        println!("cargo:rustc-link-lib=static={zlib}");
         for library in [
             "ws2_32", "mswsock", "crypt32", "normaliz", "psapi", "shell32",
         ] {

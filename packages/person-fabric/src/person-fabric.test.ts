@@ -44,6 +44,68 @@ function provider(output: unknown, calls: IntelligenceRequest[] = []): Intellige
   };
 }
 describe('frozen evidence-linked personas', () => {
+  it('keeps exact samples in a separate channel and links observed style to them', async () => {
+    const sample = {
+      id: 'sample-1',
+      'document-id': 'doc-1',
+      mode: 'dialogue' as const,
+      text: '  ну...\n\nда?! 🤷',
+      context: '',
+      redactions: [],
+      'export-allowed': false,
+    };
+    const styleRule = {
+      id: 'voice-1',
+      instruction: 'Use short replies',
+      'exemplar-ids': ['sample-1'],
+      status: 'observed',
+      limitations: ['Small sample'],
+    };
+    const calls: IntelligenceRequest[] = [];
+    const result = await fabricatePerson(
+      { ...report, 'style-exemplars': [sample] },
+      input,
+      'a',
+      'turquoise',
+      provider(
+        {
+          rules: [rule],
+          style: {
+            'reasoning-patterns': [],
+            'voice-rules': [styleRule],
+            'format-rules': [],
+            limitations: [],
+          },
+        },
+        calls,
+      ),
+    );
+    expect(JSON.parse(calls[0]!.task)['style-exemplars']).toEqual([sample]);
+    expect(result.profile['style-exemplars']).toEqual([sample]);
+    expect(result.profile['style-profile']?.['voice-rules']).toEqual([styleRule]);
+    expect(result.profile['style-profile']?.['context-modes']).toContainEqual({
+      mode: 'comment',
+      status: 'insufficient',
+      limitations: ['Нет собственных образцов для этого контекста.'],
+    });
+    await expect(
+      fabricatePerson(
+        { ...report, 'style-exemplars': [sample] },
+        input,
+        'a',
+        'turquoise',
+        provider({
+          rules: [],
+          style: {
+            'reasoning-patterns': [],
+            'voice-rules': [{ ...styleRule, 'exemplar-ids': ['foreign'] }],
+            'format-rules': [],
+            limitations: [],
+          },
+        }),
+      ),
+    ).rejects.toThrow(/exemplar/u);
+  });
   it('keeps the already sanitized shared task identical for the neutral adaptation', async () => {
     const calls: IntelligenceRequest[] = [];
     const task = 'Нейтральный контроль нужен для сравнения. Design a room.';

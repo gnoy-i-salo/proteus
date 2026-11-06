@@ -3,6 +3,8 @@ import type {
   EvidenceStatus,
   PersonInput,
   IntelligenceTrace,
+  StyleExemplar,
+  SourceCoverage,
 } from '@proteus-int/contracts';
 import { object, text, texts, structured } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
@@ -12,6 +14,13 @@ export interface StalkerReport {
   readonly 'thinking-style': string;
   readonly activity: string;
   readonly 'behavior-summary': string;
+  readonly 'style-exemplars'?: readonly StyleExemplar[];
+  readonly 'source-coverage'?: readonly {
+    readonly 'snapshot-id': string;
+    readonly coverage: SourceCoverage;
+    readonly 'analyzed-documents': number;
+    readonly limitations: readonly string[];
+  }[];
 }
 export function validatePublicUrl(raw: string): string {
   const url = new URL(raw);
@@ -89,6 +98,7 @@ export async function collectPerson(
     signal,
     'medium',
     parseReport,
+    'public-research',
   );
   return { report: data, trace };
 }
@@ -153,6 +163,7 @@ export function anonymizeReport(report: StalkerReport, input: PersonInput) {
     'thinking-style': redact(report['thinking-style']),
     activity: redact(report.activity),
     'behavior-summary': redact(report['behavior-summary']),
+    ...(report['style-exemplars'] ? { 'style-exemplars': report['style-exemplars'] } : {}),
     evidence: report.evidence.map((item) => ({
       id: item.id,
       kind: item.kind,
@@ -163,3 +174,7 @@ export function anonymizeReport(report: StalkerReport, input: PersonInput) {
     })),
   };
 }
+export { collectSource, parseCollectionAction, validateSourceGrant } from './source-controller';
+export type { SourceCollection } from './source-controller';
+export { sourceSkill } from './source-skills';
+export { analyzeSourceCollections } from './source-analysis';

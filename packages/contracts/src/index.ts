@@ -1,3 +1,5 @@
+import type { PersonReply } from './style';
+
 export type ProviderId = 'codex' | 'kimi';
 export type PaletteId = 'turquoise' | 'violet';
 export type IntelligenceEffort = 'low' | 'medium' | 'high';
@@ -5,11 +7,19 @@ export * from './persona';
 export * from './evaluation';
 export * from './experiment';
 export * from './auth-callback';
+export * from './connections';
+export * from './sources';
+export * from './style';
+export type IntelligenceOperation =
+  'generation' | 'public-research' | 'source-plan' | 'corpus-analysis' | 'persona-reply';
 export interface IntelligenceRequest {
+  readonly 'source-context'?: boolean;
   readonly task: string;
   readonly 'system-prompt': string;
   readonly effort: IntelligenceEffort;
   readonly model?: string;
+  readonly operation?: IntelligenceOperation;
+  readonly 'format-attempt'?: 1 | 2;
 }
 // Text explicitly exposed by the provider's public CLI stream, not encrypted/raw model state.
 export interface ReasoningBlock {
@@ -36,6 +46,7 @@ export interface IntelligenceTrace {
 export interface IntelligenceResult {
   readonly answer: string;
   readonly trace: IntelligenceTrace;
+  readonly reply?: PersonReply;
 }
 export interface PersonScore {
   readonly 'person-id': string;

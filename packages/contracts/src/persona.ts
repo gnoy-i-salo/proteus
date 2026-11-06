@@ -1,4 +1,5 @@
 import type { PaletteId } from './index';
+import type { PersonaStyleProfile, StyleExemplar } from './style';
 
 export type EvidenceStatus = 'supported' | 'hypothesis' | 'unknown' | 'conflicting';
 export interface Evidence {
@@ -7,7 +8,8 @@ export interface Evidence {
   readonly kind: 'fact' | 'hypothesis';
   readonly summary: string;
   readonly status: EvidenceStatus;
-  readonly verification: 'model-reported' | 'unverified';
+  readonly verification: 'model-reported' | 'source-retrieved' | 'unverified';
+  readonly 'document-ids'?: readonly string[];
   readonly excerpt: string | null;
   readonly 'retrieved-at': string | null;
   readonly limitations: readonly string[];
@@ -28,4 +30,7 @@ export interface PersonProfile {
   readonly rules: readonly PersonaRule[];
   readonly 'task-skills': readonly PersonaRule[];
   readonly 'source-status': 'evidence-informed' | 'synthetic' | 'neutral';
+  readonly 'source-context'?: boolean;
+  readonly 'style-profile'?: PersonaStyleProfile;
+  readonly 'style-exemplars'?: readonly StyleExemplar[];
 }

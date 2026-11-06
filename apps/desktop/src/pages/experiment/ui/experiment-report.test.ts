@@ -66,7 +66,8 @@ it('shows small positive criterion weights without rounding them to zero', () =>
     'model-settings': {},
     'format-attempts': 2,
     'stage-timeout-ms': 600000,
-    'prompt-version': 'bsc-v2.1',
+    'prompt-version': 'bsc-v2.2-source-style',
+    'source-snapshots': [[], []],
     'created-at': '2026-11-06T00:00:00Z',
   };
   expect(protocolText(protocol)).toContain('Вес: 0.01;');

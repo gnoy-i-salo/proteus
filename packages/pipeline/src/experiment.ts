@@ -10,11 +10,19 @@ import type {
   ScoreInterval,
   ScoreSummary,
   TrialScore,
+  SourceGrant,
+  SourcePort,
 } from '@proteus-int/contracts';
 import type { ComponentId, IntelligenceProvider, ModelSettings } from '@proteus-int/intelligence';
 import { componentIds, IntelligenceRunError } from '@proteus-int/intelligence';
-import { collectPerson, redactTask } from '@proteus-int/stalker';
-import type { StalkerReport } from '@proteus-int/stalker';
+import {
+  analyzeSourceCollections,
+  collectPerson,
+  collectSource,
+  redactTask,
+  validateSourceGrant,
+} from '@proteus-int/stalker';
+import type { SourceCollection, StalkerReport } from '@proteus-int/stalker';
 import { adaptPerson, fabricatePerson, neutralProfile } from '@proteus-int/person-fabric';
 import { personaArtifacts, personRuntime } from '@proteus-int/person';
 import { difference, scoreTrial, summarizeScores } from '@proteus-int/brain-scoring';
@@ -52,7 +60,7 @@ export interface StageTrace {
   readonly attempts: readonly InvocationAttempt[];
 }
 export interface ExperimentResult {
-  readonly 'schema-version': 2;
+  readonly 'schema-version': 3;
   readonly 'scoring-version': 2;
   readonly status: 'complete' | 'incomplete' | 'cancelled';
   readonly input: ExperimentInput;
@@ -78,6 +86,8 @@ export interface ProgressEvent {
   readonly trace?: IntelligenceTrace;
 }
 export interface RunOptions {
+  readonly sourcePort?: SourcePort;
+  readonly sourceGrants?: readonly [readonly SourceGrant[], readonly SourceGrant[]];
   readonly repetitions?: 1 | 3;
   readonly signal?: AbortSignal;
   readonly onProtocol?: (protocol: ExperimentProtocol) => Promise<void>;
@@ -125,7 +135,24 @@ export async function runExperiment(
 ): Promise<ExperimentResult> {
   const input = freeze(structuredClone(sourceInput));
   const settings = freeze(structuredClone(sourceSettings));
-  validateExperiment(input);
+  const sourceGrants = freeze(structuredClone(options.sourceGrants ?? [[], []])) as readonly [
+    readonly SourceGrant[],
+    readonly SourceGrant[],
+  ];
+  const sourcePort = options.sourcePort;
+  if (
+    !Array.isArray(sourceGrants) ||
+    sourceGrants.length !== 2 ||
+    sourceGrants.some((grants) => !Array.isArray(grants) || grants.length > 5)
+  )
+    throw new Error('Выберите до пяти источников на каждую из двух персон.');
+  const selected = sourceGrants.flat();
+  if (selected.length && !sourcePort)
+    throw new Error('Для выбранных источников не настроен source port.');
+  if (new Set(selected.map((grant) => grant.id)).size !== selected.length)
+    throw new Error('Один source grant нельзя повторно использовать в одном эксперименте.');
+  selected.forEach(validateSourceGrant);
+  validateExperiment(input, [sourceGrants[0].length > 0, sourceGrants[1].length > 0]);
   const repetitions = options.repetitions ?? 1;
   const order = buildTrialOrder(repetitions);
   const task = redactTask(input.task, input.people);
@@ -168,13 +195,20 @@ export async function runExperiment(
       async run(request, signal) {
         if (attempts.length) {
           const last = attempts.at(-1)!;
-          attempts[attempts.length - 1] = { ...last, status: 'format-rejected' };
-          emit(`${label} · исправление формата`);
+          attempts[attempts.length - 1] = {
+            ...last,
+            status: request['format-attempt'] === 2 ? 'format-rejected' : 'accepted',
+          };
+          if (request['format-attempt'] === 2) emit(`${label} · исправление формата`);
         }
         const started = performance.now();
         try {
           const result = await adapter.run(
-            { ...request, model: settings.aliases[component] },
+            {
+              ...request,
+              model: settings.aliases[component],
+              'source-context': selected.length > 0 || request['source-context'] === true,
+            },
             signal,
           );
           const elapsed = duration(result.trace);
@@ -259,7 +293,14 @@ export async function runExperiment(
     } catch (failure) {
       const last = attempts.at(-1);
       if (last?.status === 'returned')
-        attempts[attempts.length - 1] = { ...last, status: 'format-rejected' };
+        attempts[attempts.length - 1] = {
+          ...last,
+          status:
+            failure instanceof Error &&
+            failure.message.includes('модель дважды вернула неподходящий формат JSON')
+              ? 'format-rejected'
+              : 'accepted',
+        };
       save();
       throw failure;
     }
@@ -287,8 +328,12 @@ export async function runExperiment(
     ),
     'format-attempts': 2,
     'stage-timeout-ms': 600000,
-    'prompt-version': 'bsc-v2.1',
+    'prompt-version': 'bsc-v2.2-source-style',
     'created-at': new Date().toISOString(),
+    'source-snapshots': [
+      sourceGrants[0].map((grant) => grant['snapshot-id']),
+      sourceGrants[1].map((grant) => grant['snapshot-id']),
+    ],
   });
   await reviewProtocol(protocol, options);
   const prepared: { report: StalkerReport | null; base: PersonProfile; profile: PersonProfile }[] =
@@ -299,7 +344,26 @@ export async function runExperiment(
       'stalker',
       index,
       'Наблюдения и источники',
-      (provider) => collectPerson(person, provider, options.signal),
+      async (provider) => {
+        const grants = sourceGrants[index]!;
+        if (!grants.length) return collectPerson(person, provider, options.signal);
+        const collections: SourceCollection[] = [];
+        for (const grant of grants) {
+          const collection = await collectSource(
+            grant,
+            person,
+            provider,
+            sourcePort!,
+            options.signal,
+          );
+          if (collection.status === 'cancelled') {
+            options.signal?.throwIfAborted();
+            throw new Error('Сбор выбранного источника отменён.');
+          }
+          collections.push(collection);
+        }
+        return analyzeSourceCollections(person, collections, provider, sourcePort!, options.signal);
+      },
     );
     const { profile } = await stage(
       `profile-${index}`,
@@ -447,7 +511,7 @@ export async function runExperiment(
           ? 'Описательное сравнение трёх прогонов в одинаковых условиях. Это не доказательство статистического превосходства.'
           : 'Сравнение ограничено: есть непроверенные критерии, расхождение оценок или невыполненные обязательные требования.';
   const result: ExperimentResult = {
-    'schema-version': 2,
+    'schema-version': 3,
     'scoring-version': 2,
     status,
     input,

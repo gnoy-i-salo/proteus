@@ -19,8 +19,9 @@ export interface ExperimentProtocol {
   >;
   readonly 'format-attempts': 2;
   readonly 'stage-timeout-ms': 600000;
-  readonly 'prompt-version': 'bsc-v2.1';
+  readonly 'prompt-version': 'bsc-v2.2-source-style';
   readonly 'created-at': string;
+  readonly 'source-snapshots'?: readonly [readonly string[], readonly string[]];
 }
 
 export interface InvocationAttempt {

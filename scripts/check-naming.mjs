@@ -2,6 +2,7 @@ import { walk, workspaces } from './workspace.mjs';
 const exceptions = new Set([
   'README.md',
   'AGENTS.md',
+  'SKILL.md',
   'PULL_REQUEST_TEMPLATE.md',
   'Cargo.toml',
   'Cargo.lock',

@@ -2,6 +2,7 @@ import type { ExperimentInput } from '@proteus-int/contracts';
 import { validateExperiment } from './validation';
 export { validateExperiment } from './validation';
 export * from './experiment';
+export { exportExperiment } from './export';
 
 export function parsePersonaPreset(data: string): ExperimentInput {
   if (new TextEncoder().encode(data).length > 131072) throw new Error('Пресет превышает 128 КиБ.');

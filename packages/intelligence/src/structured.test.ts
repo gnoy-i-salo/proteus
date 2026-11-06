@@ -4,6 +4,31 @@ import type { IntelligenceProvider } from './provider';
 const trace = { provider: 'codex' as const, 'reasoning-ms': 1, 'terminal-ms': 0, summary: '' };
 const decode = (data: Record<string, unknown>) => ({ answer: text(data.answer, 'answer') });
 describe('structured model output', () => {
+  it('carries the explicit operation and distinguishes a format retry from a new action', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce({ answer: 'broken', trace })
+      .mockResolvedValueOnce({ answer: '{"answer":"ok"}', trace });
+    await structured(
+      { id: 'codex', run },
+      'STALKER',
+      '',
+      {},
+      undefined,
+      'medium',
+      decode,
+      'corpus-analysis',
+    );
+    expect(
+      run.mock.calls.map(([request]) => [request.operation, request['format-attempt']]),
+    ).toEqual([
+      ['corpus-analysis', 1],
+      ['corpus-analysis', 2],
+    ]);
+    const plain = vi.fn().mockResolvedValue({ answer: '{"answer":"ok"}', trace });
+    await structured({ id: 'codex', run: plain }, 'STALKER', '', {}, undefined, 'medium', decode);
+    expect(plain.mock.calls[0]![0].operation).toBe('generation');
+  });
   it('repairs invalid field types once with precise feedback', async () => {
     const run = vi
       .fn()

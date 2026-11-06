@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { IntelligenceRequest, PersonaRule, ProviderId } from '@proteus-int/contracts';
+import type {
+  IntelligenceRequest,
+  PersonaRule,
+  ProviderId,
+  SourceDocument,
+  SourceGrant,
+} from '@proteus-int/contracts';
 import { createModelSettings } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
-import { runExperiment, validateExperiment } from './index';
+import { exportExperiment, runExperiment, validateExperiment } from './index';
 
 const input = {
   task: 'Design a public reading room',
@@ -36,6 +42,26 @@ function providers() {
       const payload = JSON.parse(request.task) as Record<string, unknown>;
       let data: unknown;
       if (stage === 'BRAIN_ANALYZATOR_RUBRIC') data = { criteria: rubric };
+      else if (request.operation === 'source-plan')
+        data = { action: 'finish', reason: 'Available source read' };
+      else if (request.operation === 'corpus-analysis')
+        data = {
+          evidence: [
+            {
+              id: 'e1',
+              kind: 'fact',
+              summary: 'Plans before acting',
+              status: 'supported',
+              'document-ids': ['d1'],
+              excerpt: 'Plans before acting',
+              limitations: [],
+            },
+          ],
+          character: 'unknown',
+          'thinking-style': 'unknown',
+          activity: 'unknown',
+          'behavior-summary': 'unknown',
+        };
       else if (stage === 'STALKER')
         data = {
           evidence: [
@@ -60,6 +86,16 @@ function providers() {
       else if (stage === 'PERSON_FABRIC') {
         const evidence = payload.evidence as { id: string; summary: string }[];
         data = {
+          ...(payload['style-exemplars']
+            ? {
+                style: {
+                  'reasoning-patterns': [],
+                  'voice-rules': [],
+                  'format-rules': [],
+                  limitations: [],
+                },
+              }
+            : {}),
           rules: [
             {
               id: 'r1',
@@ -125,6 +161,186 @@ function payload(call: Call) {
 }
 
 describe('controlled persona experiment', () => {
+  const grant: SourceGrant = {
+    id: 'source-grant',
+    provider: 'telegram',
+    'account-id': 'local-account',
+    'resource-id': 'selected-chat',
+    'author-id': 'author-a',
+    from: null,
+    to: null,
+    'snapshot-id': 'snapshot-a',
+    'expires-at': '2099-01-01T00:00:00Z',
+    'allow-model-processing': true,
+    operations: ['collect', 'read', 'search', 'coverage', 'describe'],
+    budget: { 'max-steps': 20, 'max-documents': 50, 'max-bytes': 100000, 'max-duration-ms': 60000 },
+  };
+  const document: SourceDocument = {
+    id: 'd1',
+    provider: 'telegram',
+    'resource-id': 'selected-chat',
+    'author-id': 'author-a',
+    'author-label': 'Ada',
+    authorship: 'owner',
+    kind: 'message',
+    mode: 'dialogue',
+    text: 'Plans before acting',
+    'source-url': null,
+    'created-at': '2026-01-01T00:00:00Z',
+    'retrieved-at': '2026-02-01T00:00:00Z',
+    'content-hash': 'hash-one',
+    'reply-to': null,
+    'is-forwarded': false,
+    truncated: false,
+    partition: 'reference',
+  };
+  it('uses a frozen selected source without web fallback and keeps successive source calls accepted', async () => {
+    const { calls, adapters } = providers();
+    const selected = structuredClone(grant);
+    const executions: string[] = [];
+    const result = await runExperiment(input, createModelSettings(), adapters, {
+      sourceGrants: [[selected], []],
+      sourcePort: {
+        async reserveModelCall() {},
+        async execute(id) {
+          executions.push(id);
+          return {
+            'snapshot-id': 'snapshot-a',
+            documents: [document],
+            cursor: null,
+            coverage: {
+              documents: 1,
+              'total-documents': 1,
+              bytes: 19,
+              complete: true,
+              truncated: false,
+              'not-analyzed': 0,
+              unavailable: [],
+            },
+            limitations: [],
+          };
+        },
+      },
+      onProtocol: async (protocol) => {
+        expect(protocol['source-snapshots']).toEqual([['snapshot-a'], []]);
+        Object.assign(selected, { id: 'mutated-grant' });
+      },
+    });
+    expect(executions).toEqual(['source-grant']);
+    expect(calls.filter((call) => call.request.operation === 'public-research')).toHaveLength(1);
+    expect(calls.filter((call) => call.request.operation === 'source-plan')).toHaveLength(1);
+    expect(calls.filter((call) => call.request.operation === 'corpus-analysis')).toHaveLength(1);
+    expect(calls.every((call) => call.request['source-context'] === true)).toBe(true);
+    expect(result.people[0]?.report?.evidence[0]?.verification).toBe('source-retrieved');
+    expect(
+      result.traces.find((item) => item.id === 'sources-0')?.attempts.map((item) => item.status),
+    ).toEqual(['accepted', 'accepted']);
+    expect(JSON.stringify(result)).not.toMatch(
+      /selected-chat|local-account|source-grant|mutated-grant/,
+    );
+  });
+  it('rejects a selected source without its port or processing permission before model calls', async () => {
+    const { calls, adapters } = providers();
+    await expect(
+      runExperiment(input, createModelSettings(), adapters, { sourceGrants: [[grant], []] }),
+    ).rejects.toThrow(/source|источник/i);
+    await expect(
+      runExperiment(input, createModelSettings(), adapters, {
+        sourceGrants: [[{ ...grant, 'allow-model-processing': false }], []],
+        sourcePort: {
+          async reserveModelCall() {},
+          async execute() {
+            throw new Error('Should not retrieve');
+          },
+        },
+      }),
+    ).rejects.toThrow(/grant|источник/i);
+    expect(calls).toEqual([]);
+  });
+  it('exports only permitted style samples without changing the in-memory frozen profile', async () => {
+    const { adapters } = providers();
+    const result = await runExperiment(input, createModelSettings(), adapters);
+    const privateSample = {
+      id: 's1',
+      'document-id': 'd1',
+      mode: 'dialogue' as const,
+      text: 'PRIVATE ORIGINAL STYLE SAMPLE',
+      context: 'PRIVATE NEIGHBORING CONTEXT',
+      redactions: [],
+      'export-allowed': false,
+    };
+    const allowed = {
+      ...privateSample,
+      id: 's2',
+      text: 'Permitted public example',
+      context: 'Public context',
+      'export-allowed': true,
+    };
+    const person = result.people[0]!;
+    const exampleResult = {
+      ...result,
+      people: [
+        {
+          ...person,
+          report: { ...person.report!, 'style-exemplars': [privateSample, allowed] },
+          profile: { ...person.profile, 'style-exemplars': [privateSample, allowed] },
+          'base-profile': {
+            ...person['base-profile'],
+            'style-exemplars': [privateSample, allowed],
+          },
+          artifacts: {
+            ...person.artifacts,
+            'style-exemplars.json': JSON.stringify([privateSample, allowed]),
+          },
+        },
+        result.people[1]!,
+      ],
+    };
+    const exported = exportExperiment(exampleResult);
+    expect(exported).not.toMatch(/PRIVATE ORIGINAL|PRIVATE NEIGHBORING/);
+    expect(exported).toContain('Permitted public example');
+    expect(exampleResult.people[0]!.profile['style-exemplars']).toHaveLength(2);
+  });
+  it('omits every connected-source excerpt including short and non-exemplar quotes', async () => {
+    const { adapters } = providers();
+    const result = await runExperiment(input, createModelSettings(), adapters);
+    const original = result.people[0]!;
+    const report = {
+      ...original.report!,
+      evidence: [
+        {
+          ...original.report!.evidence[0]!,
+          id: 'e1',
+          verification: 'source-retrieved' as const,
+          excerpt: 'ok',
+        },
+        {
+          ...original.report!.evidence[0]!,
+          id: 'e2',
+          verification: 'source-retrieved' as const,
+          excerpt: 'PRIVATE SOURCE QUOTE WITHOUT STYLE SAMPLE',
+        },
+      ],
+    };
+    const withQuotes = { ...result, people: [{ ...original, report }, result.people[1]!] };
+    const exported = JSON.parse(exportExperiment(withQuotes)) as typeof withQuotes & {
+      'export-metadata': {
+        redacted: boolean;
+        'omitted-source-excerpts': number;
+        'preparation-reasoning-omitted': boolean;
+      };
+    };
+    expect(exported.people[0]!.report!.evidence.map((item) => item.excerpt)).toEqual([null, null]);
+    expect(exported['export-metadata']).toMatchObject({
+      redacted: true,
+      'omitted-source-excerpts': 2,
+      'preparation-reasoning-omitted': true,
+    });
+    expect(report.evidence.map((item) => item.excerpt)).toEqual([
+      'ok',
+      'PRIVATE SOURCE QUOTE WITHOUT STYLE SAMPLE',
+    ]);
+  });
   it('freezes task-only criteria before reading either personal profile', async () => {
     const requests: IntelligenceRequest[] = [];
     const adapter: IntelligenceProvider = {
@@ -169,7 +385,7 @@ describe('controlled persona experiment', () => {
         onProgress: (event) => stages.push(event.stage),
       },
     );
-    expect(result).toMatchObject({ 'schema-version': 2, 'scoring-version': 2, status: 'complete' });
+    expect(result).toMatchObject({ 'schema-version': 3, 'scoring-version': 2, status: 'complete' });
     expect(calls).toHaveLength(13);
     expect(result.traces).toHaveLength(13);
     expect(calls.filter((call) => call.provider === 'kimi')).toHaveLength(2);

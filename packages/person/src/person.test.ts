@@ -55,3 +55,41 @@ it('exports the provenance and limitations alongside persona instructions', () =
   expect(artifacts['.agents/skills/persona-1/SKILL.md']).toContain('hypothesis');
   expect(artifacts['.agents/skills/persona-1/SKILL.md']).toContain('User description');
 });
+it('preserves exact Unicode, whitespace, Markdown and separate replies', async () => {
+  const messages = ['  ну...\n\n  **да** 🤷🏽‍♀️  ', 'e\u0301\t\nок??\r\n'];
+  const provider: IntelligenceProvider = {
+    id: 'codex',
+    async run(request) {
+      expect(request.operation).toBe('persona-reply');
+      expect(request['source-context']).toBe(true);
+      return {
+        answer: JSON.stringify({ messages, summary: 'Готово', 'style-conflicts': [] }),
+        trace: { provider: 'codex', 'reasoning-ms': 1, 'terminal-ms': 0, summary: '' },
+      };
+    },
+  };
+  const result = await personRuntime.solve(
+    { ...profile, 'source-context': true },
+    'Ответь в диалоге',
+    provider,
+  );
+  expect(result.reply).toEqual({ version: 1, messages, 'style-conflicts': [] });
+  expect(result.answer).toBe(messages.join('\n\n'));
+});
+it('does not export sample text without separate export permission', () => {
+  const artifacts = personaArtifacts({
+    ...profile,
+    'style-exemplars': [
+      {
+        id: 'sample-1',
+        'document-id': 'document-1',
+        mode: 'dialogue',
+        text: 'не публиковать образец',
+        context: '',
+        redactions: [],
+        'export-allowed': false,
+      },
+    ],
+  });
+  expect(JSON.stringify(artifacts)).not.toContain('не публиковать образец');
+});

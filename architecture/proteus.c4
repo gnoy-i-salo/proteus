@@ -13,7 +13,7 @@ model {
     }
   }
   native-host = runtime "Native CLI broker" {
-    description "Tauri IPC: bounded CLI execution, cancellation, observable events and local artifacts. Credentials remain with installed CLIs."
+    description "Tauri IPC: bounded CLI execution, cancellation, observable events, local artifacts and native .proteus preset dialogs/file associations. Credentials remain with installed CLIs."
   }
   codex-cli = external "Installed Codex CLI"
   kimi-cli = external "Installed Kimi CLI"

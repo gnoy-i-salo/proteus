@@ -27,6 +27,28 @@
   },
   "bundle": {
     "active": true,
-    "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"]
+    "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"],
+    "fileAssociations": [
+      {
+        "ext": ["proteus"],
+        "name": "PROTEUS Persona Preset",
+        "description": "PROTEUS persona preset",
+        "mimeType": "application/x-proteus",
+        "role": "Editor",
+        "exportedType": {
+          "identifier": "dev.proteus-int.personas",
+          "conformsTo": ["public.json"]
+        }
+      }
+    ],
+    "linux": {
+      "deb": {
+        "depends": ["shared-mime-info"],
+        "files": {
+          "/usr/share/mime/packages/proteus.xml": "file-associations/proteus.xml"
+        },
+        "desktopTemplate": "file-associations/proteus.desktop"
+      }
+    }
   }
 }

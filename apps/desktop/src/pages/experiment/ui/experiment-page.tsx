@@ -1,4 +1,5 @@
 import {
+  batch,
   createEffect,
   createMemo,
   createSignal,
@@ -12,12 +13,19 @@ import {
 import type { ExperimentInput, PersonInput } from '@proteus-int/contracts';
 import { createModelSettings, parseModelSettings } from '@proteus-int/intelligence';
 import type { ModelSettings } from '@proteus-int/intelligence';
-import { runExperiment, validateExperiment } from '@proteus-int/pipeline';
+import {
+  runExperiment,
+  validateExperiment,
+  parsePersonaPreset,
+  serializePersonaPreset,
+} from '@proteus-int/pipeline';
 import type { ExperimentResult, ProgressEvent, StageTrace } from '@proteus-int/pipeline';
 import { ModelSettingsPanel } from '../../../features/model-settings';
 import { cliProviders, cliStatus, saveExperiment } from '../../../shared/lib/cli';
 import type { CliStatus } from '../../../shared/lib/cli';
-import { paginateText } from '../../../shared/lib/pagination';
+import { paginateText, paginateInput } from '../../../shared/lib/pagination';
+import { importPreset, exportPreset, listenPresets } from '../../../shared/lib/presets';
+import { isDesktop } from '../../../shared/lib/window-controls';
 import styles from './experiment-page.module.scss';
 const storageKey = 'proteus-model-settings';
 function readSettings() {
@@ -32,12 +40,13 @@ function PagedField(props: {
   pages: string[];
   onChange: (pages: string[]) => void;
   compact?: boolean;
+  revision: number;
 }) {
   const [page, setPage] = createSignal(0);
   let editor: HTMLTextAreaElement | undefined;
   const reflow = (value: string, replaceAll = false) => {
     if (!editor) return;
-    const chunks = paginateText(
+    const chunks = paginateInput(
       value,
       Math.max(10, Math.floor((editor.clientWidth - 20) / 8)),
       Math.max(1, Math.floor((editor.clientHeight - 18) / 18)),
@@ -50,11 +59,20 @@ function PagedField(props: {
     );
     setPage(replaceAll ? 0 : index + chunks.length - 1);
   };
+  createEffect(
+    on(
+      () => props.revision,
+      () => {
+        reflow(props.pages.join(''), true);
+      },
+    ),
+  );
   onMount(() => {
+    reflow(props.pages.join(''), true);
     let dimensions = `${editor?.clientWidth}:${editor?.clientHeight}`;
     const observer = new ResizeObserver(() => {
       const next = `${editor?.clientWidth}:${editor?.clientHeight}`;
-      if (next !== dimensions) reflow(props.pages.join('\n'), true);
+      if (next !== dimensions) reflow(props.pages.join(''), true);
       dimensions = next;
     });
     if (editor) observer.observe(editor);
@@ -102,10 +120,17 @@ function PagedField(props: {
 }
 function PublicLinks(props: {
   letter: string;
+  revision: number;
   urls: string[];
   onChange: (urls: string[]) => void;
 }) {
   const [index, setIndex] = createSignal(0);
+  createEffect(
+    on(
+      () => props.revision,
+      () => setIndex(0),
+    ),
+  );
   return (
     <div class={styles['experiment__links']}>
       <label>
@@ -284,6 +309,9 @@ function PagedText(props: { text: string; resetKey?: string }) {
   );
 }
 export function ExperimentPage() {
+  const [revision, setRevision] = createSignal(0);
+  const [pendingPreset, setPendingPreset] = createSignal<ExperimentInput>();
+  let fileInput: HTMLInputElement | undefined;
   const [screen, setScreen] = createSignal<'start' | 'progress' | 'result'>('start');
   const [selected, setSelected] = createSignal(0);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
@@ -315,6 +343,72 @@ export function ExperimentPage() {
       .catch(() => setError('Не удалось проверить установленные CLI.'));
   });
   onCleanup(() => controller?.abort());
+  const applyPreset = (input: ExperimentInput) => {
+    batch(() => {
+      setNames(input.people.map((person) => person.label));
+      setUrls(
+        input.people.map((person) =>
+          person['public-urls'].length ? [...person['public-urls']] : [''],
+        ),
+      );
+      setContexts(input.people.map((person) => [person.context]));
+      setTask([input.task]);
+      setScreen('start');
+      setSelected(0);
+      setError('');
+      setRevision((value) => value + 1);
+    });
+  };
+  const receivePreset = (data: string) => {
+    try {
+      const input = parsePersonaPreset(data);
+      if (running()) setPendingPreset(input);
+      else applyPreset(input);
+    } catch (failure) {
+      setError(String(failure));
+    }
+  };
+  onMount(() => {
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void listenPresets(receivePreset, setError)
+      .then((unlisten) => {
+        if (disposed) unlisten();
+        else stop = unlisten;
+      })
+      .catch((failure) => setError(String(failure)));
+    onCleanup(() => {
+      disposed = true;
+      stop?.();
+    });
+  });
+  const currentInput = (): ExperimentInput => {
+    const person = (index: number): PersonInput => ({
+      label: names()[index] ?? '',
+      context: contexts()[index]?.join('') ?? '',
+      'public-urls': (urls()[index] ?? []).map((url) => url.trim()).filter(Boolean),
+    });
+    return { task: task().join(''), people: [person(0), person(1)] };
+  };
+  const openPreset = async () => {
+    if (!isDesktop()) {
+      fileInput?.click();
+      return;
+    }
+    try {
+      const data = await importPreset();
+      if (data !== null) receivePreset(data);
+    } catch (failure) {
+      setError(String(failure));
+    }
+  };
+  const savePreset = async () => {
+    try {
+      await exportPreset(serializePersonaPreset(currentInput()));
+    } catch (failure) {
+      setError(String(failure));
+    }
+  };
   const persist = (value: ModelSettings) => {
     setSettings(value);
     try {
@@ -326,12 +420,7 @@ export function ExperimentPage() {
   const start = async () => {
     setError('');
     setSavedPath('');
-    const person = (index: number): PersonInput => ({
-      label: names()[index] ?? '',
-      context: contexts()[index]?.join('\n') ?? '',
-      'public-urls': (urls()[index] ?? []).map((url) => url.trim()).filter(Boolean),
-    });
-    const input: ExperimentInput = { task: task().join('\n'), people: [person(0), person(1)] };
+    const input = currentInput();
     try {
       validateExperiment(input);
     } catch (failure) {
@@ -596,7 +685,14 @@ export function ExperimentPage() {
         >
           <header class={styles['experiment__hero']}>
             <div class={styles['experiment__topline']}>
-              <span>PERSONA LAB / 001</span>
+              <div class={styles['experiment__preset-actions']}>
+                <button type="button" onClick={() => void openPreset()}>
+                  Импорт .proteus
+                </button>
+                <button type="button" onClick={() => void savePreset()}>
+                  Экспорт .proteus
+                </button>
+              </div>
               <button
                 type="button"
                 aria-label="Настройки PROTEUS"
@@ -628,7 +724,7 @@ export function ExperimentPage() {
                       Имя
                       <input
                         aria-label={`Имя персоны ${letter}`}
-                        maxLength={40}
+                        maxLength={80}
                         value={names()[index()]}
                         onInput={(event) =>
                           setNames(
@@ -641,6 +737,7 @@ export function ExperimentPage() {
                     </label>
                     <PublicLinks
                       letter={letter}
+                      revision={revision()}
                       urls={urls()[index()] ?? ['']}
                       onChange={(links) =>
                         setUrls(urls().map((value, i) => (i === index() ? links : value)))
@@ -649,6 +746,7 @@ export function ExperimentPage() {
                   </div>
                   <PagedField
                     label={`Контекст ${letter}`}
+                    revision={revision()}
                     pages={contexts()[index()] ?? ['']}
                     onChange={(pages) =>
                       setContexts(contexts().map((value, i) => (i === index() ? pages : value)))
@@ -665,7 +763,13 @@ export function ExperimentPage() {
               <br />
               <small>Одна задача для обоих</small>
             </span>
-            <PagedField compact label="Общая задача" pages={task()} onChange={setTask} />
+            <PagedField
+              compact
+              label="Общая задача"
+              pages={task()}
+              onChange={setTask}
+              revision={revision()}
+            />
           </div>
           <footer class={styles['experiment__launch']}>
             <span>
@@ -681,6 +785,49 @@ export function ExperimentPage() {
             <small>PUBLIC DATA ONLY</small>
           </footer>
         </form>
+      </Show>
+      <input
+        ref={(element) => {
+          fileInput = element;
+        }}
+        type="file"
+        hidden
+        accept=".proteus"
+        aria-label="Файл пресета"
+        onChange={async (event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (!file) return;
+          if (!file.name.toLowerCase().endsWith('.proteus') || file.size > 131072) {
+            setError('Выберите файл .proteus до 128 КиБ.');
+            return;
+          }
+          try {
+            receivePreset(await file.text());
+          } catch (failure) {
+            setError(String(failure));
+          }
+        }}
+      />
+      <Show when={pendingPreset()}>
+        <div class={styles['experiment__pending']} role="status">
+          <span>
+            {running() ? 'Пресет ожидает завершения эксперимента.' : 'Пресет готов к открытию.'}
+          </span>
+          <button
+            disabled={running()}
+            onClick={() => {
+              const input = pendingPreset();
+              if (input) applyPreset(input);
+              setPendingPreset(undefined);
+            }}
+          >
+            Открыть пресет
+          </button>
+          <button aria-label="Отложить пресет" onClick={() => setPendingPreset(undefined)}>
+            ×
+          </button>
+        </div>
       </Show>
       <Show when={error()}>
         <div class={styles['experiment__error']} role="alert">

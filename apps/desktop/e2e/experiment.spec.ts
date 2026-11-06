@@ -4,6 +4,12 @@ async function nativeFixture(page: Page, cancelMode = false, reasoningAvailable 
   await page.addInitScript(
     ({ cancelMode, reasoningAvailable }) => {
       let eventCallback: ((event: unknown) => void) | undefined;
+      let presetCallback: ((event: unknown) => void) | undefined;
+      const pendingPresets: { Ok: string }[] = [];
+      Reflect.set(window, 'openPresetFile', (data: string) => {
+        pendingPresets.push({ Ok: data });
+        presetCallback?.({ payload: null });
+      });
       let rejectRun: ((error: Error) => void) | undefined;
       const calls: string[] = [];
       Reflect.set(window, 'isTauri', true);
@@ -18,8 +24,12 @@ async function nativeFixture(page: Page, cancelMode = false, reasoningAvailable 
           args: {
             request?: { id: string; 'system-prompt': string; provider: string };
             data?: string;
+            event?: string;
           },
         ) {
+          if (command === 'plugin:event|listen' && args.event === 'preset-opened')
+            presetCallback = eventCallback;
+          if (command === 'take_pending_presets') return pendingPresets.splice(0);
           if (command === 'cli_status')
             return [
               { provider: 'codex', available: true },
@@ -309,4 +319,34 @@ test('sidebar switches independent scores, answers and inline persona logs', asy
   await logs.getByRole('button', { name: 'A · PERSON', exact: true }).click();
   await expect(logs).toContainText('Персона A:');
   await expect(logs).not.toContainText('Персона B:');
+});
+
+test('system preset opening during execution waits without changing the active people', async ({
+  page,
+}) => {
+  await nativeFixture(page, true);
+  await fillExperiment(page);
+  await page.evaluate(() =>
+    Reflect.get(
+      window,
+      'openPresetFile',
+    )(
+      JSON.stringify({
+        format: 'proteus-personas',
+        version: 1,
+        task: 'Imported task',
+        people: [
+          { label: 'Imported A', context: 'Planner', 'public-urls': [] },
+          { label: 'Imported B', context: 'Builder', 'public-urls': [] },
+        ],
+      }),
+    ),
+  );
+  await expect(page.getByRole('status')).toContainText('ожидает');
+  await expect(page.getByRole('button', { name: 'Открыть пресет', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Person A/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Остановить', exact: true }).click();
+  await page.getByRole('button', { name: 'Открыть пресет', exact: true }).click();
+  await expect(page.getByLabel('Имя персоны A')).toHaveValue('Imported A');
+  expect(await page.evaluate(() => Reflect.get(window, 'stageCalls').length)).toBe(1);
 });

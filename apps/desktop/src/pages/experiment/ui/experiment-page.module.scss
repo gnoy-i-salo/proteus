@@ -70,6 +70,26 @@
     min-height: 28px;
   }
 
+  &__preset-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  &__pending {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    max-width: calc(100% - 20px);
+    background: #242340;
+    border: 2px solid var(--accent);
+    font-size: 11px;
+  }
+
   &__duel {
     position: relative;
     display: grid;
@@ -173,7 +193,9 @@
     padding: 9px;
     line-height: 18px;
     resize: none;
-    white-space: pre;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-wrap: anywhere;
     overflow: hidden;
   }
 

@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - uses: actions/setup-node@v6
@@ -68,7 +68,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - uses: actions/setup-node@v6
@@ -108,7 +108,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - uses: actions/setup-node@v6

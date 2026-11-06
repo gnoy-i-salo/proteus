@@ -155,3 +155,40 @@ describe('complete two-person experiment', () => {
     ).toThrow();
   });
 });
+
+it('keeps each persona evidence, prompt, answer, timing and score independent', async () => {
+  const { adapters } = providers();
+  const original = adapters.codex.run.bind(adapters.codex);
+  let person = 0;
+  const solvingPrompts: string[] = [];
+  adapters.codex.run = async (request, signal) => {
+    const output = await original(request, signal);
+    const data = JSON.parse(output.answer);
+    if (request['system-prompt'].startsWith('STALKER')) {
+      person++;
+      expect(request.task).toContain(person === 1 ? 'Careful planner' : 'Improvises rapidly');
+      data['estimated-bsc'] = person === 1 ? 2 : 4;
+      data['thinking-style'] = person === 1 ? 'Methodical' : 'Flexible';
+    } else if (request['system-prompt'].startsWith('PERSON_FABRIC')) {
+      expect(request.task).toContain(person === 1 ? 'Methodical' : 'Flexible');
+      data.archetype = person === 1 ? 'Planner' : 'Improviser';
+    } else if (request['system-prompt'].startsWith('PERSON\n')) {
+      solvingPrompts.push(request.task);
+      data.answer = person === 1 ? 'Plan first' : 'Prototype first';
+    }
+    return {
+      ...output,
+      answer: JSON.stringify(data),
+      trace: { ...output.trace, 'reasoning-ms': person === 1 ? 60000 : 360000 },
+    };
+  };
+  const result = await runExperiment(input, createModelSettings(), adapters);
+  expect(solvingPrompts[0]).toContain('Planner');
+  expect(solvingPrompts[0]).not.toContain('Improviser');
+  expect(solvingPrompts[1]).toContain('Improviser');
+  expect(result.people.map((p) => [p.profile.id, p.attempt.answer, p.score.bsc])).toEqual([
+    ['a', 'Plan first', 0.5],
+    ['b', 'Prototype first', 1.5],
+  ]);
+  expect(result.comparison.ratio).toBe(3);
+});

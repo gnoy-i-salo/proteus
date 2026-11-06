@@ -51,7 +51,12 @@ function PagedField(props: {
     setPage(replaceAll ? 0 : index + chunks.length - 1);
   };
   onMount(() => {
-    const observer = new ResizeObserver(() => reflow(props.pages.join('\n'), true));
+    let dimensions = `${editor?.clientWidth}:${editor?.clientHeight}`;
+    const observer = new ResizeObserver(() => {
+      const next = `${editor?.clientWidth}:${editor?.clientHeight}`;
+      if (next !== dimensions) reflow(props.pages.join('\n'), true);
+      dimensions = next;
+    });
     if (editor) observer.observe(editor);
     onCleanup(() => observer.disconnect());
   });
@@ -166,60 +171,61 @@ function PublicLinks(props: {
     </div>
   );
 }
-function TraceReader(props: { stages: StageTrace[]; running: boolean }) {
-  const [chosen, setChosen] = createSignal(0);
-  const [follow, setFollow] = createSignal(true);
-  const index = () => (follow() ? Math.max(0, props.stages.length - 1) : chosen());
-  const active = () => props.stages[index()];
-  const text = () =>
-    active()
-      ?.trace.reasoning?.map((block) => block.text)
-      .join('\n\n') ||
-    (props.running && index() === props.stages.length - 1 && !active()?.trace.summary
-      ? 'Ожидаем текст reasoning от CLI…'
-      : 'CLI не передал текст reasoning для этого этапа. Доступность зависит от модели и провайдера.');
+function TraceReader(props: { stages: StageTrace[]; running: boolean; person: number }) {
+  const [chosen, setChosen] = createSignal('');
+  const stages = () =>
+    props.stages.filter((item) => item.person === props.person || item.person === null);
+  const key = (item: StageTrace) => `${item.person}:${item.stage}`;
+  const keys = createMemo(() => stages().map(key));
+  const active = () => (keys().includes(chosen()) ? chosen() : keys().at(-1));
+  createEffect(
+    on(
+      () => props.person,
+      () => setChosen(''),
+    ),
+  );
   return (
     <section class={styles['experiment__reasoning']} aria-label="Текст Intelligence traces">
-      <div class={styles['experiment__reasoning-toolbar']}>
-        <label>
-          Персона / этап
-          <select
-            aria-label="Этап reasoning"
-            value={index()}
-            onChange={(event) => {
-              setChosen(Number(event.currentTarget.value));
-              setFollow(false);
-            }}
-          >
-            <For each={props.stages}>
-              {(item, i) => (
-                <option value={i()}>
-                  {item.person === null
-                    ? 'Общее сравнение'
-                    : `Person ${item.person === 0 ? 'A' : 'B'}`}{' '}
-                  · {item.stage.toUpperCase()}
-                </option>
-              )}
-            </For>
-          </select>
-        </label>
-        <label class={styles['experiment__follow']}>
-          <input
-            type="checkbox"
-            checked={follow()}
-            onChange={(event) => setFollow(event.currentTarget.checked)}
-          />
-          Текущий этап
-        </label>
-      </div>
-      <p class={styles['experiment__reasoning-note']}>
-        {active()?.trace.provider === 'kimi' ? 'Kimi · thinking' : 'Codex · reasoning summary'}
-        {' · '}
-        {((active()?.trace['reasoning-ms'] ?? 0) / 1000).toFixed(1)} с
-      </p>
-      <PagedText text={text()} resetKey={String(index())} />
-      <Show when={active()?.trace['reasoning-truncated']}>
-        <p class={styles['experiment__reasoning-note']}>Текст сокращён до лимита сохранения.</p>
+      <Show when={keys().length} fallback={<p>Этапы этой персоны ещё не начались.</p>}>
+        <For each={keys()}>
+          {(id) => {
+            const item = () => stages().find((stage) => key(stage) === id)!;
+            const label = () =>
+              `${item().person === null ? 'SYS' : item().person === 0 ? 'A' : 'B'} · ${item().stage.toUpperCase()}`;
+            const text = () =>
+              item()
+                .trace.reasoning?.map((block) => block.text)
+                .join('\n\n') ||
+              (props.running && !item().trace.summary
+                ? 'Ожидаем текст reasoning от CLI…'
+                : 'CLI не передал текст reasoning для этого этапа.');
+            return (
+              <article class={styles['experiment__trace']} data-expanded={active() === id}>
+                <button
+                  class={styles['experiment__trace-heading']}
+                  aria-label={label()}
+                  aria-expanded={active() === id}
+                  onClick={() => setChosen(id)}
+                >
+                  <strong>{label()}</strong>
+                  <small>
+                    {item().trace.provider} · {(item().trace['reasoning-ms'] / 1000).toFixed(1)} с
+                  </small>
+                  <span>{item().trace.summary ? '✓' : props.running ? '◇' : '—'}</span>
+                </button>
+                <Show when={active() === id}>
+                  <p class={styles['experiment__reasoning-note']}>
+                    {item().trace.summary || (props.running ? 'Выполняется…' : 'Этап не завершён')}
+                    {item().trace['reasoning-truncated']
+                      ? ' · Текст сокращён до лимита сохранения.'
+                      : ''}
+                  </p>
+                  <PagedText text={text()} resetKey={id} />
+                </Show>
+              </article>
+            );
+          }}
+        </For>
       </Show>
     </section>
   );
@@ -335,6 +341,7 @@ export function ExperimentPage() {
     controller = new AbortController();
     setRunning(true);
     setEvents([]);
+    setSelected(0);
     setReasoningStages([]);
     setResult(undefined);
     setScreen('progress');
@@ -389,7 +396,6 @@ export function ExperimentPage() {
               });
             }
             setEvents((items) => [...items, event]);
-            if (event.person !== null) setSelected(event.person);
           },
         },
       );
@@ -501,15 +507,16 @@ export function ExperimentPage() {
                   <>
                     <header class={styles['experiment__result-banner']}>
                       <span>EXPERIMENT COMPLETE</span>
-                      <h2>BSC × {result()?.comparison.ratio?.toFixed(2) ?? '—'}</h2>
-                      <p>Разница метрик двух подходов · не оценка интеллекта человека</p>
+                      <h2>BSC · {persona()?.score.bsc.toFixed(3) ?? '—'}</h2>
+                      <p>Отношение двух BSC: × {result()?.comparison.ratio?.toFixed(2) ?? '—'}</p>
+                      <p>Экспериментальная метрика · не оценка интеллекта человека</p>
                     </header>
                     <div class={styles['experiment__result-body']}>
                       <div class={styles['experiment__result-heading']}>
                         <h3>{persona()?.profile.label}</h3>
                         <span>
-                          {persona()?.score['reasoning-minutes'].toFixed(2)} мин. / BSC{' '}
-                          {persona()?.score.bsc.toFixed(3)}
+                          {persona()?.score['reasoning-minutes'].toFixed(3)} мин. / оценка{' '}
+                          {persona()?.report['estimated-bsc']}
                         </span>
                       </div>
                       <nav class={styles['experiment__tabs']} aria-label="Разделы анализа">
@@ -533,7 +540,11 @@ export function ExperimentPage() {
                         </For>
                       </nav>
                       <Show when={detail() === 'traces'} fallback={<PagedText text={text()} />}>
-                        <TraceReader stages={reasoningStages()} running={false} />
+                        <TraceReader
+                          stages={reasoningStages()}
+                          running={false}
+                          person={selected()}
+                        />
                       </Show>
                     </div>
                     <footer class={styles['experiment__footer']}>
@@ -553,7 +564,7 @@ export function ExperimentPage() {
                   <p>{activity()}</p>
                 </header>
                 <div class={styles['experiment__traces']}>
-                  <TraceReader stages={reasoningStages()} running={running()} />
+                  <TraceReader stages={reasoningStages()} running={running()} person={selected()} />
                 </div>
                 <nav class={styles['experiment__trace-pages']}>
                   <span>{events().at(-1)?.message}</span>

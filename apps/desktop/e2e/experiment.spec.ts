@@ -47,7 +47,9 @@ async function nativeFixture(page: Page, cancelMode = false, reasoningAvailable 
                 {
                   id: 'r1',
                   kind: 'summary',
-                  text: 'Сравниваю ограничения и варианты.\n'.repeat(60),
+                  text: `Персона ${calls.length <= 3 ? 'A' : calls.length <= 6 ? 'B' : 'Общее'}: Сравниваю ограничения и варианты.\n`.repeat(
+                    60,
+                  ),
                 },
               ]
             : [];
@@ -94,14 +96,17 @@ async function nativeFixture(page: Page, cancelMode = false, reasoningAvailable 
                     ],
                   }
                 : {
-                    answer: 'Длинный ответ для проверки пагинации. '.repeat(100),
+                    answer:
+                      `Ответ ${calls.length <= 3 ? 'A' : 'B'}. Длинный ответ для проверки пагинации. `.repeat(
+                        100,
+                      ),
                     summary: 'Three-zone plan',
                   };
           return {
             answer: JSON.stringify(data),
             trace: {
               provider: request.provider,
-              'reasoning-ms': 60000,
+              'reasoning-ms': calls.length <= 3 ? 60000 : 180000,
               'terminal-ms': 0,
               summary: 'Completed',
               reasoning,
@@ -150,7 +155,7 @@ for (const [width, height] of [
     await fillExperiment(page);
     await expect(page.getByRole('heading', { name: 'Intelligence traces_' })).toBeVisible();
     await noOverflow(page);
-    await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'BSC · 0.500' })).toBeVisible();
     await noOverflow(page);
     await page.getByRole('button', { name: 'Ответ', exact: true }).click();
     await noOverflow(page);
@@ -211,10 +216,10 @@ for (const [width, height] of [
     const navigation = dialog.getByRole('navigation', { name: 'Страницы текста' });
     await navigation.getByRole('button', { name: '→' }).click();
     await expect(navigation).toContainText('2 /');
-    await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'BSC · 0.500' })).toBeVisible();
     await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
-    await expect(dialog.getByLabel('Этап reasoning')).toBeVisible();
-    expect(await dialog.getByLabel('Этап reasoning').locator('option').count()).toBe(7);
+    await expect(dialog.getByLabel('Этап reasoning')).toHaveCount(0);
+    await expect(dialog.getByRole('article')).toHaveCount(4);
     expect(
       await page.evaluate(() =>
         Reflect.get(window, 'savedExperiment').traces.every(
@@ -228,7 +233,7 @@ for (const [width, height] of [
 test('missing reasoning is explicit and never replaced with the answer', async ({ page }) => {
   await nativeFixture(page, false, false);
   await fillExperiment(page);
-  await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'BSC · 0.500' })).toBeVisible();
   await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
   const dialog = page.getByRole('region', { name: 'Текст Intelligence traces' });
   await expect(dialog).toContainText('CLI не передал текст reasoning');
@@ -265,7 +270,7 @@ for (const [width, height] of [
     await page.getByLabel('Публичная ссылка B', { exact: true }).fill('https://example.org/b');
     await page.getByLabel('Общая задача', { exact: true }).fill('Plan a library');
     await page.getByRole('button', { name: 'Начать эксперимент' }).click();
-    await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'BSC · 0.500' })).toBeVisible();
     expect(
       await page.evaluate(() =>
         Reflect.get(window, 'savedExperiment').input.people.map(
@@ -283,3 +288,25 @@ for (const [width, height] of [
     ]);
   });
 }
+
+test('sidebar switches independent scores, answers and inline persona logs', async ({ page }) => {
+  await nativeFixture(page);
+  await fillExperiment(page);
+  await expect(page.getByRole('heading', { name: 'BSC · 0.500' })).toBeVisible();
+  await expect(page.getByText('Отношение двух BSC: × 3.00')).toBeVisible();
+  await page.getByRole('button', { name: 'Ответ', exact: true }).click();
+  await expect(page.getByText(/Ответ A\./)).toBeVisible();
+  await page.getByRole('button', { name: /Person B/ }).click();
+  await expect(page.getByRole('heading', { name: 'BSC · 1.500' })).toBeVisible();
+  await expect(page.getByText(/Ответ B\./)).toBeVisible();
+  await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
+  const logs = page.getByRole('region', { name: 'Текст Intelligence traces' });
+  await expect(logs.getByRole('combobox')).toHaveCount(0);
+  await logs.getByRole('button', { name: 'B · PERSON', exact: true }).click();
+  await expect(logs).toContainText('Персона B:');
+  await expect(logs).not.toContainText('Персона A:');
+  await page.getByRole('button', { name: /Person A/ }).click();
+  await logs.getByRole('button', { name: 'A · PERSON', exact: true }).click();
+  await expect(logs).toContainText('Персона A:');
+  await expect(logs).not.toContainText('Персона B:');
+});

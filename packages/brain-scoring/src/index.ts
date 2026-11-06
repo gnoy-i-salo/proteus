@@ -1,4 +1,5 @@
 import type { PersonScore } from '@proteus-int/contracts';
+export { difference, scoreTrial, summarizeScores, validateRubric } from './evaluation';
 export interface ScoringInput {
   readonly 'person-id': string;
   readonly 'reasoning-ms': number;

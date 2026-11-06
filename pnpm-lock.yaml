@@ -93,9 +93,6 @@ importers:
 
   packages/brain-analyzator:
     dependencies:
-      '@proteus-int/brain-scoring':
-        specifier: workspace:*
-        version: link:../brain-scoring
       '@proteus-int/contracts':
         specifier: workspace:*
         version: link:../contracts

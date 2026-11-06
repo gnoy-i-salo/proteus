@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { IntelligenceRequest, PersonaRule, ProviderId } from '@proteus-int/contracts';
 import { createModelSettings } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { runExperiment, validateExperiment } from './index';
+
 const input = {
   task: 'Design a public reading room',
   people: [
@@ -9,127 +11,378 @@ const input = {
     { label: 'Boris', context: 'Improvises rapidly', 'public-urls': [] },
   ],
 } as const;
-function providers(failAt = -1) {
-  const calls: { task: string; provider: string }[] = [];
-  const provider = (id: 'codex' | 'kimi'): IntelligenceProvider => ({
+const rubric = [
+  {
+    id: 'coverage',
+    label: 'Task coverage',
+    weight: 1,
+    required: false,
+    anchors: { unmet: 'No solution', partial: 'Incomplete plan', met: 'Complete plan' },
+  },
+];
+interface Call {
+  readonly stage: string;
+  readonly request: IntelligenceRequest;
+  readonly provider: ProviderId;
+}
+function providers() {
+  const calls: Call[] = [];
+  const provider = (id: ProviderId): IntelligenceProvider => ({
     id,
     async run(request, signal) {
       signal?.throwIfAborted();
-      calls.push({ task: request.task, provider: id });
-      if (failAt > 0 && calls.length >= failAt && calls.length < failAt + 2)
-        return {
-          answer: 'not JSON',
-          trace: { provider: id, 'reasoning-ms': 1, 'terminal-ms': 0, summary: '' },
+      const stage = request['system-prompt'].split('\n')[0]!;
+      calls.push({ stage, request, provider: id });
+      const payload = JSON.parse(request.task) as Record<string, unknown>;
+      let data: unknown;
+      if (stage === 'BRAIN_ANALYZATOR_RUBRIC') data = { criteria: rubric };
+      else if (stage === 'STALKER')
+        data = {
+          evidence: [
+            {
+              id: 'e1',
+              kind: 'hypothesis',
+              'source-url': '',
+              summary:
+                payload.context === 'Careful planner'
+                  ? 'Plans before acting'
+                  : 'Tests ideas quickly',
+              status: 'hypothesis',
+              excerpt: null,
+              limitations: ['User description only'],
+            },
+          ],
+          character: 'unknown',
+          'thinking-style': 'unknown',
+          activity: 'unknown',
+          'behavior-summary': 'unknown',
         };
-      const data = request['system-prompt'].includes('STALKER')
-        ? {
-            evidence: [
+      else if (stage === 'PERSON_FABRIC') {
+        const evidence = payload.evidence as { id: string; summary: string }[];
+        data = {
+          rules: [
+            {
+              id: 'r1',
+              instruction: evidence[0]!.summary.startsWith('Plans')
+                ? 'Plan first'
+                : 'Prototype first',
+              'evidence-ids': ['e1'],
+              status: 'hypothesis',
+              limitations: [],
+            },
+          ],
+        };
+      } else if (stage === 'PERSON_FABRIC_ADAPT') {
+        const rules = payload.rules as PersonaRule[];
+        data = {
+          skills: [
+            {
+              id: 's1',
+              instruction: rules[0]?.instruction ?? 'Use a general plan',
+              'evidence-ids': rules[0]?.['evidence-ids'] ?? [],
+              status: 'hypothesis',
+              limitations: [],
+            },
+          ],
+        };
+      } else if (stage === 'PERSON') {
+        const rules = payload.rules as PersonaRule[];
+        const answer = rules[0]?.instruction ?? 'Neutral plan';
+        data = { answer, summary: 'A concrete plan' };
+      } else if (stage === 'BRAIN_ANALYZATOR_EVALUATE') {
+        const answers = payload.answers as { label: string; answer: string }[];
+        data = {
+          evaluations: answers.map((answer) => ({
+            label: answer.label,
+            criteria: [
               {
-                id: 'e1',
-                'source-url': 'https://example.org/ada',
-                kind: 'hypothesis',
-                summary: 'Prefers structure',
+                'criterion-id': 'coverage',
+                status: answer.answer === 'Plan first' ? 'met' : 'partial',
+                reason: 'Observable completeness of the plan',
+                quote: answer.answer,
               },
             ],
-            'estimated-bsc': 2,
-            effort: 'medium',
-            character: 'Careful',
-            'thinking-style': 'Structured',
-            activity: 'Unknown',
-            'behavior-summary': 'Plans before acting',
-          }
-        : request['system-prompt'].includes('PERSON_FABRIC')
-          ? { archetype: 'Structured planner', skills: ['Compare options before choosing'] }
-          : request['system-prompt'].includes('BRAIN_ANALYZATOR')
-            ? {
-                summary: 'Different approaches',
-                'key-differences': ['Planning depth'],
-                people: [
-                  { strengths: ['Structure'], weaknesses: ['Speed'], observations: ['Methodical'] },
-                  { strengths: ['Speed'], weaknesses: ['Detail'], observations: ['Flexible'] },
-                ],
-              }
-            : { answer: 'A practical reading room plan', summary: 'A plan with three zones' };
+          })),
+        };
+      } else throw new Error(`Unexpected fixture stage: ${stage}`);
       return {
         answer: JSON.stringify(data),
         trace: {
           provider: id,
-          'reasoning-ms': 120000,
-          'terminal-ms': 600000,
+          'reasoning-ms': 60000,
+          'wall-time-ms': 60000,
+          'terminal-ms': 0,
           summary: 'Completed',
+          reasoning: [{ id: 'r', kind: 'summary', text: 'Public summary' }],
         },
       };
     },
   });
   return { calls, adapters: { codex: provider('codex'), kimi: provider('kimi') } };
 }
-describe('complete two-person experiment', () => {
-  it('runs all stages, routes each component, scores reasoning only and emits ordered progress', async () => {
+function payload(call: Call) {
+  return JSON.parse(call.request.task) as Record<string, unknown>;
+}
+
+describe('controlled persona experiment', () => {
+  it('freezes task-only criteria before reading either personal profile', async () => {
+    const requests: IntelligenceRequest[] = [];
+    const adapter: IntelligenceProvider = {
+      id: 'codex',
+      async run(request) {
+        requests.push(request);
+        throw new Error('Stop after observing the first stage');
+      },
+    };
+    await expect(
+      runExperiment(input, createModelSettings(), { codex: adapter, kimi: adapter }),
+    ).rejects.toThrow('Stop after observing');
+    expect(requests[0]?.['system-prompt']).toMatch(/^BRAIN_ANALYZATOR_RUBRIC/);
+    expect(JSON.parse(requests[0]!.task)).toEqual({ task: input.task });
+  });
+
+  it('awaits a frozen protocol, routes components and compares against a real neutral attempt', async () => {
     const { calls, adapters } = providers();
+    const settings = createModelSettings();
+    let reviewed = false;
     const stages: string[] = [];
+    const original = adapters.kimi.run.bind(adapters.kimi);
+    adapters.kimi.run = async (request, signal) => {
+      expect(reviewed).toBe(true);
+      return original(request, signal);
+    };
+    const result = await runExperiment(
+      input,
+      {
+        ...settings,
+        components: { ...settings.components, stalker: 'kimi' },
+      },
+      adapters,
+      {
+        onProtocol: async (protocol) => {
+          expect(calls.map((call) => call.stage)).toEqual(['BRAIN_ANALYZATOR_RUBRIC']);
+          expect(Object.isFrozen(protocol)).toBe(true);
+          expect(Object.isFrozen(protocol.rubric.criteria[0]?.anchors)).toBe(true);
+          await Promise.resolve();
+          reviewed = true;
+        },
+        onProgress: (event) => stages.push(event.stage),
+      },
+    );
+    expect(result).toMatchObject({ 'schema-version': 2, 'scoring-version': 2, status: 'complete' });
+    expect(calls).toHaveLength(13);
+    expect(result.traces).toHaveLength(13);
+    expect(calls.filter((call) => call.provider === 'kimi')).toHaveLength(2);
+    expect(result.people.map((person) => person.score.point)).toEqual([100, 50]);
+    expect(result.control.attempt?.answer).toBe('Neutral plan');
+    expect(result.control.score.point).toBe(50);
+    expect(result.control.report).toBeNull();
+    expect(result.control.profile['source-status']).toBe('neutral');
+    expect(result.people[0]?.['baseline-difference']).toEqual({ lower: 50, upper: 50 });
+    expect(result.comparison['comparison-eligible']).toBe(false);
+    expect(result.trials.map((trial) => trial.status)).toEqual([
+      'evaluated',
+      'evaluated',
+      'evaluated',
+    ]);
+    expect(result.trials.every((trial) => trial.evaluations.length === 2)).toBe(true);
+    expect(stages.at(-1)).toBe('complete');
+    expect(result.traces.every((trace) => trace.attempts.at(-1)?.status === 'accepted')).toBe(true);
+  });
+
+  it('shares one sanitized task but keeps profile construction task-free and provenance intact', async () => {
+    const { calls, adapters } = providers();
+    const taskInput = {
+      ...input,
+      task: 'Ada and Boris design a room using https://standards.example/spec',
+    };
+    const result = await runExperiment(taskInput, createModelSettings(), adapters);
+    expect(result.protocol.task).not.toMatch(/Ada|Boris/);
+    expect(result.protocol.task).toContain('https://standards.example/spec');
+    for (const call of calls) {
+      const data = payload(call);
+      if (call.stage === 'STALKER' || call.stage === 'PERSON_FABRIC')
+        expect(data).not.toHaveProperty('task');
+      else expect(data.task).toBe(result.protocol.task);
+      if (call.stage === 'PERSON_FABRIC') {
+        expect(call.request.task).not.toMatch(/Ada|Boris|example.org/);
+        expect(data.evidence).toMatchObject([{ id: 'e1', status: 'hypothesis' }]);
+      }
+    }
+    expect(result.people.every((person) => person.profile['source-status'] === 'synthetic')).toBe(
+      true,
+    );
+    expect(result.people[0]?.profile.rules[0]?.limitations).toContain('User description only');
+    expect(result.people[0]?.profile['task-skills'][0]?.limitations).toContain(
+      'User description only',
+    );
+    expect(result.people[0]?.artifacts['AGENTS.md']).toContain('e1');
+  });
+
+  it('freezes profiles and model settings while balancing order across three rounds', async () => {
+    const { calls, adapters } = providers();
     const settings = {
       ...createModelSettings(),
-      components: { ...createModelSettings().components, stalker: 'kimi' as const },
+      aliases: { ...createModelSettings().aliases, person: 'fixed-model' },
     };
     const result = await runExperiment(input, settings, adapters, {
-      onProgress: (event) => stages.push(event.stage),
+      repetitions: 3,
+      onProtocol: async () => {
+        settings.aliases.person = 'later-change';
+      },
     });
-    expect(result.traces).toHaveLength(7);
-    expect(result.traces.map((item) => [item.stage, item.person])).toEqual([
-      ['stalker', 0],
-      ['person-fabric', 0],
-      ['person', 0],
-      ['stalker', 1],
-      ['person-fabric', 1],
-      ['person', 1],
-      ['brain-analyzator', null],
+    expect(calls).toHaveLength(23);
+    expect(calls.filter((call) => call.stage === 'PERSON_FABRIC')).toHaveLength(2);
+    const adaptations = calls.filter((call) => call.stage === 'PERSON_FABRIC_ADAPT');
+    expect(adaptations).toHaveLength(3);
+    expect(adaptations.map((call) => call.request.effort)).toEqual(['medium', 'medium', 'medium']);
+    expect(result.trials.map((trial) => trial['person-id'])).toEqual([
+      'a',
+      'b',
+      'neutral',
+      'b',
+      'neutral',
+      'a',
+      'neutral',
+      'a',
+      'b',
     ]);
-    expect(calls).toHaveLength(7);
-    expect(calls.filter((call) => call.provider === 'kimi')).toHaveLength(2);
-    expect(result.people.map((person) => person.score.bsc)).toEqual([1, 1]);
-    expect(result.comparison.ratio).toBe(1);
-    expect(result.people[0]?.profile.archetype).toBe('Structured planner');
-    expect(stages.at(-1)).toBe('complete');
-    expect(calls[1]?.task).not.toContain('example.org');
-    expect(calls[1]?.task).not.toContain('Ada');
+    const solving = calls.filter((call) => call.stage === 'PERSON');
+    expect(
+      solving.every(
+        (call) => call.request.model === 'fixed-model' && call.request.effort === 'high',
+      ),
+    ).toBe(true);
+    const uniquePrompts = new Set(solving.map((call) => call.request.task));
+    expect(uniquePrompts.size).toBe(3);
+    for (const prompt of uniquePrompts)
+      expect(solving.filter((call) => call.request.task === prompt)).toHaveLength(3);
+    expect(result.people.every((person) => Object.isFrozen(person.profile))).toBe(true);
+    expect(
+      result.people.every(
+        (person) => person.profile.archetype === person['base-profile'].archetype,
+      ),
+    ).toBe(true);
+    expect(
+      result.trials.every((trial) => trial.score?.interval.lower === trial.score?.interval.upper),
+    ).toBe(true);
   });
-  it('rejects malformed model output without continuing or fabricating results', async () => {
-    const { calls, adapters } = providers(2);
-    await expect(runExperiment(input, createModelSettings(), adapters)).rejects.toThrow(/JSON/);
-    expect(calls).toHaveLength(3);
+
+  it('judges answer-only payloads twice in opposite orders without persona metadata', async () => {
+    const { calls, adapters } = providers();
+    await runExperiment(input, createModelSettings(), adapters);
+    const judges = calls.filter((call) => call.stage === 'BRAIN_ANALYZATOR_EVALUATE').map(payload);
+    const answers = judges.map((judge) => judge.answers as { label: string; answer: string }[]);
+    expect(answers[1]?.map((answer) => answer.answer)).toEqual(
+      [...answers[0]!].reverse().map((answer) => answer.answer),
+    );
+    for (const judge of judges) {
+      expect(Object.keys(judge).sort()).toEqual(['answers', 'rubric', 'task']);
+      expect(JSON.stringify(judge)).not.toMatch(
+        /Ada|Boris|"trace"|"provider"|"archetype"|"score"|"person-id"/,
+      );
+      for (const answer of judge.answers as object[])
+        expect(Object.keys(answer).sort()).toEqual(['answer', 'label']);
+    }
   });
-  it('repairs a PERSON field error without repeating successful stages and retains attempt timing', async () => {
+
+  it('repairs one PERSON format error without repeating preparation or dropping time and traces', async () => {
     const { calls, adapters } = providers();
     const original = adapters.codex.run.bind(adapters.codex);
-    let failed = false;
+    let malformed = false;
     adapters.codex.run = async (request, signal) => {
       const result = await original(request, signal);
-      if (!failed && request['system-prompt'].startsWith('PERSON\n')) {
-        failed = true;
-        return { ...result, answer: '{"answer":{"nested":"wrong type"},"summary":"ok"}' };
+      if (!malformed && request['system-prompt'].startsWith('PERSON\n')) {
+        malformed = true;
+        return { ...result, answer: '{"answer":{},"summary":"bad format"}' };
       }
       return result;
     };
     const result = await runExperiment(input, createModelSettings(), adapters);
-    expect(calls).toHaveLength(8);
-    expect(result.traces).toHaveLength(7);
-    expect(result.people[0]?.attempt.trace['reasoning-ms']).toBe(240000);
-    expect(result.people[0]?.attempt.answer).toBe('A practical reading room plan');
-    expect(calls[3]?.task).toBe(calls[2]?.task);
+    expect(result.status).toBe('complete');
+    expect(calls).toHaveLength(14);
+    expect(result.people[0]?.attempt?.trace['wall-time-ms']).toBe(120000);
+    expect(result.people[0]?.attempt?.trace.reasoning?.map((block) => block.id)).toEqual([
+      '1:r',
+      '2:r',
+    ]);
+    expect(
+      result.traces
+        .find((trace) => trace.id === 'solve-1-a')
+        ?.attempts.map((attempt) => attempt.status),
+    ).toEqual(['format-rejected', 'accepted']);
+    expect(calls.filter((call) => call.stage === 'STALKER')).toHaveLength(2);
   });
-  it('stops before the next stage when cancelled', async () => {
+
+  it('returns partial trials and stops further calls after a CLI failure during solving', async () => {
+    const { calls, adapters } = providers();
+    const original = adapters.codex.run.bind(adapters.codex);
+    let solving = 0;
+    adapters.codex.run = async (request, signal) => {
+      const result = await original(request, signal);
+      if (request['system-prompt'].startsWith('PERSON\n') && ++solving === 2)
+        throw new Error('CLI unavailable');
+      return result;
+    };
+    const result = await runExperiment(input, createModelSettings(), adapters, { repetitions: 3 });
+    expect(result.status).toBe('incomplete');
+    expect(calls).toHaveLength(10);
+    expect(result.trials[0]).toMatchObject({ status: 'answered', score: null });
+    expect(result.trials[1]).toMatchObject({ status: 'failed', error: 'CLI unavailable' });
+    expect(result.trials.slice(2).every((trial) => trial.status === 'skipped')).toBe(true);
+    expect(result.people[0]?.attempt?.answer).toBe('Plan first');
+    expect(result.control.attempt).toBeNull();
+    expect(result.comparison).toMatchObject({ difference: null, 'comparison-eligible': false });
+    expect(result.traces.at(-1)?.attempts.at(-1)?.status).toBe('failed');
+  });
+
+  it('retains first-pass judgments without inventing scores when the second judge fails', async () => {
+    const { calls, adapters } = providers();
+    const original = adapters.codex.run.bind(adapters.codex);
+    let judging = 0;
+    adapters.codex.run = async (request, signal) => {
+      const result = await original(request, signal);
+      if (request['system-prompt'].startsWith('BRAIN_ANALYZATOR_EVALUATE\n') && ++judging === 2)
+        throw new Error('Judge failed');
+      return result;
+    };
+    const result = await runExperiment(input, createModelSettings(), adapters);
+    expect(result.status).toBe('incomplete');
+    expect(calls).toHaveLength(13);
+    expect(
+      result.trials.every((trial) => trial.evaluations.length === 1 && trial.score === null),
+    ).toBe(true);
+    expect(result.people.every((person) => person.score.point === null)).toBe(true);
+  });
+
+  it('cancels after an accepted solution and keeps its answer without calling later stages', async () => {
     const { calls, adapters } = providers();
     const controller = new AbortController();
+    const result = await runExperiment(input, createModelSettings(), adapters, {
+      signal: controller.signal,
+      onProgress: (event) => {
+        if (event.id === 'solve-1-a' && event.message.endsWith('готово')) controller.abort();
+      },
+    });
+    expect(result.status).toBe('cancelled');
+    expect(calls).toHaveLength(9);
+    expect(result.people[0]?.attempt?.answer).toBe('Plan first');
+    expect(result.control.attempt).toBeNull();
+    expect(result.comparison['comparison-eligible']).toBe(false);
+  });
+
+  it('stops before source collection if saving/reviewing the protocol fails', async () => {
+    const { calls, adapters } = providers();
     await expect(
       runExperiment(input, createModelSettings(), adapters, {
-        signal: controller.signal,
-        onProgress: (event) => {
-          if (event.completed === 1) controller.abort();
+        onProtocol: async () => {
+          throw new Error('Protocol not accepted');
         },
       }),
-    ).rejects.toThrow();
-    expect(calls).toHaveLength(1);
+    ).rejects.toThrow('Protocol not accepted');
+    expect(calls.map((call) => call.stage)).toEqual(['BRAIN_ANALYZATOR_RUBRIC']);
   });
+
   it.each([
     'http://localhost/private',
     'http://127.0.0.1',
@@ -137,14 +390,18 @@ describe('complete two-person experiment', () => {
     'file:///etc/passwd',
     'https://user:secret@example.com',
     'https://[::1]',
-  ])('rejects non-public URL %s before contacting a provider', (url) => {
-    expect(() =>
-      validateExperiment({
-        ...input,
-        people: [{ ...input.people[0], 'public-urls': [url] }, input.people[1]],
-      }),
-    ).toThrow();
+  ])('rejects non-public URL %s before contacting a provider', async (url) => {
+    const { calls, adapters } = providers();
+    await expect(
+      runExperiment(
+        { ...input, people: [{ ...input.people[0], 'public-urls': [url] }, input.people[1]] },
+        createModelSettings(),
+        adapters,
+      ),
+    ).rejects.toThrow();
+    expect(calls).toEqual([]);
   });
+
   it('requires a task and two described people', () => {
     expect(() => validateExperiment({ ...input, task: ' ' })).toThrow();
     expect(() =>
@@ -154,41 +411,4 @@ describe('complete two-person experiment', () => {
       }),
     ).toThrow();
   });
-});
-
-it('keeps each persona evidence, prompt, answer, timing and score independent', async () => {
-  const { adapters } = providers();
-  const original = adapters.codex.run.bind(adapters.codex);
-  let person = 0;
-  const solvingPrompts: string[] = [];
-  adapters.codex.run = async (request, signal) => {
-    const output = await original(request, signal);
-    const data = JSON.parse(output.answer);
-    if (request['system-prompt'].startsWith('STALKER')) {
-      person++;
-      expect(request.task).toContain(person === 1 ? 'Careful planner' : 'Improvises rapidly');
-      data['estimated-bsc'] = person === 1 ? 2 : 4;
-      data['thinking-style'] = person === 1 ? 'Methodical' : 'Flexible';
-    } else if (request['system-prompt'].startsWith('PERSON_FABRIC')) {
-      expect(request.task).toContain(person === 1 ? 'Methodical' : 'Flexible');
-      data.archetype = person === 1 ? 'Planner' : 'Improviser';
-    } else if (request['system-prompt'].startsWith('PERSON\n')) {
-      solvingPrompts.push(request.task);
-      data.answer = person === 1 ? 'Plan first' : 'Prototype first';
-    }
-    return {
-      ...output,
-      answer: JSON.stringify(data),
-      trace: { ...output.trace, 'reasoning-ms': person === 1 ? 60000 : 360000 },
-    };
-  };
-  const result = await runExperiment(input, createModelSettings(), adapters);
-  expect(solvingPrompts[0]).toContain('Planner');
-  expect(solvingPrompts[0]).not.toContain('Improviser');
-  expect(solvingPrompts[1]).toContain('Improviser');
-  expect(result.people.map((p) => [p.profile.id, p.attempt.answer, p.score.bsc])).toEqual([
-    ['a', 'Plan first', 0.5],
-    ['b', 'Prototype first', 1.5],
-  ]);
-  expect(result.comparison.ratio).toBe(3);
 });

@@ -6,7 +6,7 @@ specification {
 
 model {
   pipeline = module "pipeline" {
-    description "Two public profiles → evidence → archetypes and skills → task attempts → BSC → comparison. Cancellation and failures preserve completed stages."
+    description "Frozen task rubric and sourced profiles → frozen personas and neutral control → repeated blinded answer evaluation → deterministic BSC v2 intervals. Timing, failed attempts and evidence uncertainty remain separate."
     metadata {
       package "@proteus-int/pipeline"
       path "packages/pipeline"
@@ -24,12 +24,14 @@ model {
     }
   }
   brain-analyzator = module "brain-analyzator" {
+    description "Creates a task-only rubric before answers, then evaluates anonymous answer content against anchored criteria without timing or persona metadata."
     metadata {
       package "@proteus-int/brain-analyzator"
       path "packages/brain-analyzator"
     }
   }
   brain-scoring = module "brain-scoring" {
+    description "Deterministic BSC v2 weighted attainment intervals, critical-constraint gates, median summaries and baseline differences. Legacy BSC v1 remains available for history."
     metadata {
       package "@proteus-int/brain-scoring"
       path "packages/brain-scoring"
@@ -77,10 +79,9 @@ model {
   pipeline -> brain-analyzator "imports"
   desktop -> native-host "invoke / events / cancel"
   native-host -> codex-cli "exec --json; read-only"
-  native-host -> kimi-cli "ACP JSON-RPC; thinking chunks; explicit tool allowlist"
+  native-host -> kimi-cli "Print-mode JSONL; explicit agent instructions and tool allowlist; reasoning unavailable"
   brain-analyzator -> contracts "imports"
   brain-analyzator -> intelligence "imports"
-  brain-analyzator -> brain-scoring "imports"
   brain-scoring -> contracts "imports"
   intelligence -> contracts "imports"
   person -> contracts "imports"

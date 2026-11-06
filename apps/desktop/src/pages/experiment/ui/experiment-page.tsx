@@ -10,7 +10,7 @@ import {
   Show,
   untrack,
 } from 'solid-js';
-import type { ExperimentInput, PersonInput } from '@proteus-int/contracts';
+import type { ExperimentInput, ExperimentProtocol, PersonInput } from '@proteus-int/contracts';
 import { createModelSettings, parseModelSettings } from '@proteus-int/intelligence';
 import type { ModelSettings } from '@proteus-int/intelligence';
 import {
@@ -26,6 +26,14 @@ import type { CliStatus } from '../../../shared/lib/cli';
 import { paginateText, paginateInput } from '../../../shared/lib/pagination';
 import { importPreset, exportPreset, listenPresets } from '../../../shared/lib/presets';
 import { isDesktop } from '../../../shared/lib/window-controls';
+import {
+  formatInterval,
+  formatScore,
+  protocolText,
+  reportText,
+  sourceLabel,
+  traceMarker,
+} from './experiment-report';
 import styles from './experiment-page.module.scss';
 const storageKey = 'proteus-model-settings';
 function readSettings() {
@@ -198,25 +206,45 @@ function PublicLinks(props: {
 }
 function TraceReader(props: { stages: StageTrace[]; running: boolean; person: number }) {
   const [chosen, setChosen] = createSignal('');
+  const [page, setPage] = createSignal(0);
+  const [pinned, setPinned] = createSignal(false);
   const stages = () =>
-    props.stages.filter((item) => item.person === props.person || item.person === null);
-  const key = (item: StageTrace) => `${item.person}:${item.stage}`;
-  const keys = createMemo(() => stages().map(key));
-  const active = () => (keys().includes(chosen()) ? chosen() : keys().at(-1));
+    props.stages.filter(
+      (item) => item.person === props.person || item.person === null || item.person === 2,
+    );
+  const keys = createMemo(() => stages().map((item) => item.id));
+  const visible = () => keys().slice(page() * 3, page() * 3 + 3);
+  const active = () => (visible().includes(chosen()) ? chosen() : visible()[0]);
+  const selectPage = (next: number) => {
+    setPinned(true);
+    setPage(next);
+    setChosen(keys()[next * 3] ?? '');
+  };
   createEffect(
     on(
       () => props.person,
-      () => setChosen(''),
+      () => {
+        setChosen('');
+        setPage(0);
+        setPinned(false);
+      },
     ),
   );
+  createEffect(() => {
+    const ids = keys();
+    if (props.running && !pinned() && ids.length) {
+      setChosen(ids.at(-1)!);
+      setPage(Math.floor((ids.length - 1) / 3));
+    } else if (!chosen() && ids.length) setChosen(ids[0]!);
+  });
   return (
     <section class={styles['experiment__reasoning']} aria-label="Текст Intelligence traces">
       <Show when={keys().length} fallback={<p>Этапы этой персоны ещё не начались.</p>}>
-        <For each={keys()}>
+        <For each={visible()}>
           {(id) => {
-            const item = () => stages().find((stage) => key(stage) === id)!;
+            const item = () => stages().find((stage) => stage.id === id)!;
             const label = () =>
-              `${item().person === null ? 'SYS' : item().person === 0 ? 'A' : 'B'} · ${item().stage.toUpperCase()}`;
+              `${item().person === null ? 'SYS' : item().person === 2 ? 'CTRL' : item().person === 0 ? 'A' : 'B'} · ${item().label}`;
             const text = () =>
               item()
                 .trace.reasoning?.map((block) => block.text)
@@ -230,13 +258,20 @@ function TraceReader(props: { stages: StageTrace[]; running: boolean; person: nu
                   class={styles['experiment__trace-heading']}
                   aria-label={label()}
                   aria-expanded={active() === id}
-                  onClick={() => setChosen(id)}
+                  onClick={() => {
+                    setPinned(true);
+                    setChosen(id);
+                  }}
                 >
                   <strong>{label()}</strong>
                   <small>
-                    {item().trace.provider} · {(item().trace['reasoning-ms'] / 1000).toFixed(1)} с
+                    {item().trace.provider} ·{' '}
+                    {(
+                      (item().trace['wall-time-ms'] ?? item().trace['reasoning-ms']) / 1000
+                    ).toFixed(1)}{' '}
+                    с
                   </small>
-                  <span>{item().trace.summary ? '✓' : props.running ? '◇' : '—'}</span>
+                  <span>{traceMarker(item(), props.running)}</span>
                 </button>
                 <Show when={active() === id}>
                   <p class={styles['experiment__reasoning-note']}>
@@ -245,17 +280,31 @@ function TraceReader(props: { stages: StageTrace[]; running: boolean; person: nu
                       ? ' · Текст сокращён до лимита сохранения.'
                       : ''}
                   </p>
-                  <PagedText text={text()} resetKey={id} />
+                  <PagedText text={text()} resetKey={id} onInteraction={() => setPinned(true)} />
                 </Show>
               </article>
             );
           }}
         </For>
+        <nav class={styles['experiment__stage-pages']} aria-label="Страницы этапов">
+          <button disabled={page() === 0} onClick={() => selectPage(page() - 1)}>
+            ←
+          </button>
+          <span>
+            {page() + 1} / {Math.ceil(keys().length / 3)}
+          </span>
+          <button
+            disabled={(page() + 1) * 3 >= keys().length}
+            onClick={() => selectPage(page() + 1)}
+          >
+            →
+          </button>
+        </nav>
       </Show>
     </section>
   );
 }
-function PagedText(props: { text: string; resetKey?: string }) {
+function PagedText(props: { text: string; resetKey?: string; onInteraction?: () => void }) {
   const [page, setPage] = createSignal(0);
   const [size, setSize] = createSignal({ columns: 38, rows: 7 });
   let reading!: HTMLDivElement;
@@ -271,7 +320,7 @@ function PagedText(props: { text: string; resetKey?: string }) {
         reading.clientHeight - parseFloat(frame.paddingTop) - parseFloat(frame.paddingBottom) - 48;
       setSize({
         columns: Math.max(15, Math.floor(width / (parseFloat(css.fontSize) * 0.61))),
-        rows: Math.max(2, Math.floor(height / parseFloat(css.lineHeight))),
+        rows: Math.max(1, Math.floor(height / parseFloat(css.lineHeight))),
       });
     });
     observer.observe(reading);
@@ -295,13 +344,25 @@ function PagedText(props: { text: string; resetKey?: string }) {
     >
       <p>{chunks()[page()]}</p>
       <nav aria-label="Страницы текста">
-        <button disabled={page() === 0} onClick={() => setPage(page() - 1)}>
+        <button
+          disabled={page() === 0}
+          onClick={() => {
+            props.onInteraction?.();
+            setPage(page() - 1);
+          }}
+        >
           ←
         </button>
         <span>
           {page() + 1} / {chunks().length}
         </span>
-        <button disabled={page() >= chunks().length - 1} onClick={() => setPage(page() + 1)}>
+        <button
+          disabled={page() >= chunks().length - 1}
+          onClick={() => {
+            props.onInteraction?.();
+            setPage(page() + 1);
+          }}
+        >
           →
         </button>
       </nav>
@@ -321,6 +382,9 @@ export function ExperimentPage() {
   const [urls, setUrls] = createSignal<string[][]>([[''], ['']]);
   const [contexts, setContexts] = createSignal<string[][]>([[''], ['']]);
   const [task, setTask] = createSignal(['']);
+  const [repetitions, setRepetitions] = createSignal<1 | 3>(1);
+  const [pendingProtocol, setPendingProtocol] = createSignal<ExperimentProtocol>();
+  let acceptProtocol: (() => void) | undefined;
   const [events, setEvents] = createSignal<ProgressEvent[]>([]);
   const [result, setResult] = createSignal<ExperimentResult>();
   const [running, setRunning] = createSignal(false);
@@ -331,9 +395,7 @@ export function ExperimentPage() {
   const [reasoningStages, setReasoningStages] = createSignal<StageTrace[]>([]);
   const recordTrace = (next: StageTrace) =>
     setReasoningStages((items) => {
-      const index = items.findIndex(
-        (item) => item.stage === next.stage && item.person === next.person,
-      );
+      const index = items.findIndex((item) => item.id === next.id);
       return index < 0 ? [...items, next] : items.map((item, i) => (i === index ? next : item));
     });
   let controller: AbortController | undefined;
@@ -432,6 +494,7 @@ export function ExperimentPage() {
     setEvents([]);
     setSelected(0);
     setReasoningStages([]);
+    setPendingProtocol(undefined);
     setResult(undefined);
     setScreen('progress');
     try {
@@ -445,18 +508,28 @@ export function ExperimentPage() {
             );
             const current = events().at(-1);
             if (event.reasoning && current && current.stage !== 'complete') {
-              const previous = reasoningStages().find(
-                (item) => item.stage === current.stage && item.person === current.person,
-              );
+              const previous = reasoningStages().find((item) => item.id === current.id);
               if (previous) {
-                const block = event.reasoning;
+                const block = {
+                  ...event.reasoning,
+                  id: `${previous.attempts.length + 1}:${event.reasoning.id}`,
+                };
                 const blocks = previous.trace.reasoning ?? [];
                 const reasoning = blocks.some((item) => item.id === block.id)
                   ? blocks.map((item) => (item.id === block.id ? block : item))
                   : [...blocks, block];
                 recordTrace({
                   ...previous,
-                  trace: { ...previous.trace, 'reasoning-ms': event['elapsed-ms'], reasoning },
+                  trace: {
+                    ...previous.trace,
+                    'reasoning-ms':
+                      previous.attempts.reduce((sum, attempt) => sum + attempt['wall-time-ms'], 0) +
+                      event['elapsed-ms'],
+                    'wall-time-ms':
+                      previous.attempts.reduce((sum, attempt) => sum + attempt['wall-time-ms'], 0) +
+                      event['elapsed-ms'],
+                    reasoning,
+                  },
                 });
               }
             }
@@ -464,20 +537,47 @@ export function ExperimentPage() {
         ),
         {
           signal: controller.signal,
+          repetitions: repetitions(),
+          onProtocol: (protocol) =>
+            new Promise<void>((resolve, reject) => {
+              const signal = controller!.signal;
+              if (signal.aborted) {
+                reject(signal.reason);
+                return;
+              }
+              const cleanup = () => {
+                signal.removeEventListener('abort', abort);
+                acceptProtocol = undefined;
+                setPendingProtocol(undefined);
+              };
+              const abort = () => {
+                cleanup();
+                reject(signal.reason ?? new Error('Эксперимент остановлен'));
+              };
+              signal.addEventListener('abort', abort, { once: true });
+              acceptProtocol = () => {
+                cleanup();
+                resolve();
+              };
+              setPendingProtocol(protocol);
+              setActivity('Проверьте критерии и условия до создания персон.');
+            }),
           onTrace: recordTrace,
           onProgress: (event) => {
             if (
               event.stage !== 'complete' &&
-              !reasoningStages().some(
-                (item) => item.stage === event.stage && item.person === event.person,
-              )
+              !reasoningStages().some((item) => item.id === event.id)
             ) {
               recordTrace({
+                id: event.id,
                 stage: event.stage,
                 person: event.person,
+                label: event.message,
+                attempts: [],
                 trace: {
                   provider: settings().components[event.stage],
                   'reasoning-ms': 0,
+                  'wall-time-ms': 0,
                   'terminal-ms': 0,
                   summary: '',
                   reasoning: [],
@@ -505,26 +605,18 @@ export function ExperimentPage() {
       );
     } finally {
       setRunning(false);
+      acceptProtocol = undefined;
+      setPendingProtocol(undefined);
     }
   };
   const progress = () => events().at(-1)?.completed ?? 0;
+  const total = () => events().at(-1)?.total ?? 8 + repetitions() * 5;
   const persona = () => result()?.people[selected()];
   const text = () => {
     const current = persona();
     const output = result();
     if (!current || !output) return '';
-    if (detail() === 'answer') return current.attempt.answer;
-    if (detail() === 'archetype')
-      return `${current.profile.archetype}\n\n${current.profile.skills.map((skill, index) => `${index + 1}. ${skill}`).join('\n\n')}`;
-    if (detail() === 'sources')
-      return current.report.evidence
-        .map(
-          (item) =>
-            `${item.kind === 'fact' ? 'ФАКТ' : 'ГИПОТЕЗА'} · ${item.summary}\n${item['source-url'] || 'Контекст пользователя'}`,
-        )
-        .join('\n\n');
-    const analysis = output.comparison.people[selected()];
-    return `${output.comparison.summary}\n\nСИЛЬНЫЕ СТОРОНЫ\n${analysis?.strengths.join('\n')}\n\nОГРАНИЧЕНИЯ\n${analysis?.weaknesses.join('\n')}\n\nНАБЛЮДЕНИЯ\n${analysis?.observations.join('\n')}\n\nРАЗЛИЧИЯ\n${output.comparison['key-differences'].join('\n')}`;
+    return reportText(output, current, detail());
   };
   const download = () => {
     const blob = new Blob([JSON.stringify(result(), null, 2)], { type: 'application/json' });
@@ -595,18 +687,25 @@ export function ExperimentPage() {
                 fallback={
                   <>
                     <header class={styles['experiment__result-banner']}>
-                      <span>EXPERIMENT COMPLETE</span>
-                      <h2>BSC · {persona()?.score.bsc.toFixed(3) ?? '—'}</h2>
-                      <p>Отношение двух BSC: × {result()?.comparison.ratio?.toFixed(2) ?? '—'}</p>
-                      <p>Экспериментальная метрика · не оценка интеллекта человека</p>
+                      <span>
+                        {result()?.status === 'complete'
+                          ? 'EXPERIMENT COMPLETE'
+                          : 'EXPERIMENT INCOMPLETE'}
+                      </span>
+                      <h2>BSC v2 · {formatScore(persona()?.score)}</h2>
+                      <p>Разница A − B: {formatInterval(result()?.comparison.difference)} п.п.</p>
+                      <p>
+                        {result()?.status !== 'complete'
+                          ? 'Серия не завершена · итоговое сравнение недоступно'
+                          : result()?.protocol.repetitions === 1
+                            ? 'Предварительный обзор · один прогон'
+                            : 'Описание трёх прогонов · статистическое превосходство не установлено'}
+                      </p>
                     </header>
                     <div class={styles['experiment__result-body']}>
                       <div class={styles['experiment__result-heading']}>
                         <h3>{persona()?.profile.label}</h3>
-                        <span>
-                          {persona()?.score['reasoning-minutes'].toFixed(3)} мин. / оценка{' '}
-                          {persona()?.report['estimated-bsc']}
-                        </span>
+                        <span>{sourceLabel(persona())}</span>
                       </div>
                       <nav class={styles['experiment__tabs']} aria-label="Разделы анализа">
                         <For
@@ -646,17 +745,35 @@ export function ExperimentPage() {
                 }
               >
                 <header class={styles['experiment__progress-heading']}>
-                  <span>LIVE EXPERIMENT / {progress()} OF 7</span>
+                  <span>
+                    LIVE EXPERIMENT / {progress()} OF {total()}
+                  </span>
                   <h2>
                     Intelligence traces<span class={styles['experiment__blink']}>_</span>
                   </h2>
                   <p>{activity()}</p>
                 </header>
                 <div class={styles['experiment__traces']}>
-                  <TraceReader stages={reasoningStages()} running={running()} person={selected()} />
+                  <Show
+                    when={pendingProtocol()}
+                    fallback={
+                      <TraceReader
+                        stages={reasoningStages()}
+                        running={running()}
+                        person={selected()}
+                      />
+                    }
+                  >
+                    {(protocol) => (
+                      <PagedText text={protocolText(protocol())} resetKey="protocol" />
+                    )}
+                  </Show>
                 </div>
                 <nav class={styles['experiment__trace-pages']}>
-                  <span>{events().at(-1)?.message}</span>
+                  <span>{pendingProtocol() ? 'Протокол' : events().at(-1)?.message}</span>
+                  <Show when={pendingProtocol()}>
+                    <button onClick={() => acceptProtocol?.()}>Принять протокол</button>
+                  </Show>
                   <button
                     disabled={!running()}
                     onClick={() => {
@@ -668,8 +785,8 @@ export function ExperimentPage() {
                   </button>
                 </nav>
                 <footer class={styles['experiment__progress']}>
-                  <span>PROGRESS {Math.round((progress() / 7) * 100)}%</span>
-                  <progress max={7} value={progress()} />
+                  <span>PROGRESS {Math.round((progress() / total()) * 100)}%</span>
+                  <progress max={total()} value={progress()} />
                 </footer>
               </Show>
             </section>
@@ -782,7 +899,14 @@ export function ExperimentPage() {
             <button type="submit" aria-label="Начать эксперимент">
               START ▶
             </button>
-            <small>PUBLIC DATA ONLY</small>
+            <select
+              aria-label="Режим эксперимента"
+              value={repetitions()}
+              onChange={(event) => setRepetitions(event.currentTarget.value === '3' ? 3 : 1)}
+            >
+              <option value="1">1 прогон · обзор</option>
+              <option value="3">3 прогона · серия</option>
+            </select>
           </footer>
         </form>
       </Show>

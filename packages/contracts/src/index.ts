@@ -1,19 +1,9 @@
 export type ProviderId = 'codex' | 'kimi';
 export type PaletteId = 'turquoise' | 'violet';
 export type IntelligenceEffort = 'low' | 'medium' | 'high';
-export interface Evidence {
-  readonly id: string;
-  readonly 'source-url': string;
-  readonly kind: 'fact' | 'hypothesis';
-  readonly summary: string;
-}
-export interface PersonProfile {
-  readonly id: string;
-  readonly label: string;
-  readonly palette: PaletteId;
-  readonly archetype: string;
-  readonly skills: readonly string[];
-}
+export * from './persona';
+export * from './evaluation';
+export * from './experiment';
 export interface IntelligenceRequest {
   readonly task: string;
   readonly 'system-prompt': string;
@@ -28,7 +18,15 @@ export interface ReasoningBlock {
 }
 export interface IntelligenceTrace {
   readonly provider: ProviderId;
+  /** Legacy field: elapsed request duration, never measured active reasoning. */
   readonly 'reasoning-ms': number;
+  readonly 'wall-time-ms'?: number;
+  readonly 'active-reasoning-ms'?: null;
+  readonly 'requested-model'?: string;
+  readonly 'resolved-model'?: string | null;
+  readonly 'requested-effort'?: IntelligenceEffort;
+  readonly 'applied-effort'?: IntelligenceEffort | null;
+  readonly 'cli-version'?: string | null;
   readonly 'terminal-ms': number;
   readonly summary: string;
   readonly reasoning?: readonly ReasoningBlock[];

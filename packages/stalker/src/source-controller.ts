@@ -166,6 +166,11 @@ export async function collectSource(
     () => controller.abort(new CollectionStop('Source duration budget reached')),
     grant.budget['max-duration-ms'],
   );
+  // Reads and planning share the persistent native budget with corpus analysis.
+  // Leave room for analysis plus a format repair, while allowing one initial read.
+  const maxSteps = grant.budget['max-steps'];
+  const analysisSteps = Math.min(maxSteps - 1, Math.max(2, Math.min(4, Math.floor(maxSteps / 3))));
+  const collectionSteps = maxSteps - analysisSteps;
   let steps = 0;
   let bytes = 0;
   let coverage = emptyCoverage();
@@ -177,10 +182,11 @@ export async function collectSource(
     controller.signal.throwIfAborted();
     if (Date.now() >= Date.parse(grant['expires-at']))
       throw new CollectionStop('Source grant expired');
-    if (
-      steps >= grant.budget['max-steps'] ||
-      Date.now() - started >= grant.budget['max-duration-ms']
-    )
+    if (steps >= collectionSteps)
+      throw new CollectionStop(
+        'Source collection budget reached; remaining steps reserved for analysis',
+      );
+    if (Date.now() - started >= grant.budget['max-duration-ms'])
       throw new CollectionStop('Source collection budget reached');
     steps++;
   };

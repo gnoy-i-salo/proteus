@@ -89,7 +89,7 @@ describe('bounded source collection', () => {
     expect(collection.limitations.join(' ')).toMatch(/cursor/i);
   });
   it('does not reset the total step budget for model format retries', async () => {
-    const grant = { ...sourceGrant, budget: { ...sourceGrant.budget, 'max-steps': 2 } };
+    const grant = { ...sourceGrant, budget: { ...sourceGrant.budget, 'max-steps': 4 } };
     const model = sourceProvider([{ action: 'send', text: 'hi' }]);
     const execute = vi.fn().mockResolvedValue(sourceResult([sourceDocument()]));
     const collection = await collectSource(grant, sourceInput, model, { execute });
@@ -97,6 +97,7 @@ describe('bounded source collection', () => {
     expect(execute).toHaveBeenCalledOnce();
     expect(collection.status).toBe('partial');
     expect(collection.limitations.join(' ')).toMatch(/budget/i);
+    expect(collection.usage.steps).toBe(2);
   });
   it('reserves every model attempt in the native persistent grant budget before inference', async () => {
     let spent = 0;

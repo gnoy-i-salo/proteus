@@ -4,7 +4,7 @@ import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { analyzeSourceCollections as runAnalysis } from './source-analysis';
 import { sourceDocument, sourceGrant, sourceInput, sourceResult } from './source-fixtures';
 import { sanitizeSourceText } from './source-sanitizer';
-import type { SourceCollection } from './source-controller';
+import { collectSource, type SourceCollection } from './source-controller';
 
 const analysisPort: SourcePort = {
   async execute() {
@@ -63,6 +63,64 @@ function analyzer(change?: (value: Record<string, unknown>) => void) {
   return { id: 'codex' as const, run };
 }
 describe('source corpus analysis', () => {
+  it.each([3, 40])(
+    'keeps analysis and one format repair available after a long source walk with %i steps',
+    async (maxSteps) => {
+      const grant = { ...sourceGrant, budget: { ...sourceGrant.budget, 'max-steps': maxSteps } };
+      let spent = 0;
+      let pages = 0;
+      const reserve = async () => {
+        if (spent >= maxSteps) throw new Error('source-budget-exceeded');
+        spent++;
+      };
+      const port: SourcePort = {
+        async execute() {
+          await reserve();
+          const page = sourceResult([sourceDocument(`d${++pages}`)], `cursor-${pages}`);
+          return { ...page, coverage: { ...page.coverage, documents: pages } };
+        },
+        reserveModelCall: vi.fn(reserve),
+      };
+      const provider = analyzer();
+      provider.run.mockResolvedValueOnce({
+        answer: 'invalid JSON',
+        trace: { provider: 'codex', 'reasoning-ms': 1, 'terminal-ms': 0, summary: 'retry' },
+      });
+      const collected = await collectSource(grant, sourceInput, provider, port);
+      const { report } = await runAnalysis(sourceInput, [collected], provider, port);
+      expect(provider.run.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(provider.run.mock.calls[1]?.[0]['format-attempt']).toBe(2);
+      expect(
+        provider.run.mock.calls.every(([request]) => request.operation === 'corpus-analysis'),
+      ).toBe(true);
+      expect(collected.status).toBe('partial');
+      expect(collected.coverage.complete).toBe(false);
+      expect(collected.usage.steps).toBe(pages);
+      expect(collected.usage.steps).toBeLessThanOrEqual(maxSteps - 2);
+      expect(collected.limitations.join(' ')).toMatch(/analysis.*budget|budget.*analysis/i);
+      expect(report['source-coverage']?.[0]).toMatchObject({ 'analyzed-documents': pages });
+      expect(spent).toBe(pages + provider.run.mock.calls.length);
+      expect(spent).toBeLessThanOrEqual(maxSteps);
+    },
+  );
+  it('allows a one-step grant to read once and reports that analysis could not run', async () => {
+    const grant = { ...sourceGrant, budget: { ...sourceGrant.budget, 'max-steps': 1 } };
+    const execute = vi.fn().mockResolvedValue(sourceResult([sourceDocument()], 'next'));
+    const reserveModelCall = vi.fn();
+    const provider = analyzer();
+    const port: SourcePort = { execute, reserveModelCall };
+    const collected = await collectSource(grant, sourceInput, provider, port);
+    const { report } = await runAnalysis(sourceInput, [collected], provider, port);
+    expect(execute).toHaveBeenCalledOnce();
+    expect(provider.run).not.toHaveBeenCalled();
+    expect(reserveModelCall).not.toHaveBeenCalled();
+    expect(collected.status).toBe('partial');
+    expect(report['source-coverage']?.[0]).toMatchObject({
+      'analyzed-documents': 0,
+      coverage: { 'not-analyzed': 1 },
+    });
+    expect(report['source-coverage']?.[0]?.limitations.join(' ')).toMatch(/analysis budget/i);
+  });
   it('grounds facts in exact native text and never accepts model retrieval metadata', async () => {
     const provider = analyzer();
     const { report } = await analyzeSourceCollections(sourceInput, [collection()], provider);

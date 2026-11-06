@@ -1,6 +1,6 @@
 [package]
 name = "proteus"
-version = "0.1.0"
+version = "0.1.1"
 description = "PROTEUS persona laboratory"
 edition = "2021"
 rust-version = "1.99"

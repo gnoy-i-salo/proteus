@@ -1,0 +1,1 @@
+export { startAuth } from './bootstrap';

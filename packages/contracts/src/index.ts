@@ -4,6 +4,7 @@ export type IntelligenceEffort = 'low' | 'medium' | 'high';
 export * from './persona';
 export * from './evaluation';
 export * from './experiment';
+export * from './auth-callback';
 export interface IntelligenceRequest {
   readonly task: string;
   readonly 'system-prompt': string;

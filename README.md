@@ -95,6 +95,8 @@ flowchart LR
 
 Это одно desktop-приложение со встроенным frontend. Пакеты на схеме — логические границы, а не отдельные серверы.
 
+Дополнительно `apps/auth` предоставляет статическую страницу возврата VK ID. Она публикуется вместе со схемами LikeC4 на GitHub Pages; [адреса и настройка VK](docs/auth.md). Нативная авторизация и получение данных VK пока не реализованы.
+
 ```mermaid
 flowchart LR
     ui["Desktop: SolidJS и FSD"] --> pipeline["Pipeline: протокол и оркестрация"]
@@ -109,6 +111,7 @@ flowchart LR
 | Пакет              | Ответственность                                                                         |
 | ------------------ | --------------------------------------------------------------------------------------- |
 | `desktop`          | Ввод, просмотр протокола, прогресс, результаты, настройки, нативное окно                |
+| `auth`             | Статический callback VK, очистка URL, проверка формата и возврат в приложение           |
 | `pipeline`         | Фиксация протокола, подготовка участников, повторы, порядок, отмена, экспорт результата |
 | `contracts`        | Общие типы профиля, свидетельств, рубрики, оценок, протокола и наблюдаемых traces       |
 | `intelligence`     | Порты Codex/Kimi, настройки компонентов, проверка структурированных ответов             |
@@ -190,6 +193,8 @@ pnpm test:e2e                    # браузерные сценарии и от
 pnpm check:rust                  # rustfmt, clippy и Rust tests
 pnpm build:desktop               # нативная release-сборка
 pnpm architecture               # интерактивная карта LikeC4
+pnpm dev:auth                   # локальная страница возврата VK
+pnpm build:pages                # совместная сборка auth и LikeC4
 ```
 
 Если Chrome уже установлен, браузерные сценарии можно запустить с `PLAYWRIGHT_CHANNEL=chrome pnpm test:e2e`. Полный набор обязательных проверок выполняется в CI. Наличие команды или теста в репозитории не означает, что конкретный кандидат релиза уже прошёл проверку; статус версии отражён в [release notes](docs/release-notes.md) и GitHub Actions.
@@ -205,7 +210,8 @@ pnpm architecture               # интерактивная карта LikeC4
 ```text
 apps/desktop/          SolidJS, FSD, SCSS Modules
   src-tauri/           Rust, IPC, встроенный frontend
-packages/              восемь общих и доменных пакетов; вместе с desktop — девять @proteus-int/*
+apps/auth/             статический callback VK, SolidJS/FSD
+packages/              восемь общих и доменных пакетов; с двумя apps — десять @proteus-int/*
 architecture/          LikeC4 и правила зависимостей
 scripts/               селективные проверки и architecture gate
 .beads/                конфигурация и snapshot задач

@@ -1,0 +1,70 @@
+@import '@fontsource/press-start-2p/latin-400.css';
+@import '@fontsource/press-start-2p/cyrillic-400.css';
+
+:root {
+  --surface: #171627;
+  --panel: #242137;
+  --line: #655d83;
+  --text: #f2edff;
+  --muted: #c0bad6;
+  --turquoise: #8aebd7;
+  --violet: #c2a4ff;
+  --pixel-font: 'Press Start 2P', monospace;
+
+  color-scheme: dark;
+  font-family: 'Courier New', monospace;
+  font-synthesis: none;
+  text-rendering: optimizelegibility;
+  color: var(--text);
+  background: var(--surface);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 280px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #ffbd75;
+  outline-offset: 5px;
+}
+
+::selection {
+  color: #201e36;
+  background: var(--turquoise);
+}
+
+noscript {
+  display: block;
+  max-width: 40rem;
+  margin: 3rem auto;
+  padding: 1.5rem;
+  line-height: 1.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}

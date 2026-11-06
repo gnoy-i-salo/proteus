@@ -69,13 +69,14 @@ export function checkImport(file, specifier, packages, edges) {
   }
   const target = posix.normalize(posix.join(posix.dirname(file), specifier));
   if (!target.startsWith(`${source.path}/`)) return 'relative import escapes its package';
-  if (source.name !== '@proteus-int/desktop') return null;
+  if (!source.path.startsWith('apps/')) return null;
   const base = `${source.path}/src/`;
   if (!file.startsWith(base)) return null;
   const [layer, slice] = file.slice(base.length).split('/');
   const [targetLayer, targetSlice, ...rest] = target.slice(base.length).split('/');
   const layers = ['shared', 'entities', 'features', 'widgets', 'pages', 'app'];
-  if (layer === 'main.tsx') return targetLayer === 'app' ? null : 'entrypoint may only import app';
+  if (layer === 'main.ts' || layer === 'main.tsx')
+    return targetLayer === 'app' ? null : 'entrypoint may only import app';
   if (!layers.includes(layer) || !layers.includes(targetLayer)) return 'unknown FSD layer';
   if (layers.indexOf(targetLayer) > layers.indexOf(layer)) return 'FSD upward dependency';
   if (layer === targetLayer && !['app', 'shared'].includes(layer) && slice !== targetSlice)

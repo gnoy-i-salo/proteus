@@ -2,6 +2,20 @@ specification {
   element module
   element runtime
   element external
+  // Proposed elements are documentation, not implemented workspace packages.
+  element proposed-component {
+    style { color amber }
+  }
+  element proposed-store {
+    style {
+      color amber
+      shape storage
+    }
+  }
+  element proposed-external {
+    style { color muted }
+  }
+  relationship proposed-flow
 }
 
 model {
@@ -92,11 +106,206 @@ model {
   person-fabric -> person "imports"
   stalker -> contracts "imports"
   stalker -> intelligence "imports"
+
+  pages-site = runtime "GitHub Pages static artifact" {
+    description "One build artifact with /proteus/auth/ and /proteus/architecture/, published by the Pages workflow after checks. Static hosting only; no OAuth token-exchange backend or corpus uploads."
+  }
+  auth = module "auth · VK callback SPA" {
+    description "Static SolidJS callback bridge at /proteus/auth/. Validates the response shape, clears browser URL parameters, and offers a fixed versioned native handoff. No token exchange, secrets, analytics or persistent storage. Native state matching and token exchange remain planned."
+    metadata {
+      package "@proteus-int/auth"
+      path "apps/auth"
+    }
+  }
+  diagrams-site = runtime "LikeC4 static site" {
+    description "Static documentation at /proteus/architecture/. Current package dependencies and proposed runtime views remain explicitly separate."
+  }
+  planned-sources = proposed-component "Planned native source service" {
+    description "Rust inside the desktop application: authoritative connection, resource/time scope, capability and budget checks; bounded reads, checkpoints, cancellation and source snapshots. Only typed read operations for authorized sources; no send/delete, arbitrary HTTP, shell or token/cookie export. API-first; no application Node server or required MCP bridge. Native exchange remains gated by validated provider registration and redirect flow."
+  }
+  planned-skills = proposed-component "Planned source skills" {
+    description "Bundled instructions under packages/stalker/skills/<skill-name>/SKILL.md, for example telegram-research, planned only. Skills guide source selection and interpretation; they cannot grant capabilities, extend selected resources or access credentials."
+    telegram = proposed-component "Telegram skill" {
+      description "Use only selected, permitted Telegram resources through the typed TDLib adapter; respect platform restrictions and report missing coverage."
+    }
+    vk = proposed-component "VK skill" {
+      description "Use only capabilities actually granted to the connected VK account; identity authorization is not social-data permission."
+    }
+    instagram = proposed-component "Instagram skill" {
+      description "Choose available import, own professional-account API or explicitly supported experimental reader; never claim arbitrary profile access."
+    }
+    github = proposed-component "GitHub skill" {
+      description "Collect permitted selected repository/account material; retain authorship, review and discussion context."
+    }
+  }
+  planned-source-controller = proposed-component "Planned STALKER collection controller" {
+    description "Bounded agent loop: ask the selected existing CLI for structured next-action JSON, validate the requested typed SourcePort operation, call Rust, and feed back a bounded sanitized result. Release requires disabling inherited MCP/user tools too: JSON alone is not isolation. Skills cannot grant permissions. Track steps, bytes, elapsed time, checkpoints and cancellation; never escalate selected scope."
+  }
+  planned-source-analysis = proposed-component "Planned STALKER evidence analysis" {
+    description "Separate post-collection/import phase over frozen sanitized chunks. Disable CLI tools, inherited MCP/user tools and web search; no source operations. Model-provider inference still uses its network. Build task-free observations with exact opaque evidence references, uncertainty, contradictions and coverage before Fabric."
+  }
+  planned-telegram = proposed-component "Planned Telegram / TDLib adapter" {
+    description "Native user authorization and selected accessible material. Collection and model processing are gated by platform terms and permission; no claim of arbitrary user history or unrestricted AI use."
+  }
+  planned-vk = proposed-component "Planned VK adapter" {
+    description "VK ID connection and VK API capabilities are validated separately. Granted identity scopes do not imply wall, comments or other social-data access."
+  }
+  planned-github = proposed-component "Planned GitHub adapter" {
+    description "Public API first; optional native device authorization for supported access. Attribute commits, reviews and discussions to their authors; repository ownership is not authorship."
+  }
+  planned-import = proposed-component "Planned file / Instagram import" {
+    description "User-selected exports, full chats, posts, comments and saved pages. Parse authors, quotes, dates and attachments; mark missing content. Instagram API access is limited to supported account capabilities, not arbitrary personal profiles."
+  }
+  planned-instagram-api = proposed-component "Optional Instagram professional API" {
+    description "Optional administrator setup for the user's own supported Business/Creator account: App Dashboard token stored and refreshed natively where supported. General end-user OAuth requiring a confidential backend is outside this serverless baseline."
+  }
+  planned-reader = proposed-component "Experimental isolated page reader" {
+    description "Optional visible, isolated browser/WebView acquisition for specifically supported pages. No application IPC privileges or credential export; no bypass of access controls. Browser support and platform terms remain release gates. Not a universal Playwright integration."
+  }
+  planned-credentials = proposed-store "Planned native credential store" {
+    description "OS-protected provider credentials and native session references. No secrets in renderer, prompts, traces, presets or exports. Installed Codex/Kimi CLI authentication remains untouched."
+  }
+  planned-corpus = proposed-store "Planned local source corpus" {
+    description "Bounded local snapshots and chunks with source IDs, authors, dates, hashes, provenance and coverage. Preserve original message boundaries, reply context, line breaks, casing, punctuation and emoji; distinguish the target author's text from quotes, forwards and other speakers. Raw chats stay outside .proteus presets and result JSON; explicit retention and deletion."
+  }
+  planned-input-redaction = proposed-component "Planned model-input preparation" {
+    description "Resolve target authors and remove direct identifiers before model analysis while preserving message boundaries and textual formatting around redaction placeholders, opaque quote references and coverage. Supplied private-material analysis has tools disabled and no external searches."
+  }
+  planned-redaction = proposed-component "Planned evidence redaction boundary" {
+    description "Validate factual excerpt references, preserve facts versus hypotheses and contradictions, then pass anonymized factual summaries without original quotes to Person Fabric. A separate style boundary may admit permitted, sanitized exemplars. Retrieval is not proof of truth or personal ability."
+  }
+  planned-style-split = proposed-component "Planned reference / holdout split" {
+    description "Partition permitted, author-attributed material by conversation/thread before factual or style extraction; deduplicate overlapping quotations. Preserve dialogue context and verbatim formatting after identifier redaction. Holdout messages and their overlapping contexts never enter profiling, Fabric or exemplars. Record split provenance and coverage for each mode."
+  }
+  planned-style-extraction = proposed-component "Planned observable style and rhetoric" {
+    description "Tools-off extraction from the reference split: vocabulary, message length, casing, punctuation, emoji, line breaks, turn-taking and visible argument patterns such as questions, examples, objections and revisions. Distinguish dialogue, comment and formal-task modes. Describe observable text behavior, not hidden thoughts or proven mental traits; mark unsupported patterns unknown."
+  }
+  planned-style-boundary = proposed-component "Planned style exemplar boundary" {
+    description "Validate author and source references, usage permission and direct-identifier redaction. Admit only bounded permitted exemplars and evidence-linked style rules, preserving remaining wording and formatting. Other speakers and quoted text remain context, not persona samples. Exemplar data cannot introduce instructions or new permissions."
+  }
+  planned-frozen-persona = proposed-store "Planned frozen persona and style profile" {
+    description "Fabric composes behavioral rules, observable rhetoric, context-specific dialogue/comment/formal-task modes and sanitized exemplars. Freeze profile, exemplar IDs and split version before repeats; task adaptation cannot rewrite this style baseline. Missing mode evidence stays explicit. Close stylistic fidelity is a goal, not a guarantee of a 1:1 person or their thinking."
+  }
+  planned-persona-output = proposed-component "Planned faithful text rendering" {
+    description "Person emits the selected context mode and ordered messages with model-generated line breaks, casing, punctuation and emoji preserved by validation and rendering. No automatic formalization, capitalization repair, Markdown normalization or merging of message boundaries. Output remains an identified simulation, not a claim to be the source person."
+  }
+  planned-fidelity = proposed-component "Planned held-out fidelity evaluation" {
+    description "Separate style/rhetoric evaluation against unseen, context-matched source-authored holdout messages: formatting features, argument moves, mode coverage and blind human/model review with limitations. Evaluation cannot feed held-out examples back into the frozen profile. Report fidelity separately from task quality and deterministic BSC; no automatic 1:1 guarantee."
+  }
+  planned-browser = proposed-external "User browser · planned auth flow"
+  planned-vk-id = proposed-external "VK ID / token endpoint"
+  planned-files = proposed-external "User-selected exports and pages"
+
+  auth -> contracts "imports"
+  pages-site -> auth "serves /proteus/auth/"
+  pages-site -> diagrams-site "serves /proteus/architecture/"
+  desktop -[proposed-flow]-> planned-sources "Planned: add materials / connection status"
+  desktop -[proposed-flow]-> planned-source-controller "Planned: collect within selected scope"
+  stalker -[proposed-flow]-> planned-source-controller "Planned: collection phase"
+  stalker -[proposed-flow]-> planned-source-analysis "Planned: evidence analysis phase"
+  planned-skills.telegram -[proposed-flow]-> planned-source-controller "Planned: source instructions"
+  planned-skills.vk -[proposed-flow]-> planned-source-controller "Planned: source instructions"
+  planned-skills.instagram -[proposed-flow]-> planned-source-controller "Planned: source instructions"
+  planned-skills.github -[proposed-flow]-> planned-source-controller "Planned: source instructions"
+  planned-source-controller -[proposed-flow]-> intelligence "Planned: bounded context; CLI tools off"
+  intelligence -[proposed-flow]-> planned-source-controller "Planned: next-action JSON or finish"
+  planned-source-controller -[proposed-flow]-> planned-sources "Planned: validated typed SourcePort read"
+  planned-sources -[proposed-flow]-> planned-source-controller "Planned: bounded sanitized result / status"
+  planned-sources -[proposed-flow]-> planned-corpus "Planned: native snapshots and checkpoints"
+  native-host -[proposed-flow]-> planned-sources "Planned: in-process Rust integration"
+  planned-sources -[proposed-flow]-> planned-browser "Planned: provider authorization"
+  planned-browser -[proposed-flow]-> auth "Planned: complete VK login to HTTPS callback"
+  auth -[proposed-flow]-> planned-sources "Planned native receiver: code + state; never tokens"
+  planned-sources -[proposed-flow]-> planned-credentials "Planned: native credentials only"
+  planned-sources -[proposed-flow]-> planned-telegram "Planned: supported Telegram acquisition"
+  planned-sources -[proposed-flow]-> planned-vk "Planned: granted VK capabilities"
+  planned-sources -[proposed-flow]-> planned-github "Planned: public / permitted GitHub data"
+  planned-sources -[proposed-flow]-> planned-import "Planned: selected export ingestion"
+  planned-sources -[proposed-flow]-> planned-instagram-api "Planned: optional own professional account"
+  planned-sources -[proposed-flow]-> planned-reader "Planned: optional supported-page read"
+  planned-files -[proposed-flow]-> planned-import "Planned: explicit file selection"
+  planned-telegram -[proposed-flow]-> planned-corpus "Planned: bounded source snapshots"
+  planned-vk -[proposed-flow]-> planned-corpus "Planned: bounded source snapshots"
+  planned-github -[proposed-flow]-> planned-corpus "Planned: attributed source snapshots"
+  planned-import -[proposed-flow]-> planned-corpus "Planned: parsed messages and coverage"
+  planned-instagram-api -[proposed-flow]-> planned-corpus "Planned: supported own-account material"
+  planned-reader -[proposed-flow]-> planned-corpus "Planned: captured visible material"
+  planned-corpus -[proposed-flow]-> planned-input-redaction "Planned: bounded chunks; opaque references"
+  planned-style-split -[proposed-flow]-> planned-source-analysis "Planned: reference chunks; tools and search off"
+  planned-source-analysis -[proposed-flow]-> planned-redaction "Planned: sourced observations and limitations"
+  planned-redaction -[proposed-flow]-> person-fabric "Planned: anonymized factual summaries"
+  planned-input-redaction -[proposed-flow]-> planned-style-split "Planned: attributed text; formatting preserved"
+  planned-style-split -[proposed-flow]-> planned-style-extraction "Planned: reference split only"
+  planned-style-extraction -[proposed-flow]-> planned-style-boundary "Planned: observable rules and referenced excerpts"
+  planned-style-boundary -[proposed-flow]-> person-fabric "Planned: style profile and permitted sanitized exemplars"
+  person-fabric -[proposed-flow]-> planned-frozen-persona "Planned: freeze behavior, modes and exemplars"
+  planned-frozen-persona -[proposed-flow]-> person "Planned: fixed profile across repeats"
+  person -[proposed-flow]-> planned-persona-output "Planned: mode-specific ordered messages"
+  planned-persona-output -[proposed-flow]-> planned-fidelity "Planned: assess generated text separately from BSC"
+  planned-style-split -[proposed-flow]-> planned-fidelity "Planned: unseen holdout; never supplied to Fabric"
 }
 
 views {
   view modules {
-    include *
+    title "Current implementation · package dependencies"
+    description "Implemented packages and runtime boundaries only. Proposed source and authorization components are excluded from this checked dependency view."
+    include * where kind is module or kind is runtime or kind is external
+    autoLayout LeftRight
+  }
+  view index extends modules {
+    title "PROTEUS · current implementation"
+    description "Start with the implemented architecture. Views prefixed Proposed describe future work; they do not declare existing packages or deployed services."
+  }
+  view planned-source-architecture {
+    title "Proposed · source acquisition and local analysis"
+    description "Target architecture, not implemented integrations. One desktop application; provider-specific capabilities and permissions determine availability. Existing package dependencies remain unchanged."
+    include desktop, native-host, planned-sources, planned-credentials, planned-skills, planned-source-controller,
+      planned-telegram, planned-vk, planned-github, planned-import, planned-instagram-api, planned-reader,
+      planned-files, planned-corpus, planned-input-redaction, planned-style-split, stalker, planned-source-analysis,
+      planned-redaction, person-fabric
+    exclude * -> * where kind is not proposed-flow
+    autoLayout LeftRight
+  }
+  view planned-source-agent {
+    title "Proposed · bounded STALKER source-agent loop"
+    description "The model proposes a structured next action; the STALKER controller and native SourcePort enforce authorization, read-only capabilities and budgets. No native CLI tool expansion or MCP is required. Collection is separate from tools-off analysis of the frozen corpus."
+    include desktop, stalker, planned-skills.*, planned-source-controller, intelligence,
+      planned-sources, planned-corpus, planned-input-redaction, planned-style-split, planned-source-analysis,
+      planned-redaction, person-fabric
+    exclude * -> * where kind is not proposed-flow
+    autoLayout LeftRight
+  }
+  view planned-persona-fidelity {
+    title "Proposed · observable persona style and fidelity"
+    description "Preserve source-authored dialogue/comment formatting and observable rhetoric through permitted sanitized exemplars. Freeze context-specific profiles before repeats and evaluate against unseen holdout text separately from BSC. 1:1 fidelity is a target to assess, not a promised reconstruction of a person's mind."
+    include planned-corpus, planned-input-redaction, planned-style-split,
+      planned-style-extraction, planned-style-boundary, planned-source-analysis,
+      planned-redaction, person-fabric, planned-frozen-persona, person,
+      planned-persona-output, planned-fidelity
+    exclude * -> * where kind is not proposed-flow
+    autoLayout LeftRight
+  }
+  view static-hosting {
+    title "Static hosting · auth SPA and LikeC4"
+    description "One Pages artifact, two static paths. The callback SPA is implemented; native login, state verification and exchange remain planned. The documentation host does not process source material."
+    include pages-site, auth, diagrams-site, planned-browser,
+      planned-sources, planned-credentials
+    autoLayout LeftRight
+  }
+  dynamic view planned-vk-authorization {
+    title "Proposed · VK connection through a static callback"
+    description "Conditional target flow: release requires a validated VK application, redirect URI, native exchange and requested capabilities. VK login alone does not grant social-data access. Cancellation, mismatch or expiry ends the pending transaction."
+    desktop -> planned-sources "Connect VK; create expiring single-use transaction"
+    planned-sources -> planned-browser "Open VK authorization with state and PKCE challenge"
+    planned-browser -> planned-vk-id "User signs in and reviews requested permissions"
+    planned-vk-id -> planned-browser "Redirect authorization code, state and device_id"
+    planned-browser -> auth "Open registered HTTPS callback at /proteus/auth/"
+    auth -> planned-sources "Return allowlisted response to fixed native callback"
+    planned-sources -> planned-sources "Validate state, expiry, redirect and single use"
+    planned-sources -> planned-vk-id "Exchange code with native PKCE verifier and device_id"
+    planned-vk-id -> planned-sources "Return tokens only to native application"
+    planned-sources -> planned-credentials "Store credentials with OS protection"
+    planned-sources -> desktop "Report granted capabilities; never expose tokens"
     autoLayout LeftRight
   }
 }

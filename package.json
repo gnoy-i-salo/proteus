@@ -11,8 +11,10 @@
   "scripts": {
     "prepare": "husky",
     "dev": "pnpm --filter @proteus-int/desktop dev",
+    "dev:auth": "pnpm --filter @proteus-int/auth dev",
     "desktop": "pnpm --filter @proteus-int/desktop tauri dev",
     "build": "pnpm -r build",
+    "build:pages": "node scripts/build-pages.mjs",
     "build:desktop": "pnpm --filter @proteus-int/desktop tauri build --no-bundle -- --locked",
     "lint": "eslint . --max-warnings=0",
     "lint:styles": "stylelint 'apps/**/*.scss'",

@@ -9,7 +9,7 @@ permissions:
   contents: read
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/trunk' }}
 jobs:
   quality:
     runs-on: ubuntu-24.04
@@ -79,3 +79,37 @@ jobs:
             apps/desktop/src-tauri/target/release/proteus.exe
           if-no-files-found: error
           retention-days: 14
+  pages-build:
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:pages
+      - uses: actions/upload-pages-artifact@v4
+        if: github.ref == 'refs/heads/trunk' && github.event_name != 'pull_request'
+        with:
+          path: .cache/pages
+  pages-deploy:
+    needs: [quality, native, pages-build]
+    if: github.ref == 'refs/heads/trunk' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - name: Deploy verified static artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

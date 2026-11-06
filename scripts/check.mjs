@@ -71,7 +71,8 @@ if (all || selected.length) {
   run('test:harness');
   const lintTargets = all ? ['.'] : selected.map((pkg) => `${pkg.path}/src`);
   run('exec', 'eslint', '--max-warnings=0', ...lintTargets);
-  if (all || selected.some((pkg) => pkg.name === '@proteus-int/desktop')) run('lint:styles');
+  const frontends = selected.filter((pkg) => pkg.path.startsWith('apps/'));
+  if (all || frontends.length) run('lint:styles');
   if (all) {
     run('typecheck');
     run('test');
@@ -79,8 +80,7 @@ if (all || selected.length) {
   } else {
     for (const pkg of selected) run('--filter', pkg.name, 'typecheck');
     run('exec', 'vitest', 'run', '--passWithNoTests', ...selected.map((pkg) => pkg.path));
-    if (selected.some((pkg) => pkg.name === '@proteus-int/desktop'))
-      run('--filter', '@proteus-int/desktop', 'build');
+    for (const pkg of frontends) run('--filter', pkg.name, 'build');
   }
 }
 if (

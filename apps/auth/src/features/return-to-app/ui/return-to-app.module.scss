@@ -1,0 +1,55 @@
+.return-to-app {
+  margin-top: 1.75rem;
+
+  &__link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.875rem;
+    min-height: 3.5rem;
+    padding: 1rem 1.125rem;
+    border: 2px solid #b8fff0;
+    color: #171627;
+    background: var(--turquoise);
+    box-shadow: 4px 4px #0d0c18;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.5;
+    text-decoration: none;
+    transition:
+      background-color 120ms ease,
+      transform 120ms ease,
+      box-shadow 120ms ease;
+
+    &:hover {
+      background: #b8fff0;
+    }
+
+    &:active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px #0d0c18;
+    }
+  }
+
+  &__arrow {
+    flex-shrink: 0;
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  &__status {
+    min-height: 2.75rem;
+    margin: 1rem 0 0;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+}
+
+@media (width <= 380px) {
+  .return-to-app__link {
+    gap: 0.5rem;
+    padding: 0.875rem 0.625rem;
+    font-size: 0.875rem;
+  }
+}

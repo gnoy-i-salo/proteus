@@ -66,6 +66,18 @@ importers:
         specifier: ^4.0.18
         version: 4.1.12(@types/node@24.19.2)(vite@7.3.7(@types/node@24.19.2)(jiti@2.6.1)(lightningcss@1.33.0)(sass@1.107.1))
 
+  apps/auth:
+    dependencies:
+      '@fontsource/press-start-2p':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@proteus-int/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      solid-js:
+        specifier: ^1.9.18
+        version: 1.9.18
+
   apps/desktop:
     dependencies:
       '@fontsource/press-start-2p':

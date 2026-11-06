@@ -1,0 +1,17 @@
+{
+  "name": "@proteus-int/auth",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -p tsconfig.json && vite build",
+    "typecheck": "tsc -p tsconfig.json",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "@proteus-int/contracts": "workspace:*",
+    "solid-js": "^1.9.18"
+  }
+}

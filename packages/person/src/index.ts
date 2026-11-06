@@ -14,12 +14,13 @@ export const personRuntime: PersonPort = {
     const { data, trace } = await structured(
       provider,
       'PERSON',
-      'Solve the task using the supplied archetype and skills as behavioral guidance. Act with that simulated persona’s priorities, habits, tradeoffs and limitations; do not claim to be the actual person. Give a concrete useful final answer. Return {answer, summary}; summary is a short observable outcome, never private reasoning.',
+      'Solve the task using the supplied archetype and skills as behavioral guidance. Act with that simulated persona’s priorities, habits, tradeoffs and limitations; do not claim to be the actual person. Give a concrete useful final answer. Return {"answer":string, "summary":string}; summary is a short observable outcome, never private reasoning.',
       { task, archetype: profile.archetype, skills: profile.skills },
       signal,
       'high',
+      (data) => ({ answer: text(data.answer, 'answer'), summary: text(data.summary, 'summary') }),
     );
-    return { answer: text(data.answer), trace: { ...trace, summary: text(data.summary) } };
+    return { answer: data.answer, trace: { ...trace, summary: data.summary } };
   },
 };
 export function personaArtifacts(profile: PersonProfile): Record<string, string> {

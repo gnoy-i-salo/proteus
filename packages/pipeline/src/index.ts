@@ -72,14 +72,36 @@ export async function runExperiment(
   const traces: StageTrace[] = [];
   const provider = (stage: ComponentId, person: number | null): IntelligenceProvider => {
     const adapter = providers[settings.components[stage]];
+    let previous: IntelligenceTrace | undefined;
+    let attempt = 0;
     return {
       id: adapter.id,
       async run(request, signal) {
+        if (attempt > 0) emit(stage, person, 'Исправляем формат ответа · повторная попытка');
+        attempt++;
         const result = await adapter.run({ ...request, model: settings.aliases[stage] }, signal);
-        const trace = { stage, person, trace: result.trace };
-        traces.push(trace);
+        const combined: IntelligenceTrace = {
+          ...result.trace,
+          'reasoning-ms': (previous?.['reasoning-ms'] ?? 0) + result.trace['reasoning-ms'],
+          'terminal-ms': (previous?.['terminal-ms'] ?? 0) + result.trace['terminal-ms'],
+          reasoning: [
+            ...(previous?.reasoning ?? []),
+            ...(result.trace.reasoning ?? []).map((block) => ({
+              ...block,
+              id: `${attempt}:${block.id}`,
+            })),
+          ],
+          'reasoning-truncated': Boolean(
+            previous?.['reasoning-truncated'] || result.trace['reasoning-truncated'],
+          ),
+        };
+        previous = combined;
+        const trace = { stage, person, trace: combined };
+        const index = traces.findIndex((item) => item.stage === stage && item.person === person);
+        if (index < 0) traces.push(trace);
+        else traces[index] = trace;
         options.onTrace?.(trace);
-        return result;
+        return { ...result, trace: combined };
       },
     };
   };

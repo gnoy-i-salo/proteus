@@ -25,25 +25,32 @@ export async function analyzePeople(
     { task, attempts, scores },
     signal,
     'high',
+    (data) => {
+      if (!Array.isArray(data.people) || data.people.length !== 2)
+        throw new Error('BRAIN_ANALYZATOR: expected two persona analyses');
+      const people = data.people.map((value): PersonaObservation => {
+        const item = object(value);
+        return {
+          strengths: texts(item.strengths, 'people.strengths'),
+          weaknesses: texts(item.weaknesses, 'people.weaknesses'),
+          observations: texts(item.observations, 'people.observations'),
+        };
+      });
+      return {
+        people,
+        summary: text(data.summary, 'summary'),
+        differences: texts(data['key-differences'], 'key-differences'),
+      };
+    },
   );
-  if (!Array.isArray(data.people) || data.people.length !== 2)
-    throw new Error('BRAIN_ANALYZATOR: expected two persona analyses');
-  const people = data.people.map((value): PersonaObservation => {
-    const item = object(value);
-    return {
-      strengths: texts(item.strengths),
-      weaknesses: texts(item.weaknesses),
-      observations: texts(item.observations),
-    };
-  });
   const a = scores[0]?.bsc ?? 0;
   const b = scores[1]?.bsc ?? 0;
   const ratio = a > 0 && b > 0 ? Math.max(a, b) / Math.min(a, b) : null;
   return {
-    summary: text(data.summary),
+    summary: data.summary,
     scores,
-    'key-differences': texts(data['key-differences']),
-    people,
+    'key-differences': data.differences,
+    people: data.people,
     ratio: ratio !== null && Number.isFinite(ratio) ? ratio : null,
   };
 }

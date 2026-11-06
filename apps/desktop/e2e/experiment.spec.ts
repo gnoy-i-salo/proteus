@@ -203,16 +203,16 @@ for (const [width, height] of [
     await page.setViewportSize({ width, height });
     await nativeFixture(page);
     await fillExperiment(page);
-    await page.getByRole('button', { name: 'Текст reasoning', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'LLM reasoning' });
+    const dialog = page.getByRole('region', { name: 'Текст Intelligence traces' });
+    await expect(page.getByRole('button', { name: 'Текст reasoning', exact: true })).toHaveCount(0);
     await expect(dialog).toContainText('Сравниваю ограничения');
     await noOverflow(page);
+    await page.screenshot({ path: test.info().outputPath('inline-traces.png') });
     const navigation = dialog.getByRole('navigation', { name: 'Страницы текста' });
     await navigation.getByRole('button', { name: '→' }).click();
     await expect(navigation).toContainText('2 /');
-    await page.getByRole('button', { name: 'Закрыть reasoning' }).click();
     await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
-    await page.getByRole('button', { name: 'Текст reasoning', exact: true }).click();
+    await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
     await expect(dialog.getByLabel('Этап reasoning')).toBeVisible();
     expect(await dialog.getByLabel('Этап reasoning').locator('option').count()).toBe(7);
     expect(
@@ -229,8 +229,57 @@ test('missing reasoning is explicit and never replaced with the answer', async (
   await nativeFixture(page, false, false);
   await fillExperiment(page);
   await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
-  await page.getByRole('button', { name: 'Текст reasoning', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'LLM reasoning' });
+  await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
+  const dialog = page.getByRole('region', { name: 'Текст Intelligence traces' });
   await expect(dialog).toContainText('CLI не передал текст reasoning');
   await expect(dialog).not.toContainText('Длинный ответ');
 });
+
+for (const [width, height] of [
+  [1440, 900],
+  [640, 600],
+] as const) {
+  test(`multiple public links can be edited, removed and passed intact ${width}×${height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await nativeFixture(page);
+    await page.goto('/');
+    await page.getByLabel('Публичная ссылка A', { exact: true }).fill('https://example.org/a,b');
+    for (let i = 2; i <= 5; i++) {
+      await page.getByRole('button', { name: 'Добавить ссылку A', exact: true }).click();
+      await page
+        .getByLabel('Публичная ссылка A', { exact: true })
+        .fill(`https://example.org/source-${i}`);
+    }
+    await expect(
+      page.getByRole('button', { name: 'Добавить ссылку A', exact: true }),
+    ).toBeDisabled();
+    await noOverflow(page);
+    await page.screenshot({ path: test.info().outputPath('public-links.png') });
+    await page.getByRole('button', { name: 'Удалить ссылку A', exact: true }).click();
+    await page.getByRole('button', { name: 'Предыдущая ссылка A', exact: true }).click();
+    await expect(page.getByLabel('Публичная ссылка A', { exact: true })).toHaveValue(
+      'https://example.org/source-3',
+    );
+    await page.getByLabel('Публичная ссылка B', { exact: true }).fill('https://example.org/b');
+    await page.getByLabel('Общая задача', { exact: true }).fill('Plan a library');
+    await page.getByRole('button', { name: 'Начать эксперимент' }).click();
+    await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
+    expect(
+      await page.evaluate(() =>
+        Reflect.get(window, 'savedExperiment').input.people.map(
+          (person: { 'public-urls': string[] }) => person['public-urls'],
+        ),
+      ),
+    ).toEqual([
+      [
+        'https://example.org/a,b',
+        'https://example.org/source-2',
+        'https://example.org/source-3',
+        'https://example.org/source-4',
+      ],
+      ['https://example.org/b'],
+    ]);
+  });
+}

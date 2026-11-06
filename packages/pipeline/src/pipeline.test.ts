@@ -16,7 +16,7 @@ function providers(failAt = -1) {
     async run(request, signal) {
       signal?.throwIfAborted();
       calls.push({ task: request.task, provider: id });
-      if (calls.length === failAt)
+      if (failAt > 0 && calls.length >= failAt && calls.length < failAt + 2)
         return {
           answer: 'not JSON',
           trace: { provider: id, 'reasoning-ms': 1, 'terminal-ms': 0, summary: '' },
@@ -96,7 +96,26 @@ describe('complete two-person experiment', () => {
   it('rejects malformed model output without continuing or fabricating results', async () => {
     const { calls, adapters } = providers(2);
     await expect(runExperiment(input, createModelSettings(), adapters)).rejects.toThrow(/JSON/);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
+  });
+  it('repairs a PERSON field error without repeating successful stages and retains attempt timing', async () => {
+    const { calls, adapters } = providers();
+    const original = adapters.codex.run.bind(adapters.codex);
+    let failed = false;
+    adapters.codex.run = async (request, signal) => {
+      const result = await original(request, signal);
+      if (!failed && request['system-prompt'].startsWith('PERSON\n')) {
+        failed = true;
+        return { ...result, answer: '{"answer":{"nested":"wrong type"},"summary":"ok"}' };
+      }
+      return result;
+    };
+    const result = await runExperiment(input, createModelSettings(), adapters);
+    expect(calls).toHaveLength(8);
+    expect(result.traces).toHaveLength(7);
+    expect(result.people[0]?.attempt.trace['reasoning-ms']).toBe(240000);
+    expect(result.people[0]?.attempt.answer).toBe('A practical reading room plan');
+    expect(calls[3]?.task).toBe(calls[2]?.task);
   });
   it('stops before the next stage when cancelled', async () => {
     const { calls, adapters } = providers();

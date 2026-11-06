@@ -33,19 +33,7 @@ export function validatePublicUrl(raw: string): string {
     throw new Error('Нужна общедоступная http(s) ссылка без пароля и локального адреса.');
   return url.href;
 }
-export async function collectPerson(
-  input: PersonInput,
-  provider: IntelligenceProvider,
-  signal?: AbortSignal,
-): Promise<{ report: StalkerReport; trace: IntelligenceTrace }> {
-  const urls = input['public-urls'].map(validatePublicUrl);
-  const { data, trace } = await structured(
-    provider,
-    'STALKER',
-    'Use WebSearch and public URLs when available: social networks, Wikipedia and public forums. Do not access private or authenticated material. Never invent fetched content. User context is an unverified hypothesis. Return {evidence:[{id, "source-url", kind:"fact"|"hypothesis", summary}], "estimated-bsc":positive number, effort:"low"|"medium"|"high", character, "thinking-style", activity, "behavior-summary"}. Facts require a public source actually consulted. Empty source-url is allowed only for hypotheses from user context. BSC is a speculative positive normalization estimate, never a measured IQ. Mark unavailable information as unknown. In summaries omit names, handles, URLs, emails and identifying details; describe behavior only.',
-    { ...input, 'public-urls': urls },
-    signal,
-  );
+function parseReport(data: Record<string, unknown>): StalkerReport {
   const estimate = data['estimated-bsc'];
   if (typeof estimate !== 'number' || !Number.isFinite(estimate) || estimate <= 0)
     throw new Error('STALKER: invalid estimated BSC');
@@ -61,24 +49,38 @@ export async function collectPerson(
     if (source) validatePublicUrl(source);
     if (item.kind === 'fact' && !source) throw new Error('STALKER: facts require a public source');
     return {
-      id: text(item.id),
+      id: text(item.id, 'evidence.id'),
       'source-url': source,
       kind: item.kind,
-      summary: text(item.summary),
+      summary: text(item.summary, 'evidence.summary'),
     };
   });
   return {
-    report: {
-      evidence,
-      'estimated-bsc': estimate,
-      effort: data.effort as IntelligenceEffort,
-      character: text(data.character),
-      'thinking-style': text(data['thinking-style']),
-      activity: text(data.activity),
-      'behavior-summary': text(data['behavior-summary']),
-    },
-    trace,
+    evidence,
+    'estimated-bsc': estimate,
+    effort: data.effort as IntelligenceEffort,
+    character: text(data.character, 'character'),
+    'thinking-style': text(data['thinking-style'], 'thinking-style'),
+    activity: text(data.activity, 'activity'),
+    'behavior-summary': text(data['behavior-summary'], 'behavior-summary'),
   };
+}
+export async function collectPerson(
+  input: PersonInput,
+  provider: IntelligenceProvider,
+  signal?: AbortSignal,
+): Promise<{ report: StalkerReport; trace: IntelligenceTrace }> {
+  const urls = input['public-urls'].map(validatePublicUrl);
+  const { data, trace } = await structured(
+    provider,
+    'STALKER',
+    'Use WebSearch and public URLs when available: social networks, Wikipedia and public forums. Do not access private or authenticated material. Never invent fetched content. User context is an unverified hypothesis. Return {evidence:[{id, "source-url", kind:"fact"|"hypothesis", summary}], "estimated-bsc":positive number, effort:"low"|"medium"|"high", character, "thinking-style", activity, "behavior-summary"}. Facts require a public source actually consulted. Empty source-url is allowed only for hypotheses from user context. BSC is a speculative positive normalization estimate, never a measured IQ. Mark unavailable information as unknown. In summaries omit names, handles, URLs, emails and identifying details; describe behavior only.',
+    { ...input, 'public-urls': urls },
+    signal,
+    'medium',
+    parseReport,
+  );
+  return { report: data, trace };
 }
 // Explicit identifiers and source locations are kept in the local evidence report, never in fabrication input.
 export function anonymizeReport(report: StalkerReport, input: PersonInput) {

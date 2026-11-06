@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod cli;
+#[path = "cli-protocol.rs"]
+mod cli_protocol;
 use std::sync::atomic::Ordering;
 use tauri::Manager;
 

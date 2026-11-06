@@ -1,3 +1,4 @@
+use crate::cli_protocol::{KimiSession, Reasoning, ReasoningBlock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -31,6 +32,8 @@ pub struct Event {
     id: String,
     kind: String,
     elapsed_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning: Option<ReasoningBlock>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -39,6 +42,8 @@ pub struct Trace {
     reasoning_ms: u64,
     terminal_ms: u64,
     summary: String,
+    reasoning: Vec<ReasoningBlock>,
+    reasoning_truncated: bool,
 }
 #[derive(Serialize)]
 pub struct Response {
@@ -111,7 +116,7 @@ fn validate(request: &Request) -> Result<(), String> {
     }
     Ok(())
 }
-// Only final assistant content is consumed. Reasoning and tool payloads never enter the UI.
+// Answers and CLI-exposed reasoning are parsed separately; diagnostics are never displayed.
 fn answer_event(provider: &str, event: &Value) -> Option<String> {
     if provider == "codex"
         && event["type"] == "item.completed"
@@ -152,7 +157,7 @@ fn execute(
     request: Request,
     directory: &Path,
     cancelled: Arc<AtomicBool>,
-    emit: impl Fn(&str, u64),
+    emit: impl Fn(&str, u64, Option<ReasoningBlock>),
 ) -> Result<Response, String> {
     validate(&request)?;
     let path = executable(&request.provider).ok_or_else(|| {
@@ -187,6 +192,8 @@ fn execute(
             "-c",
             "approval_policy=\"never\"",
             "-c",
+            "model_reasoning_summary=\"detailed\"",
+            "-c",
             &format!("model_reasoning_effort=\"{}\"", request.effort),
             "-c",
             if search {
@@ -207,15 +214,7 @@ fn execute(
             "[]"
         };
         std::fs::write(&agent, format!("---\nname: proteus\ndescription: Bounded persona experiment\ntools: {tools}\n---\n{}\n", request.system_prompt)).map_err(|e| e.to_string())?;
-        command.arg("--agent-file").arg(agent).args([
-            "--output-format",
-            "stream-json",
-            "-p",
-            &request.task,
-        ]);
-        if !request.model.is_empty() {
-            command.args(["--model", &request.model]);
-        }
+        command.arg("--agent-file").arg(agent).arg("acp");
     }
     #[cfg(unix)]
     {
@@ -229,13 +228,32 @@ fn execute(
     let mut child = command
         .spawn()
         .map_err(|e| format!("CLI startup failed: {e}"))?;
-    if let Some(mut stdin) = child.stdin.take() {
-        if request.provider == "codex" && stdin.write_all(prompt.as_bytes()).is_err() {
-            stop(&mut child);
-            return Err("CLI closed its input".into());
-        }
+    let mut stdin = child.stdin.take().ok_or("CLI stdin unavailable")?;
+    let mut kimi = KimiSession::new(
+        directory.to_string_lossy().into_owned(),
+        request.model.clone(),
+        request.task.clone(),
+    );
+    let initial = if request.provider == "codex" {
+        prompt
+    } else {
+        format!("{}\n", KimiSession::initialize())
+    };
+    if stdin
+        .write_all(initial.as_bytes())
+        .and_then(|()| stdin.flush())
+        .is_err()
+    {
+        stop(&mut child);
+        return Err("CLI closed its input".into());
     }
-    emit("started", 0);
+    let mut stdin = if request.provider == "kimi" {
+        Some(stdin)
+    } else {
+        drop(stdin);
+        None
+    };
+    emit("started", 0, None);
     let stdout = child.stdout.take().ok_or("CLI stdout unavailable")?;
     let (sender, receiver) = mpsc::sync_channel(64);
     let reader = std::thread::spawn(move || {
@@ -246,6 +264,7 @@ fn execute(
         }
     });
     let mut answer = String::new();
+    let mut reasoning = Reasoning::default();
     let mut failure = false;
     let result = loop {
         if cancelled.load(Ordering::SeqCst) || start.elapsed() > Duration::from_secs(600) {
@@ -260,15 +279,49 @@ fn execute(
         match receiver.recv_timeout(Duration::from_millis(80)) {
             Ok(Ok(line)) => {
                 if let Ok(event) = serde_json::from_str::<Value>(&line) {
+                    if let Some(block) = reasoning.accept(&request.provider, &event) {
+                        emit("reasoning", start.elapsed().as_millis() as u64, Some(block));
+                    }
+                    if request.provider == "kimi" {
+                        match kimi.accept(&event) {
+                            Ok(Some(message)) => {
+                                let sent = stdin
+                                    .as_mut()
+                                    .ok_or_else(|| std::io::Error::other("stdin closed"))
+                                    .and_then(|input| {
+                                        writeln!(input, "{message}").and_then(|()| input.flush())
+                                    });
+                                if sent.is_err() {
+                                    stop(&mut child);
+                                    break Err("Kimi ACP input closed".into());
+                                }
+                            }
+                            Ok(None) => {}
+                            Err(error) => {
+                                stop(&mut child);
+                                break Err(error);
+                            }
+                        }
+                        if kimi.complete {
+                            stop(&mut child);
+                            let elapsed = start.elapsed().as_millis() as u64;
+                            emit("answer", elapsed, None);
+                            emit("finished", elapsed, None);
+                            break Ok(response(&request.provider, kimi.answer, elapsed, reasoning));
+                        }
+                        if event["params"]["update"]["sessionUpdate"] == "tool_call" {
+                            emit("search", start.elapsed().as_millis() as u64, None);
+                        }
+                    }
                     if let Some(text) = answer_event(&request.provider, &event) {
                         answer = text;
-                        emit("answer", start.elapsed().as_millis() as u64);
+                        emit("answer", start.elapsed().as_millis() as u64, None);
                     }
                     if event["type"] == "error" || event["type"] == "turn.failed" {
                         failure = true;
                     }
                     if event["item"]["type"] == "web_search" || event.get("tool_calls").is_some() {
-                        emit("search", start.elapsed().as_millis() as u64);
+                        emit("search", start.elapsed().as_millis() as u64, None);
                     }
                 }
             }
@@ -282,16 +335,8 @@ fn execute(
                         break Err(format!("{} CLI не вернул ответ ({}). Проверьте вход, выбранную модель и лимиты в терминале.", request.provider, status));
                     }
                     let elapsed = start.elapsed().as_millis() as u64;
-                    emit("finished", elapsed);
-                    break Ok(Response {
-                        answer,
-                        trace: Trace {
-                            provider: request.provider.clone(),
-                            reasoning_ms: elapsed,
-                            terminal_ms: 0,
-                            summary: "CLI returned an answer".into(),
-                        },
-                    });
+                    emit("finished", elapsed, None);
+                    break Ok(response(&request.provider, answer, elapsed, reasoning));
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(80)),
                 Err(error) => {
@@ -302,9 +347,23 @@ fn execute(
             Err(mpsc::RecvTimeoutError::Timeout) => {}
         }
     };
+    drop(stdin);
     drop(receiver);
     let _ = reader.join();
     result
+}
+fn response(provider: &str, answer: String, elapsed: u64, reasoning: Reasoning) -> Response {
+    Response {
+        answer,
+        trace: Trace {
+            provider: provider.into(),
+            reasoning_ms: elapsed,
+            terminal_ms: 0,
+            summary: "CLI returned an answer".into(),
+            reasoning: reasoning.blocks,
+            reasoning_truncated: reasoning.truncated,
+        },
+    }
 }
 #[tauri::command]
 pub async fn run_cli(
@@ -332,16 +391,22 @@ pub async fn run_cli(
 
     let result = tauri::async_runtime::spawn_blocking(move || {
         let event_id = request.id.clone();
-        let result = execute(request, &directory, cancelled, |kind, elapsed_ms| {
-            let _ = app.emit(
-                "cli-progress",
-                Event {
-                    id: event_id.clone(),
-                    kind: kind.into(),
-                    elapsed_ms,
-                },
-            );
-        });
+        let result = execute(
+            request,
+            &directory,
+            cancelled,
+            |kind, elapsed_ms, reasoning| {
+                let _ = app.emit(
+                    "cli-progress",
+                    Event {
+                        id: event_id.clone(),
+                        kind: kind.into(),
+                        elapsed_ms,
+                        reasoning,
+                    },
+                );
+            },
+        );
         // Transient prompts are not retained; completed experiment artifacts are saved separately.
         let _ = std::fs::remove_dir_all(directory);
         result
@@ -453,19 +518,33 @@ mod tests {
                     id: "connection-test".into(),
                     provider: provider.into(),
                     model: String::new(),
-                    task: "Return only {\"connected\":true}".into(),
+                    task: "A library has 7 shelves with 13 books each; 19 books are borrowed and 8 returned. Return JSON {\"connected\":true,\"books\":remaining count}.".into(),
                     system_prompt: "Reply with the requested JSON. No tools.".into(),
                     effort: "low".into(),
                 },
                 &directory,
                 Arc::new(AtomicBool::new(false)),
-                |_, _| {},
+                |_, _, _| {},
             );
             let _ = std::fs::remove_dir_all(directory);
             let response = result.expect("CLI must return a final answer");
             assert_eq!(
                 serde_json::from_str::<Value>(&response.answer).unwrap()["connected"],
                 true
+            );
+            assert_eq!(
+                serde_json::from_str::<Value>(&response.answer).unwrap()["books"],
+                80
+            );
+            println!(
+                "{provider}: {} reasoning blocks, {} text bytes",
+                response.trace.reasoning.len(),
+                response
+                    .trace
+                    .reasoning
+                    .iter()
+                    .map(|block| block.text.len())
+                    .sum::<usize>()
             );
             assert_eq!(response.trace.terminal_ms, 0);
             assert!(response.trace.reasoning_ms > 0);

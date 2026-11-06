@@ -77,7 +77,7 @@ model {
   pipeline -> brain-analyzator "imports"
   desktop -> native-host "invoke / events / cancel"
   native-host -> codex-cli "exec --json; read-only"
-  native-host -> kimi-cli "print stream-json; explicit tool allowlist"
+  native-host -> kimi-cli "ACP JSON-RPC; thinking chunks; explicit tool allowlist"
   brain-analyzator -> contracts "imports"
   brain-analyzator -> intelligence "imports"
   brain-analyzator -> brain-scoring "imports"

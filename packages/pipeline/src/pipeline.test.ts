@@ -74,6 +74,16 @@ describe('complete two-person experiment', () => {
     const result = await runExperiment(input, settings, adapters, {
       onProgress: (event) => stages.push(event.stage),
     });
+    expect(result.traces).toHaveLength(7);
+    expect(result.traces.map((item) => [item.stage, item.person])).toEqual([
+      ['stalker', 0],
+      ['person-fabric', 0],
+      ['person', 0],
+      ['stalker', 1],
+      ['person-fabric', 1],
+      ['person', 1],
+      ['brain-analyzator', null],
+    ]);
     expect(calls).toHaveLength(7);
     expect(calls.filter((call) => call.provider === 'kimi')).toHaveLength(2);
     expect(result.people.map((person) => person.score.bsc)).toEqual([1, 1]);

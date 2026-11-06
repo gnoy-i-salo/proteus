@@ -7,12 +7,13 @@ import {
   onCleanup,
   onMount,
   Show,
+  untrack,
 } from 'solid-js';
 import type { ExperimentInput, PersonInput } from '@proteus-int/contracts';
 import { createModelSettings, parseModelSettings } from '@proteus-int/intelligence';
 import type { ModelSettings } from '@proteus-int/intelligence';
 import { runExperiment, validateExperiment } from '@proteus-int/pipeline';
-import type { ExperimentResult, ProgressEvent } from '@proteus-int/pipeline';
+import type { ExperimentResult, ProgressEvent, StageTrace } from '@proteus-int/pipeline';
 import { ModelSettingsPanel } from '../../../features/model-settings';
 import { cliProviders, cliStatus, saveExperiment } from '../../../shared/lib/cli';
 import type { CliStatus } from '../../../shared/lib/cli';
@@ -94,7 +95,7 @@ function PagedField(props: {
     </label>
   );
 }
-function PagedText(props: { text: string }) {
+function PagedText(props: { text: string; resetKey?: string }) {
   const [page, setPage] = createSignal(0);
   const [size, setSize] = createSignal({ columns: 38, rows: 7 });
   let reading!: HTMLDivElement;
@@ -121,7 +122,7 @@ function PagedText(props: { text: string }) {
   );
   createEffect(
     on(
-      () => [props.text, size()],
+      () => [props.resetKey ?? props.text, size()],
       () => setPage(0),
     ),
   );
@@ -165,6 +166,27 @@ export function ExperimentPage() {
   const [savedPath, setSavedPath] = createSignal('');
   const [activity, setActivity] = createSignal('Ожидаем запуск');
   const [detail, setDetail] = createSignal('analysis');
+  const [reasoningStages, setReasoningStages] = createSignal<StageTrace[]>([]);
+  const [reasoningOpen, setReasoningOpen] = createSignal(false);
+  const [traceIndex, setTraceIndex] = createSignal(0);
+  const recordTrace = (next: StageTrace) =>
+    setReasoningStages((items) => {
+      const index = items.findIndex(
+        (item) => item.stage === next.stage && item.person === next.person,
+      );
+      return index < 0 ? [...items, next] : items.map((item, i) => (i === index ? next : item));
+    });
+  const openReasoning = () => {
+    setTraceIndex(Math.max(0, reasoningStages().length - 1));
+    setReasoningOpen(true);
+  };
+  const activeReasoning = () => reasoningStages()[traceIndex()];
+  const reasoningText = () => {
+    const blocks = activeReasoning()?.trace.reasoning;
+    return blocks?.length
+      ? blocks.map((block) => block.text).join('\n\n')
+      : 'CLI не передал текст reasoning для этого этапа. Доступность зависит от модели и провайдера.';
+  };
   let controller: AbortController | undefined;
   onMount(() => {
     void cliStatus()
@@ -198,6 +220,8 @@ export function ExperimentPage() {
     controller = new AbortController();
     setRunning(true);
     setEvents([]);
+    setReasoningStages([]);
+    setReasoningOpen(false);
     setEventPage(0);
     setResult(undefined);
     setScreen('progress');
@@ -206,13 +230,51 @@ export function ExperimentPage() {
         input,
         settings(),
         cliProviders((event) =>
-          setActivity(
-            `${event.kind === 'search' ? 'Поиск источников' : event.kind === 'answer' ? 'Ответ получен' : 'CLI работает'} · ${(event['elapsed-ms'] / 1000).toFixed(1)} с`,
-          ),
+          untrack(() => {
+            setActivity(
+              `${event.kind === 'reasoning' ? 'Модель рассуждает' : event.kind === 'search' ? 'Поиск источников' : event.kind === 'answer' ? 'Ответ получен' : 'CLI работает'} · ${(event['elapsed-ms'] / 1000).toFixed(1)} с`,
+            );
+            const current = events().at(-1);
+            if (event.reasoning && current && current.stage !== 'complete') {
+              const previous = reasoningStages().find(
+                (item) => item.stage === current.stage && item.person === current.person,
+              );
+              if (previous) {
+                const block = event.reasoning;
+                const blocks = previous.trace.reasoning ?? [];
+                const reasoning = blocks.some((item) => item.id === block.id)
+                  ? blocks.map((item) => (item.id === block.id ? block : item))
+                  : [...blocks, block];
+                recordTrace({
+                  ...previous,
+                  trace: { ...previous.trace, 'reasoning-ms': event['elapsed-ms'], reasoning },
+                });
+              }
+            }
+          }),
         ),
         {
           signal: controller.signal,
+          onTrace: recordTrace,
           onProgress: (event) => {
+            if (
+              event.stage !== 'complete' &&
+              !reasoningStages().some(
+                (item) => item.stage === event.stage && item.person === event.person,
+              )
+            ) {
+              recordTrace({
+                stage: event.stage,
+                person: event.person,
+                trace: {
+                  provider: settings().components[event.stage],
+                  'reasoning-ms': 0,
+                  'terminal-ms': 0,
+                  summary: '',
+                  reasoning: [],
+                },
+              });
+            }
             setEvents((items) => [...items, event]);
             setEventPage(Math.floor((events().length - 1) / 4));
             if (event.person !== null) setSelected(event.person);
@@ -362,6 +424,7 @@ export function ExperimentPage() {
                       <span title={savedPath()}>
                         {savedPath() ? '✓ Сохранено локально' : 'Результат готов'}
                       </span>
+                      <button onClick={openReasoning}>Текст reasoning</button>
                       <button onClick={download}>↓ JSON</button>
                     </footer>
                   </>
@@ -372,7 +435,10 @@ export function ExperimentPage() {
                   <h2>
                     Intelligence traces<span class={styles['experiment__blink']}>_</span>
                   </h2>
-                  <p>{activity()}</p>
+                  <div class={styles['experiment__trace-tools']}>
+                    <p>{activity()}</p>
+                    <button onClick={openReasoning}>Текст reasoning</button>
+                  </div>
                 </header>
                 <div class={styles['experiment__traces']}>
                   <For each={events().slice(eventPage() * 4, eventPage() * 4 + 4)}>
@@ -540,6 +606,58 @@ export function ExperimentPage() {
           <button aria-label="Закрыть сообщение" onClick={() => setError('')}>
             ×
           </button>
+        </div>
+      </Show>
+      <Show when={reasoningOpen()}>
+        <div
+          class={styles['experiment__modal']}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setReasoningOpen(false);
+          }}
+        >
+          <section
+            class={styles['experiment__reasoning']}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reasoning-title"
+          >
+            <header class={styles['experiment__reasoning-header']}>
+              <h2 id="reasoning-title">LLM reasoning</h2>
+              <button aria-label="Закрыть reasoning" onClick={() => setReasoningOpen(false)}>
+                ×
+              </button>
+            </header>
+            <label>
+              Персона / этап
+              <select
+                aria-label="Этап reasoning"
+                value={traceIndex()}
+                onChange={(event) => setTraceIndex(Number(event.currentTarget.value))}
+              >
+                <For each={reasoningStages()}>
+                  {(item, index) => (
+                    <option value={index()}>
+                      {item.person === null
+                        ? 'Общее сравнение'
+                        : `Person ${item.person === 0 ? 'A' : 'B'}`}{' '}
+                      · {item.stage.toUpperCase()} · {item.trace.provider}
+                    </option>
+                  )}
+                </For>
+              </select>
+            </label>
+            <p class={styles['experiment__reasoning-note']}>
+              {activeReasoning()?.trace.provider === 'kimi'
+                ? 'Kimi · thinking из потока CLI'
+                : 'Codex · reasoning summary из потока CLI'}
+            </p>
+            <PagedText text={reasoningText()} resetKey={String(traceIndex())} />
+            <Show when={activeReasoning()?.trace['reasoning-truncated']}>
+              <p class={styles['experiment__reasoning-note']}>
+                Достигнут лимит текста этапа (48 КиБ). Показана сохранённая часть.
+              </p>
+            </Show>
+          </section>
         </div>
       </Show>
       <Show when={settingsOpen()}>

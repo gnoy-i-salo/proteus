@@ -1,17 +1,24 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-async function nativeFixture(page: Page, cancelMode = false) {
+async function nativeFixture(page: Page, cancelMode = false, reasoningAvailable = true) {
   await page.addInitScript(
-    ({ cancelMode }) => {
+    ({ cancelMode, reasoningAvailable }) => {
+      let eventCallback: ((event: unknown) => void) | undefined;
       let rejectRun: ((error: Error) => void) | undefined;
       const calls: string[] = [];
       Reflect.set(window, 'isTauri', true);
       Reflect.set(window, '__TAURI_EVENT_PLUGIN_INTERNALS__', { unregisterListener() {} });
       Reflect.set(window, '__TAURI_INTERNALS__', {
-        transformCallback: () => 1,
+        transformCallback: (callback: (event: unknown) => void) => {
+          eventCallback = callback;
+          return 1;
+        },
         async invoke(
           command: string,
-          args: { request?: { 'system-prompt': string; provider: string }; data?: string },
+          args: {
+            request?: { id: string; 'system-prompt': string; provider: string };
+            data?: string;
+          },
         ) {
           if (command === 'cli_status')
             return [
@@ -35,7 +42,25 @@ async function nativeFixture(page: Page, cancelMode = false) {
             return new Promise((_resolve, reject) => {
               rejectRun = reject;
             });
-          await new Promise((resolve) => setTimeout(resolve, 120));
+          const reasoning = reasoningAvailable
+            ? [
+                {
+                  id: 'r1',
+                  kind: 'summary',
+                  text: 'Сравниваю ограничения и варианты.\n'.repeat(60),
+                },
+              ]
+            : [];
+          if (reasoningAvailable)
+            eventCallback?.({
+              payload: {
+                id: request.id,
+                kind: 'reasoning',
+                'elapsed-ms': 100,
+                reasoning: reasoning[0],
+              },
+            });
+          await new Promise((resolve) => setTimeout(resolve, 180));
           const data = request['system-prompt'].startsWith('STALKER')
             ? {
                 evidence: [
@@ -79,12 +104,13 @@ async function nativeFixture(page: Page, cancelMode = false) {
               'reasoning-ms': 60000,
               'terminal-ms': 0,
               summary: 'Completed',
+              reasoning,
             },
           };
         },
       });
     },
-    { cancelMode },
+    { cancelMode, reasoningAvailable },
   );
 }
 async function fillExperiment(page: Page) {
@@ -165,4 +191,46 @@ test('pasted paragraphs are paginated without a hidden scroll area', async ({ pa
     .fill('Подробная задача для двух персон. '.repeat(20));
   await noOverflow(page);
   await expect(page.getByRole('button', { name: 'Назад: Контекст A' })).toBeEnabled();
+});
+
+for (const [width, height] of [
+  [1440, 900],
+  [640, 600],
+] as const) {
+  test(`reasoning is live, paginated and saved for all stages ${width}×${height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await nativeFixture(page);
+    await fillExperiment(page);
+    await page.getByRole('button', { name: 'Текст reasoning', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'LLM reasoning' });
+    await expect(dialog).toContainText('Сравниваю ограничения');
+    await noOverflow(page);
+    const navigation = dialog.getByRole('navigation', { name: 'Страницы текста' });
+    await navigation.getByRole('button', { name: '→' }).click();
+    await expect(navigation).toContainText('2 /');
+    await page.getByRole('button', { name: 'Закрыть reasoning' }).click();
+    await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
+    await page.getByRole('button', { name: 'Текст reasoning', exact: true }).click();
+    await expect(dialog.getByLabel('Этап reasoning')).toBeVisible();
+    expect(await dialog.getByLabel('Этап reasoning').locator('option').count()).toBe(7);
+    expect(
+      await page.evaluate(() =>
+        Reflect.get(window, 'savedExperiment').traces.every(
+          (item: { trace: { reasoning: unknown[] } }) => item.trace.reasoning.length === 1,
+        ),
+      ),
+    ).toBe(true);
+    await noOverflow(page);
+  });
+}
+test('missing reasoning is explicit and never replaced with the answer', async ({ page }) => {
+  await nativeFixture(page, false, false);
+  await fillExperiment(page);
+  await expect(page.getByRole('heading', { name: 'BSC × 1.00' })).toBeVisible();
+  await page.getByRole('button', { name: 'Текст reasoning', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'LLM reasoning' });
+  await expect(dialog).toContainText('CLI не передал текст reasoning');
+  await expect(dialog).not.toContainText('Длинный ответ');
 });

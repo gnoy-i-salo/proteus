@@ -571,6 +571,66 @@
     color: var(--muted);
   }
 
+  &__trace-tools {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__trace-tools p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  &__trace-tools button {
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+
+  &__reasoning {
+    width: min(900px, calc(100% - 36px));
+    height: min(660px, calc(100% - 32px));
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    border: 3px solid var(--accent);
+    background: var(--panel);
+    box-shadow: 7px 7px #17162c;
+  }
+
+  &__reasoning-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__reasoning h2 {
+    font-family: var(--pixel-font);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  &__reasoning label {
+    display: grid;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  &__reasoning select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  &__reasoning-note {
+    font-size: 11px;
+    color: var(--muted);
+    margin: 0;
+  }
+
   &__modal {
     position: absolute;
     inset: 0;

@@ -20,12 +20,19 @@ export interface IntelligenceRequest {
   readonly effort: IntelligenceEffort;
   readonly model?: string;
 }
-// Observable timing/output summaries only; never private model chain-of-thought.
+// Text explicitly exposed by the provider's public CLI stream, not encrypted/raw model state.
+export interface ReasoningBlock {
+  readonly id: string;
+  readonly kind: 'summary' | 'thinking';
+  readonly text: string;
+}
 export interface IntelligenceTrace {
   readonly provider: ProviderId;
   readonly 'reasoning-ms': number;
   readonly 'terminal-ms': number;
   readonly summary: string;
+  readonly reasoning?: readonly ReasoningBlock[];
+  readonly 'reasoning-truncated'?: boolean;
 }
 export interface IntelligenceResult {
   readonly answer: string;

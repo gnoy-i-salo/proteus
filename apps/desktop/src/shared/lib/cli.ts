@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { IntelligenceResult, ProviderId } from '@proteus-int/contracts';
+import type { IntelligenceResult, ProviderId, ReasoningBlock } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { isDesktop } from './window-controls';
 export interface CliStatus {
@@ -12,6 +12,7 @@ export interface CliEvent {
   id: string;
   kind: string;
   'elapsed-ms': number;
+  reasoning?: ReasoningBlock;
 }
 export async function cliStatus(): Promise<CliStatus[]> {
   return isDesktop() ? invoke('cli_status') : [];

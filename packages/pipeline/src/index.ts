@@ -21,11 +21,17 @@ export interface ExperimentPerson {
   readonly score: PersonScore;
   readonly artifacts: Readonly<Record<string, string>>;
 }
+export interface StageTrace {
+  readonly stage: ComponentId;
+  readonly person: number | null;
+  readonly trace: IntelligenceTrace;
+}
 export interface ExperimentResult {
   readonly input: ExperimentInput;
   readonly people: readonly ExperimentPerson[];
   readonly comparison: BrainAnalysis;
   readonly 'finished-at': string;
+  readonly traces: readonly StageTrace[];
 }
 export interface ProgressEvent {
   readonly stage: ComponentId | 'complete';
@@ -39,6 +45,7 @@ export interface RunOptions {
   readonly signal?: AbortSignal;
   readonly onProgress?: (event: ProgressEvent) => void;
   readonly onPerson?: (person: ExperimentPerson) => void;
+  readonly onTrace?: (trace: StageTrace) => void;
 }
 export function validateExperiment(input: ExperimentInput): void {
   if (!input.task.trim() || input.task.length > 4000)
@@ -62,11 +69,18 @@ export async function runExperiment(
 ): Promise<ExperimentResult> {
   validateExperiment(input);
   let completed = 0;
-  const provider = (stage: ComponentId): IntelligenceProvider => {
+  const traces: StageTrace[] = [];
+  const provider = (stage: ComponentId, person: number | null): IntelligenceProvider => {
     const adapter = providers[settings.components[stage]];
     return {
       id: adapter.id,
-      run: (request, signal) => adapter.run({ ...request, model: settings.aliases[stage] }, signal),
+      async run(request, signal) {
+        const result = await adapter.run({ ...request, model: settings.aliases[stage] }, signal);
+        const trace = { stage, person, trace: result.trace };
+        traces.push(trace);
+        options.onTrace?.(trace);
+        return result;
+      },
     };
   };
   const emit = (
@@ -88,7 +102,7 @@ export async function runExperiment(
   const people: ExperimentPerson[] = [];
   for (const [index, person] of input.people.entries()) {
     emit('stalker', index, 'Изучаем публичные источники и контекст');
-    const collected = await collectPerson(person, provider('stalker'), options.signal);
+    const collected = await collectPerson(person, provider('stalker', index), options.signal);
     completed++;
     emit('stalker', index, 'Факты и гипотезы собраны', collected.trace);
     emit('person-fabric', index, 'Создаём архетип и навыки');
@@ -98,7 +112,7 @@ export async function runExperiment(
       input.task,
       index === 0 ? 'a' : 'b',
       index === 0 ? 'turquoise' : 'violet',
-      provider('person-fabric'),
+      provider('person-fabric', index),
       options.signal,
     );
     completed++;
@@ -107,7 +121,7 @@ export async function runExperiment(
     const attempt = await fabricated.runtime.solve(
       fabricated.profile,
       input.task,
-      provider('person'),
+      provider('person', index),
       options.signal,
     );
     const score = scorePerson({
@@ -136,10 +150,10 @@ export async function runExperiment(
       'estimated-bsc': person.report['estimated-bsc'],
       ...person.attempt.trace,
     })),
-    provider('brain-analyzator'),
+    provider('brain-analyzator', null),
     options.signal,
   );
   completed++;
   emit('complete', null, 'Сравнение готово');
-  return { input, people, comparison, 'finished-at': new Date().toISOString() };
+  return { input, people, comparison, traces, 'finished-at': new Date().toISOString() };
 }

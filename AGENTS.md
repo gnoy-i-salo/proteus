@@ -42,7 +42,7 @@
 - Provider integrations stay behind ports. Unconfigured adapters must fail explicitly; no fabricated model output or network activity from demo settings.
 - Native executable embeds the frontend and invokes the user's installed Codex/Kimi CLIs through Rust IPC. No separate application Node server; authentication stays with each CLI.
 - Use only permitted public source material; separate facts from hypotheses and remove direct identifiers before Person Fabric.
-- Traces mean observable timing and answer summaries, not private model reasoning. BSC is the board's experimental metric, not a validated human intelligence measure.
+- Traces include timing, answers and reasoning text explicitly exposed by Codex/Kimi CLI streams. Never extract encrypted/raw provider state or relabel an answer as reasoning. BSC is the board's experimental metric, not a validated human intelligence measure.
 - Keep provider credentials out of frontend code, storage and Git. Installed CLIs own their authentication; do not read or copy their token files.
 
 ## Finish

@@ -306,10 +306,10 @@ function TraceReader(props: { stages: StageTrace[]; running: boolean; person: nu
 }
 function PagedText(props: { text: string; resetKey?: string; onInteraction?: () => void }) {
   const [page, setPage] = createSignal(0);
-  const [size, setSize] = createSignal({ columns: 38, rows: 7 });
+  const [size, setSize] = createSignal({ columns: 15, rows: 1 });
   let reading!: HTMLDivElement;
   onMount(() => {
-    const observer = new ResizeObserver(() => {
+    const measure = () => {
       const paragraph = reading.querySelector('p');
       if (!paragraph) return;
       const css = getComputedStyle(paragraph);
@@ -322,7 +322,10 @@ function PagedText(props: { text: string; resetKey?: string; onInteraction?: () 
         columns: Math.max(15, Math.floor(width / (parseFloat(css.fontSize) * 0.61))),
         rows: Math.max(1, Math.floor(height / parseFloat(css.lineHeight))),
       });
-    });
+    };
+    // Size the first page before the asynchronous ResizeObserver notification.
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(reading);
     onCleanup(() => observer.disconnect());
   });

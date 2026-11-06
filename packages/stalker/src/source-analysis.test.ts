@@ -115,6 +115,7 @@ describe('source corpus analysis', () => {
     expect(provider.run).not.toHaveBeenCalled();
     expect(reserveModelCall).not.toHaveBeenCalled();
     expect(collected.status).toBe('partial');
+    expect(collected.limitations.join(' ')).toContain('no steps remain for analysis');
     expect(report['source-coverage']?.[0]).toMatchObject({
       'analyzed-documents': 0,
       coverage: { 'not-analyzed': 1 },

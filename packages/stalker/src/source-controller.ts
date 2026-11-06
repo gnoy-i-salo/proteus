@@ -184,7 +184,9 @@ export async function collectSource(
       throw new CollectionStop('Source grant expired');
     if (steps >= collectionSteps)
       throw new CollectionStop(
-        'Source collection budget reached; remaining steps reserved for analysis',
+        analysisSteps > 0
+          ? 'Source collection budget reached; remaining steps reserved for analysis'
+          : 'Source collection budget reached; no steps remain for analysis',
       );
     if (Date.now() - started >= grant.budget['max-duration-ms'])
       throw new CollectionStop('Source collection budget reached');

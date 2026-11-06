@@ -17,22 +17,9 @@ const labels = {
 export function ModelSettingsPanel(props: {
   settings: ModelSettings;
   onChange: (settings: ModelSettings) => void;
-  onClose: () => void;
 }) {
   return (
-    <section
-      class={styles['model-settings']}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="settings-title"
-    >
-      <header>
-        <span>CONFIGURATION / 01</span>
-        <button aria-label="Закрыть настройки" onClick={() => props.onClose()}>
-          ×
-        </button>
-      </header>
-      <h2 id="settings-title">Настройки PROTEUS</h2>
+    <section class={styles['model-settings']} aria-label="Настройки моделей">
       <p>Установленные CLI · авторизация остаётся в Codex / Kimi</p>
       <div class={styles['model-settings__global']}>
         <label>
@@ -96,7 +83,6 @@ export function ModelSettingsPanel(props: {
         Пустое название использует модель CLI по умолчанию. Brain Scoring считает BSC по формуле и
         не вызывает модель.
       </p>
-      <button onClick={() => props.onClose()}>Готово ↵</button>
     </section>
   );
 }

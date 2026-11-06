@@ -127,6 +127,13 @@
     color: #d1b3ff;
   }
 
+  &__source-button {
+    min-height: 24px;
+    padding: 3px 5px;
+    font-size: 9px;
+    color: inherit;
+  }
+
   &__input-card :where(header strong) {
     font-family: var(--pixel-font);
     font-size: 12px;
@@ -574,10 +581,36 @@
 
   &__reading p {
     margin: 0;
-    white-space: pre;
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
     font-size: 15px;
     line-height: 1.6;
+  }
+
+  &__reply,
+  &__reply-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+  }
+
+  &__reply {
+    gap: 8px;
+  }
+
+  &__reply-label {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  &__reply-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
   }
 
   &__reading nav {
@@ -852,7 +885,7 @@
 
   .experiment__input-card {
     gap: 6px;
-    padding-block: 12px;
+    padding-block: 8px;
   }
 
   .experiment__launch > button {

@@ -54,7 +54,9 @@ jobs:
         # Use the Intel pool; release.yml retains both macOS release targets.
         os: [macos-26-intel, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: 2
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -68,7 +70,23 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev cmake gperf zlib1g-dev perl nasm
+      - name: macOS TDLib prerequisites
+        if: runner.os == 'macOS'
+        run: brew install cmake gperf nasm
+      - name: Windows TDLib prerequisites
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'NASM installation failed' }
+          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install zlib:x64-windows-static-md gperf:x64-windows
+          if ($LASTEXITCODE -ne 0) { throw 'TDLib dependencies failed to build' }
+          "PROTEUS_ZLIB_ROOT=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows-static-md" >> $env:GITHUB_ENV
+          "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/tools/gperf" >> $env:GITHUB_PATH
+          "$env:ProgramFiles/NASM" >> $env:GITHUB_PATH
+      - name: Verify pinned TDLib source
+        run: pnpm prepare:tdlib
       - run: pnpm build
       - run: pnpm check:rust
       - run: pnpm build:desktop

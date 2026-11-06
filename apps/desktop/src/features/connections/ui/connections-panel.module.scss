@@ -1,0 +1,118 @@
+.connections-panel {
+  min-height: 300px;
+
+  p {
+    margin: 10px 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: 12px;
+  }
+
+  &__providers,
+  &__modes,
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__data {
+    margin-top: 10px;
+
+    button {
+      font-size: 10px;
+      min-height: 26px;
+      padding: 4px 8px;
+    }
+  }
+
+  &__providers {
+    button {
+      flex: 1;
+    }
+  }
+
+  &__modes {
+    margin-bottom: 10px;
+  }
+
+  &__providers,
+  &__modes {
+    [aria-selected='true'] {
+      color: #8aebd7;
+      border-color: #8aebd7;
+    }
+  }
+
+  &__state {
+    color: #8aebd7;
+    font-weight: 700;
+  }
+
+  &__description,
+  &__note,
+  &__privacy {
+    color: var(--muted);
+  }
+
+  &__form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: 10px;
+    margin: 12px 0;
+
+    label {
+      display: grid;
+      gap: 5px;
+      font-size: 11px;
+    }
+
+    input {
+      min-width: 0;
+      width: 100%;
+    }
+  }
+
+  &__device-code strong {
+    margin-left: 8px;
+    color: #c2a4ff;
+    letter-spacing: 2px;
+  }
+
+  &__actions {
+    margin-top: 12px;
+  }
+
+  &__error {
+    color: #ffbd75;
+  }
+
+  &__privacy {
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 11px !important;
+  }
+
+  &__imported {
+    overflow-wrap: anywhere;
+    color: #8aebd7;
+  }
+}
+
+@media (height <= 650px) {
+  .connections-panel {
+    min-height: 280px;
+
+    p {
+      margin: 7px 0;
+    }
+
+    &__privacy {
+      padding-top: 7px;
+    }
+  }
+}

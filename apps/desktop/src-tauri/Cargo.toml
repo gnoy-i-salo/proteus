@@ -1,6 +1,6 @@
 [package]
 name = "proteus"
-version = "0.2.0"
+version = "0.3.0"
 description = "PROTEUS persona laboratory"
 edition = "2021"
 rust-version = "1.99"
@@ -8,13 +8,29 @@ publish = false
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+cmake = "0.1"
+openssl-src = "300"
 
 [dependencies]
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-dialog = "2"
-tauri-plugin-single-instance = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-deep-link = "2"
+base64 = "0.22"
+chacha20poly1305 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust", "vendored"] }
+rand = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+sha2 = "0.10"
+url = "2"
+percent-encoding = "2"
+
+[features]
+default = ["telegram"]
+telegram = []
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

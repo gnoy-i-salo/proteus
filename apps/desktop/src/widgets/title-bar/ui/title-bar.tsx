@@ -12,7 +12,7 @@ export function TitleBar() {
     <>
       <header class={styles['title-bar']}>
         <div class={styles['title-bar__drag']} data-tauri-drag-region>
-          ✦ PROTEUS <span class={styles['title-bar__label']}>PERSONA LAB / 0.2</span>
+          ✦ PROTEUS <span class={styles['title-bar__label']}>PERSONA LAB / 0.3</span>
         </div>
         <Show
           when={isDesktop()}

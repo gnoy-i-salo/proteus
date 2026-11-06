@@ -1,11 +1,43 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod cli;
+#[path = "cli-policy.rs"]
+mod cli_policy;
 #[path = "cli-protocol.rs"]
 mod cli_protocol;
+mod connections;
 mod presets;
+mod sources;
 use std::sync::atomic::Ordering;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_deep_link::DeepLinkExt;
+
+fn auth_callback(app: &tauri::AppHandle, url: &str) {
+    if !url.starts_with("proteus:") {
+        return;
+    }
+    let Some(connections) = app.try_state::<connections::Connections>() else {
+        return;
+    };
+    let connections = connections.inner().clone();
+    let app = app.clone();
+    let url = url.to_owned();
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = connections.handle_callback(&url);
+        // Never broadcast the callback URL, authorization code, or token response.
+        match result {
+            Ok(status) => {
+                let _ = app.emit("connection-status", status);
+            }
+            Err(_) => {
+                let _ = app.emit(
+                    "connection-error",
+                    "Не удалось завершить вход VK. Начните подключение заново в настройках.",
+                );
+            }
+        }
+    });
+}
 
 fn main() {
     tauri::Builder::default()
@@ -15,9 +47,31 @@ fn main() {
                 presets::argument_paths(args, std::path::Path::new(&cwd)),
             );
         }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(presets::PendingPresets::default())
         .setup(|app| {
+            let directory = app.path().app_data_dir()?.join("sources");
+            let connections =
+                connections::Connections::new(directory.clone()).map_err(std::io::Error::other)?;
+            app.manage(sources::Sources::new(
+                directory.join("corpus"),
+                connections.clone(),
+            ));
+            app.manage(connections);
+            #[cfg(any(target_os = "linux", target_os = "windows"))]
+            app.deep_link().register_all()?;
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    auth_callback(&handle, url.as_str());
+                }
+            });
+            if let Some(urls) = app.deep_link().get_current()? {
+                for url in urls {
+                    auth_callback(app.handle(), url.as_str());
+                }
+            }
             let cwd = std::env::current_dir()?;
             presets::queue_files(
                 app.handle(),
@@ -31,6 +85,19 @@ fn main() {
             cli::run_cli,
             cli::cancel_cli,
             cli::save_experiment,
+            connections::configure_connection,
+            connections::connection_statuses,
+            connections::begin_connection,
+            connections::advance_connection,
+            connections::disconnect_connection,
+            sources::create_source_grant,
+            sources::source_action,
+            sources::cancel_source,
+            sources::resume_source,
+            sources::import_source,
+            sources::reserve_model_step,
+            sources::clear_source_data,
+            sources::delete_source,
             presets::import_preset,
             presets::export_preset,
             presets::take_pending_presets
@@ -43,6 +110,8 @@ fn main() {
                 presets::queue_files(app, urls.iter().filter_map(|url| url.to_file_path().ok()));
             }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                app.state::<sources::Sources>().shutdown();
+                app.state::<connections::Connections>().shutdown();
                 let runs = app.state::<cli::Runs>().0.clone();
                 if let Ok(active) = runs.lock() {
                     if !active.is_empty() {

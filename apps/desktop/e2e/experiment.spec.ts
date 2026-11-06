@@ -4,7 +4,12 @@ async function nativeFixture(
   page: Page,
   cancelMode = false,
   reasoningAvailable = true,
-  options: { unknown?: boolean; unknownOnce?: boolean; failSolve?: boolean } = {},
+  options: {
+    unknown?: boolean;
+    unknownOnce?: boolean;
+    failSolve?: boolean;
+    messageReply?: boolean;
+  } = {},
 ) {
   await page.addInitScript(
     ({ cancelMode, reasoningAvailable, options }) => {
@@ -171,6 +176,15 @@ async function nativeFixture(
           } else
             data = {
               answer: `Ответ ${actor}. Длинный ответ для проверки пагинации. `.repeat(100),
+              ...(options.messageReply
+                ? {
+                    messages: [
+                      `Ответ ${actor}.  Первая строка\n\n  отступ`,
+                      '<b>Второе сообщение</b> 🙂',
+                    ],
+                    'style-conflicts': [],
+                  }
+                : {}),
               summary: 'Three-zone plan',
             };
           return {
@@ -193,6 +207,25 @@ async function nativeFixture(
 async function confirmProtocol(page: Page) {
   await page.getByRole('button', { name: 'Принять протокол', exact: true }).click();
 }
+
+test('persona replies preserve separate messages and render markup as plain text', async ({
+  page,
+}) => {
+  await nativeFixture(page, false, true, { messageReply: true });
+  await fillExperiment(page);
+  await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ответ', exact: true }).click();
+  await expect(page.getByText('Поведенческая симуляция', { exact: true })).toBeVisible();
+  await expect(page.getByText('Прогон 1 · Сообщение 1 / 2', { exact: true })).toBeVisible();
+  const body = page.getByTestId('persona-reply-body');
+  await expect(body.locator('p')).toHaveText('Ответ A.  Первая строка\n\n  отступ', {
+    useInnerText: false,
+  });
+  await page.getByRole('button', { name: 'Следующее сообщение', exact: true }).click();
+  await expect(body.locator('p')).toHaveText('<b>Второе сообщение</b> 🙂');
+  await expect(body.locator('b')).toHaveCount(0);
+  await expect(body).not.toContainText('симуляция');
+});
 async function fillExperiment(page: Page, confirm = true, repetitions = '1') {
   await page.goto('/');
   await page.getByLabel('Контекст A', { exact: true }).fill('Careful planner');

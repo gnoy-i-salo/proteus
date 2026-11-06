@@ -10,7 +10,14 @@ import {
   Show,
   untrack,
 } from 'solid-js';
-import type { ExperimentInput, ExperimentProtocol, PersonInput } from '@proteus-int/contracts';
+import type {
+  ExperimentInput,
+  ExperimentProtocol,
+  PersonInput,
+  ImportedSource,
+  SourceGrant,
+  SourceProvider,
+} from '@proteus-int/contracts';
 import { createModelSettings, parseModelSettings } from '@proteus-int/intelligence';
 import type { ModelSettings } from '@proteus-int/intelligence';
 import {
@@ -18,9 +25,22 @@ import {
   validateExperiment,
   parsePersonaPreset,
   serializePersonaPreset,
+  exportExperiment,
 } from '@proteus-int/pipeline';
-import type { ExperimentResult, ProgressEvent, StageTrace } from '@proteus-int/pipeline';
-import { ModelSettingsPanel } from '../../../features/model-settings';
+import type {
+  ExperimentPerson,
+  ExperimentResult,
+  ProgressEvent,
+  StageTrace,
+} from '@proteus-int/pipeline';
+import { SettingsDialog } from '../../../widgets/settings-dialog';
+import { SourceSelection } from '../../../features/source-selection';
+import {
+  deleteSourceGrant,
+  listenConnectionErrors,
+  nativeSourcePort,
+  resumeSourceGrant,
+} from '../../../shared/lib/connections';
 import { cliProviders, cliStatus, saveExperiment } from '../../../shared/lib/cli';
 import type { CliStatus } from '../../../shared/lib/cli';
 import { paginateText, paginateInput } from '../../../shared/lib/pagination';
@@ -372,6 +392,61 @@ function PagedText(props: { text: string; resetKey?: string; onInteraction?: () 
     </div>
   );
 }
+function ReplyReader(props: { person: ExperimentPerson }) {
+  const [selectedMessage, setSelectedMessage] = createSignal(0);
+  const replies = createMemo(() =>
+    props.person.trials.flatMap((trial) => {
+      const messages = trial.attempt?.reply?.messages ?? [
+        trial.attempt?.answer || trial.error || 'Ответ не получен.',
+      ];
+      return messages.map((text, index) => ({
+        text,
+        round: trial.round,
+        number: index + 1,
+        total: messages.length,
+      }));
+    }),
+  );
+  createEffect(
+    on(
+      () => props.person.profile.id,
+      () => setSelectedMessage(0),
+    ),
+  );
+  const current = () => replies()[selectedMessage()];
+  return (
+    <section class={styles['experiment__reply']} aria-label="Ответы персоны">
+      <p class={styles['experiment__reply-label']}>Поведенческая симуляция</p>
+      <div class={styles['experiment__reply-body']} data-testid="persona-reply-body">
+        <PagedText
+          text={current()?.text ?? ''}
+          resetKey={`${props.person.profile.id}:${selectedMessage()}`}
+        />
+      </div>
+      <nav class={styles['experiment__reply-navigation']} aria-label="Сообщения персоны">
+        <button
+          type="button"
+          aria-label="Предыдущее сообщение"
+          disabled={selectedMessage() === 0}
+          onClick={() => setSelectedMessage(selectedMessage() - 1)}
+        >
+          ←
+        </button>
+        <span>
+          Прогон {current()?.round} · Сообщение {current()?.number} / {current()?.total}
+        </span>
+        <button
+          type="button"
+          aria-label="Следующее сообщение"
+          disabled={selectedMessage() >= replies().length - 1}
+          onClick={() => setSelectedMessage(selectedMessage() + 1)}
+        >
+          →
+        </button>
+      </nav>
+    </section>
+  );
+}
 export function ExperimentPage() {
   const [revision, setRevision] = createSignal(0);
   const [pendingPreset, setPendingPreset] = createSignal<ExperimentInput>();
@@ -379,7 +454,26 @@ export function ExperimentPage() {
   const [screen, setScreen] = createSignal<'start' | 'progress' | 'result'>('start');
   const [selected, setSelected] = createSignal(0);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [sourcePerson, setSourcePerson] = createSignal<number>();
+  const [sourceGrants, setSourceGrants] = createSignal<
+    readonly [readonly SourceGrant[], readonly SourceGrant[]]
+  >([[], []]);
+  const [sourceImports, setSourceImports] = createSignal<
+    readonly { provider: SourceProvider; source: ImportedSource }[]
+  >([]);
+  const rememberImport = (provider: SourceProvider, source: ImportedSource) =>
+    setSourceImports((items) => [
+      ...items.filter((item) => item.source.id !== source.id),
+      { provider, source },
+    ]);
+  const clearSourceGrants = () => {
+    for (const grant of sourceGrants().flat())
+      void deleteSourceGrant(grant.id).catch(() => undefined);
+    setSourceGrants([[], []]);
+  };
   const [settings, setSettings] = createSignal(readSettings());
+  const sourceModelsAvailable = () =>
+    Object.values(settings().components).every((provider) => provider === 'codex');
   const [available, setAvailable] = createSignal<CliStatus[]>([]);
   const [names, setNames] = createSignal(['Person A', 'Person B']);
   const [urls, setUrls] = createSignal<string[][]>([[''], ['']]);
@@ -406,9 +500,26 @@ export function ExperimentPage() {
     void cliStatus()
       .then(setAvailable)
       .catch(() => setError('Не удалось проверить установленные CLI.'));
+    if (isDesktop()) {
+      let disposed = false;
+      let stop: (() => void) | undefined;
+      void listenConnectionErrors(() =>
+        setError('Подключение не завершено. Откройте настройки подключений и попробуйте снова.'),
+      )
+        .then((unlisten) => {
+          if (disposed) unlisten();
+          else stop = unlisten;
+        })
+        .catch(() => setError('Не удалось включить уведомления о подключениях.'));
+      onCleanup(() => {
+        disposed = true;
+        stop?.();
+      });
+    }
   });
   onCleanup(() => controller?.abort());
   const applyPreset = (input: ExperimentInput) => {
+    clearSourceGrants();
     batch(() => {
       setNames(input.people.map((person) => person.label));
       setUrls(
@@ -475,6 +586,11 @@ export function ExperimentPage() {
     }
   };
   const persist = (value: ModelSettings) => {
+    if (
+      value.components.stalker !== settings().components.stalker ||
+      value.aliases.stalker !== settings().aliases.stalker
+    )
+      clearSourceGrants();
     setSettings(value);
     try {
       localStorage.setItem(storageKey, JSON.stringify(value));
@@ -485,9 +601,15 @@ export function ExperimentPage() {
   const start = async () => {
     setError('');
     setSavedPath('');
+    if (sourceGrants().some((grants) => grants.length > 0) && !sourceModelsAvailable()) {
+      setError(
+        'Для подключённых источников выберите Codex для всех компонентов в настройках. Поддержка Kimi для этих материалов пока недоступна.',
+      );
+      return;
+    }
     const input = currentInput();
     try {
-      validateExperiment(input);
+      validateExperiment(input, [sourceGrants()[0].length > 0, sourceGrants()[1].length > 0]);
     } catch (failure) {
       setError(String(failure));
       return;
@@ -501,6 +623,11 @@ export function ExperimentPage() {
     setResult(undefined);
     setScreen('progress');
     try {
+      for (const grant of sourceGrants().flat()) {
+        controller.signal.throwIfAborted();
+        await resumeSourceGrant(grant.id);
+      }
+      controller.signal.throwIfAborted();
       const output = await runExperiment(
         input,
         settings(),
@@ -541,6 +668,8 @@ export function ExperimentPage() {
         {
           signal: controller.signal,
           repetitions: repetitions(),
+          sourcePort: nativeSourcePort,
+          sourceGrants: sourceGrants(),
           onProtocol: (protocol) =>
             new Promise<void>((resolve, reject) => {
               const signal = controller!.signal;
@@ -595,7 +724,7 @@ export function ExperimentPage() {
       setScreen('result');
       setDetail('analysis');
       try {
-        setSavedPath(await saveExperiment(output));
+        setSavedPath(await saveExperiment(JSON.parse(exportExperiment(output))));
       } catch {
         setError('Результат готов, но не удалось сохранить его на диск. Скачайте JSON.');
       }
@@ -622,7 +751,7 @@ export function ExperimentPage() {
     return reportText(output, current, detail());
   };
   const download = () => {
-    const blob = new Blob([JSON.stringify(result(), null, 2)], { type: 'application/json' });
+    const blob = new Blob([exportExperiment(result()!)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -730,7 +859,20 @@ export function ExperimentPage() {
                           )}
                         </For>
                       </nav>
-                      <Show when={detail() === 'traces'} fallback={<PagedText text={text()} />}>
+                      <Show
+                        when={detail() === 'traces'}
+                        fallback={
+                          <Show
+                            when={
+                              detail() === 'answer' &&
+                              persona()?.trials.some((trial) => trial.attempt?.reply)
+                            }
+                            fallback={<PagedText text={text()} />}
+                          >
+                            <ReplyReader person={persona()!} />
+                          </Show>
+                        }
+                      >
                         <TraceReader
                           stages={reasoningStages()}
                           running={false}
@@ -837,7 +979,14 @@ export function ExperimentPage() {
                       {index() + 1}
                     </span>
                     <strong>PERSON {letter}</strong>
-                    <span>◆</span>
+                    <button
+                      type="button"
+                      class={styles['experiment__source-button']}
+                      aria-label={`Источники персоны ${letter}`}
+                      onClick={() => setSourcePerson(index())}
+                    >
+                      Источники {sourceGrants()[index()]?.length ?? 0}
+                    </button>
                   </header>
                   <div class={styles['experiment__identity']}>
                     <label>
@@ -971,10 +1120,36 @@ export function ExperimentPage() {
             if (event.key === 'Escape') setSettingsOpen(false);
           }}
         >
-          <ModelSettingsPanel
+          <SettingsDialog
             settings={settings()}
             onChange={persist}
             onClose={() => setSettingsOpen(false)}
+            onImported={rememberImport}
+            onDataCleared={(provider) => {
+              setSourceImports((items) => items.filter((item) => item.provider !== provider));
+              setSourceGrants((grants) => [
+                grants[0].filter((grant) => grant.provider !== provider),
+                grants[1].filter((grant) => grant.provider !== provider),
+              ]);
+            }}
+          />
+        </div>
+      </Show>
+      <Show when={sourcePerson() !== undefined}>
+        <div class={styles['experiment__modal']}>
+          <SourceSelection
+            letter={sourcePerson() === 0 ? 'A' : 'B'}
+            model={settings().components.stalker === 'codex' ? 'Codex' : 'Kimi'}
+            modelProcessingAvailable={sourceModelsAvailable()}
+            grants={sourceGrants()[sourcePerson() ?? 0] ?? []}
+            imports={sourceImports()}
+            onImported={rememberImport}
+            onChange={(grants) =>
+              setSourceGrants((current) =>
+                sourcePerson() === 0 ? [grants, current[1]] : [current[0], grants],
+              )
+            }
+            onClose={() => setSourcePerson(undefined)}
           />
         </div>
       </Show>

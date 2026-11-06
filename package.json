@@ -1,6 +1,6 @@
 {
   "name": "@proteus-int/workspace",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
@@ -15,6 +15,7 @@
     "desktop": "pnpm --filter @proteus-int/desktop tauri dev",
     "build": "pnpm -r build",
     "build:pages": "node scripts/build-pages.mjs",
+    "prepare:tdlib": "node scripts/prepare-tdlib.mjs",
     "build:desktop": "pnpm --filter @proteus-int/desktop tauri build --no-bundle -- --locked",
     "lint": "eslint . --max-warnings=0",
     "lint:styles": "stylelint 'apps/**/*.scss'",

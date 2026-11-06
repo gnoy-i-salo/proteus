@@ -1,8 +1,15 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "PROTEUS",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "dev.proteus-int.desktop",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["proteus"]
+      }
+    }
+  },
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -43,12 +50,13 @@
     ],
     "linux": {
       "deb": {
-        "depends": ["shared-mime-info"],
+        "depends": ["shared-mime-info", "xdg-utils"],
         "files": {
           "/usr/share/mime/packages/proteus.xml": "file-associations/proteus.xml"
         },
         "desktopTemplate": "file-associations/proteus.desktop"
       }
-    }
+    },
+    "resources": ["third-party-notices.txt"]
   }
 }

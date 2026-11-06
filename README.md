@@ -49,7 +49,7 @@ BSC = длительность модельного запроса в минут
 
 Тег `vX.Y.Z` запускает `.github/workflows/release.yml`: полные проверки, затем установщики macOS (Apple Silicon / Intel), Windows x64 и Linux x64. Релиз публикуется только после успешной сборки всех четырёх вариантов, вместе с SHA-256. Публикация использует встроенный `GITHUB_TOKEN`, дополнительные токены не нужны.
 
-Перед выпуском синхронизируйте версии в корневом и desktop `package.json`, `tauri.conf.json`, `Cargo.toml` и записи `proteus` в `Cargo.lock`. После проверок и push создайте и отправьте тег, например `git tag v0.1.1` и `git push origin v0.1.1`. Повторный запуск возможен через Actions → Release → Run workflow с выбором тега; опубликованные файлы не заменяются. Сборки и особенности подписи описаны в [release notes](docs/release-notes.md).
+Перед выпуском синхронизируйте версии в корневом и desktop `package.json`, `tauri.conf.json`, `Cargo.toml` и записи `proteus` в `Cargo.lock`. После проверок и push создайте и отправьте тег, например `git tag v0.1.1` и `git push origin v0.1.1`. Повторный запуск возможен через Actions → Release → Run workflow (ветка `trunk`, поле `tag` — существующий тег); опубликованные файлы не заменяются. Сборки и особенности подписи описаны в [release notes](docs/release-notes.md).
 
 ## Карта проекта
 

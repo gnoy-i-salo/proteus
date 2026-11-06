@@ -20,7 +20,7 @@
 
 Первый запуск Rust-проверок требует собранного frontend: `pnpm build`. В CI frontend собирается до clippy/test. `Cargo.lock` включён в Git; CI работает с `--locked`.
 
-Если Chrome уже установлен, можно выполнить `PLAYWRIGHT_CHANNEL=chrome pnpm test:e2e` без загрузки Chromium. По умолчанию CI использует Chromium из Playwright.
+Если Chrome уже установлен, можно выполнить `PLAYWRIGHT_CHANNEL=chrome pnpm test:e2e` без загрузки Chromium. CI и Release используют предустановленный Chrome на Ubuntu 24.04, чтобы не скачивать браузер и дополнительные шрифты при каждом запуске. Локально по умолчанию используется Chromium из Playwright.
 
 ## TDD и hooks
 

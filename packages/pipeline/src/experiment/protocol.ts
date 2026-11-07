@@ -15,6 +15,7 @@ export async function reviewProtocol(protocol: ExperimentProtocol, options: RunO
   options.signal?.throwIfAborted();
   if (!options.onProtocol) return;
   await new Promise<void>((resolve, reject) => {
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- AbortSignal permits arbitrary reasons; preserve the caller's cancellation identity.
     const abort = () => reject(options.signal?.reason ?? new Error('Отменено'));
     options.signal?.addEventListener('abort', abort, { once: true });
     Promise.resolve()

@@ -15,6 +15,7 @@ export default ts.config(
       'test-results/**',
     ],
   },
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   js.configs.recommended,
   ...ts.configs.recommended,
   {
@@ -23,9 +24,16 @@ export default ts.config(
   },
   {
     files: ['**/*.{ts,tsx}'],
+    extends: [ts.configs.recommendedTypeChecked],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
+      complexity: ['error', { max: 25, variant: 'modified' }],
+      'max-depth': ['error', 4],
     },
   },
   { files: ['**/*.tsx'], ...solid.configs['flat/typescript'] },

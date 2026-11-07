@@ -1,0 +1,1 @@
+{ "extends": "./tooling/tsconfig.json", "include": ["vitest.config.ts", "playwright.config.ts"] }

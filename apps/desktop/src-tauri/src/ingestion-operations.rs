@@ -24,7 +24,13 @@ pub struct Clearing {
 impl Operations {
     pub fn begin(&self, id: &str, provider: JobProvider) -> Result<Operation, String> {
         let mut state = self.0.lock().map_err(|_| "Ошибка состояния операций.")?;
-        if id.is_empty() || id.len() > 128 || state.entries.iter().any(|entry| entry.0 == id) {
+        if id.is_empty()
+            || id.len() > 128
+            || state
+                .entries
+                .iter()
+                .any(|entry| entry.0 == id && !entry.2.load(Ordering::SeqCst))
+        {
             return Err("Неверный или занятый идентификатор операции.".into());
         }
         if state.stopped || state.clearing.contains(&provider) || state.entries.len() >= MAX_ACTIVE
@@ -77,6 +83,30 @@ impl Operations {
     }
 }
 impl Operation {
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    pub fn shutdown_requested(&self) -> Result<bool, String> {
+        Ok(self
+            .registry
+            .0
+            .lock()
+            .map_err(|_| "Ошибка состояния операций.")?
+            .stopped)
+    }
+    pub fn is_current(&self) -> Result<bool, String> {
+        let state = self
+            .registry
+            .0
+            .lock()
+            .map_err(|_| "Ошибка состояния операций.")?;
+        Ok(state
+            .entries
+            .iter()
+            .rev()
+            .find(|entry| entry.0 == self.id)
+            .is_some_and(|entry| Arc::ptr_eq(&entry.2, &self.flag)))
+    }
     pub fn cancelled(&self) -> &AtomicBool {
         &self.flag
     }
@@ -91,7 +121,11 @@ impl Operation {
 impl Drop for Operation {
     fn drop(&mut self) {
         if let Ok(mut state) = self.registry.0.lock() {
-            state.entries.retain(|entry| entry.0 != self.id);
+            // Cancelled workers may retire after a replacement starts. Keep each
+            // registration until its own guard drops, so capacity stays bounded.
+            state
+                .entries
+                .retain(|entry| entry.0 != self.id || !Arc::ptr_eq(&entry.2, &self.flag));
         }
     }
 }

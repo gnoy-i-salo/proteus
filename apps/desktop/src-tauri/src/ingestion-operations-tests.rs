@@ -59,3 +59,36 @@ fn cancellation_from_another_thread_reaches_the_same_worker_flag() {
     assert!(b.check().is_ok());
     registry.cancel("missing").unwrap();
 }
+
+#[test]
+fn cancelled_worker_can_be_replaced_without_its_late_drop_unregistering_the_new_worker() {
+    let registry = Operations::default();
+    let old = registry.begin("job", JobProvider::Telegram).unwrap();
+    registry.cancel("job").unwrap();
+    let resumed = registry.begin("job", JobProvider::Telegram).unwrap();
+    assert!(old.check().is_err());
+    assert!(resumed.check().is_ok());
+    assert!(registry.begin("job", JobProvider::Telegram).is_err());
+    drop(old);
+    registry.cancel("job").unwrap();
+    assert!(
+        resumed.check().is_err(),
+        "late old drop must preserve the new registration"
+    );
+    drop(resumed);
+    assert!(registry.0.lock().unwrap().entries.is_empty());
+}
+#[test]
+fn cancelled_workers_still_count_toward_capacity_until_they_release_resources() {
+    let registry = Operations::default();
+    let mut workers = Vec::new();
+    for _ in 0..MAX_ACTIVE {
+        workers.push(registry.begin("job", JobProvider::Telegram).unwrap());
+        registry.cancel("job").unwrap();
+    }
+    assert!(registry.begin("job", JobProvider::Telegram).is_err());
+    drop(workers.remove(0));
+    let fresh = registry.begin("job", JobProvider::Telegram).unwrap();
+    assert!(fresh.check().is_ok());
+    assert!(workers.iter().all(|old| old.check().is_err()));
+}

@@ -5,6 +5,20 @@ use super::Sources;
 use crate::corpus_database::{CorpusDatabase, JobProvider};
 use crate::ingestion::operations::Operation;
 impl Sources {
+    /// Native job metadata/control only. It must remain available when all worker
+    /// slots are occupied. Acquisition and source writes use the cancellable gate
+    /// below; controllers never use this entry point to restore source records.
+    pub(crate) fn with_ingestion_job_state<T>(
+        &self,
+        action: impl FnOnce(&mut CorpusDatabase) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let _guard = self
+            .0
+            .gate
+            .lock()
+            .map_err(|_| "Ошибка состояния корпуса.")?;
+        self.0.store.with_database(&self.0.directory, action)
+    }
     pub fn begin_ingestion_operation(
         &self,
         id: &str,

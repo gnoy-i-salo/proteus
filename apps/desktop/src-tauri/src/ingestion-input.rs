@@ -19,7 +19,25 @@ pub struct SelectedInputs(Mutex<HashMap<String, InputEntry>>);
 struct InputEntry {
     file: File,
     origin: String,
-    previews: Vec<String>,
+    previews: Vec<PreviewReceipt>,
+}
+
+struct PreviewReceipt {
+    id: String,
+    origin: String,
+}
+pub(super) fn validate_origin(origin: &str) -> Result<(), String> {
+    let digest = origin
+        .strip_prefix("localArchivePath:1:sha256:")
+        .ok_or("Неверный источник архива.")?;
+    if digest.len() != 64
+        || !digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("Неверный источник архива.".into());
+    }
+    Ok(())
 }
 
 impl SelectedInputs {
@@ -86,34 +104,30 @@ impl SelectedInputs {
         read_entry(entry, action)
     }
     pub fn associate_preview(&self, handle: &str, preview_id: &str) -> Result<(), String> {
-        if preview_id.is_empty() || preview_id.len() > 2048 {
-            return Err("Неверный идентификатор предпросмотра.".into());
-        }
         let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
-        if files.iter().any(|(owner, entry)| {
-            owner != handle && entry.previews.iter().any(|id| id == preview_id)
-        }) {
-            return Err("Предпросмотр принадлежит другому выбранному файлу.".into());
-        }
+        associate(&mut files, handle, preview_id, None)
+    }
+    /// Verification and association share the input lock. A failed verification
+    /// never removes a receipt installed by another restore attempt.
+    pub(super) fn restore_checked_preview<T>(
+        &self,
+        handle: &str,
+        preview_id: &str,
+        verify: impl FnOnce(&mut File, &str) -> Result<(String, T), String>,
+    ) -> Result<T, String> {
+        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
         let entry = files
             .get_mut(handle)
             .ok_or("Выберите исходный файл заново.")?;
-        if entry.previews.iter().any(|id| id == preview_id) {
-            return Ok(());
-        }
-        if entry.previews.len() >= 16 {
-            return Err(
-                "Слишком много предпросмотров выбранного файла. Освободите предыдущие источники."
-                    .into(),
-            );
-        }
-        entry.previews.push(preview_id.into());
-        Ok(())
+        let (origin, result) = read_entry(entry, verify)?;
+        validate_origin(&origin)?;
+        associate(&mut files, handle, preview_id, Some(&origin))?;
+        Ok(result)
     }
     pub fn forget_preview(&self, preview_id: &str) -> Result<(), String> {
         let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
         for entry in files.values_mut() {
-            entry.previews.retain(|id| id != preview_id);
+            entry.previews.retain(|receipt| receipt.id != preview_id);
         }
         Ok(())
     }
@@ -125,14 +139,71 @@ impl SelectedInputs {
         let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
         let entry = files
             .values_mut()
-            .find(|entry| entry.previews.iter().any(|id| id == preview_id))
+            .find(|entry| {
+                entry
+                    .previews
+                    .iter()
+                    .any(|receipt| receipt.id == preview_id)
+            })
             .ok_or("Выберите исходный файл заново.")?;
-        read_entry(entry, action)
+        let origin = entry
+            .previews
+            .iter()
+            .find(|receipt| receipt.id == preview_id)
+            .ok_or(STATE_ERROR)?
+            .origin
+            .clone();
+        read_entry(entry, |file, _| action(file, &origin))
     }
     pub fn release(&self, handle: &str) -> Result<(), String> {
         self.0.lock().map_err(|_| STATE_ERROR)?.remove(handle);
         Ok(())
     }
+}
+
+fn associate(
+    files: &mut HashMap<String, InputEntry>,
+    handle: &str,
+    preview_id: &str,
+    restored_origin: Option<&str>,
+) -> Result<(), String> {
+    if preview_id.is_empty() || preview_id.len() > 2048 {
+        return Err("Неверный идентификатор предпросмотра.".into());
+    }
+    if files.iter().any(|(owner, entry)| {
+        owner != handle
+            && entry
+                .previews
+                .iter()
+                .any(|receipt| receipt.id == preview_id)
+    }) {
+        return Err("Предпросмотр принадлежит другому выбранному файлу.".into());
+    }
+    let entry = files
+        .get_mut(handle)
+        .ok_or("Выберите исходный файл заново.")?;
+    if let Some(existing) = entry
+        .previews
+        .iter()
+        .find(|receipt| receipt.id == preview_id)
+    {
+        return if restored_origin.is_none_or(|origin| origin == existing.origin) {
+            Ok(())
+        } else {
+            Err("Предпросмотр уже связан с другим исходным архивом.".into())
+        };
+    }
+    if entry.previews.len() >= 16 {
+        return Err(
+            "Слишком много предпросмотров выбранного файла. Освободите предыдущие источники."
+                .into(),
+        );
+    }
+    entry.previews.push(PreviewReceipt {
+        id: preview_id.into(),
+        origin: restored_origin.unwrap_or(&entry.origin).into(),
+    });
+    Ok(())
 }
 
 // The origin identifies a user-selected local source location, not a provider

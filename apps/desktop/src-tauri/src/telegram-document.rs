@@ -25,14 +25,8 @@ pub struct TelegramDocument {
 }
 const INVALID: &str = "Неподдерживаемое или повреждённое сообщение Telegram.";
 pub fn normalize(origin: &str, frame: TelegramMessageFrame) -> Result<TelegramDocument, String> {
-    let digest = origin
-        .strip_prefix("localArchivePath:1:sha256:")
-        .ok_or(INVALID)?;
-    if digest.len() != 64
-        || !digest
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        || frame.raw_json.len() > 4 * 1024 * 1024
+    super::input::validate_origin(origin)?;
+    if frame.raw_json.len() > 4 * 1024 * 1024
         || frame.byte_end.checked_sub(frame.byte_start) != Some(frame.raw_json.len() as u64)
     {
         return Err(INVALID.into());

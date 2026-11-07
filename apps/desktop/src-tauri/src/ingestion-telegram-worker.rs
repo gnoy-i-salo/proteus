@@ -55,7 +55,7 @@ struct Session<'a, F> {
     pending: Vec<Pending>,
     now_ms: F,
 }
-pub fn run_reader<R: Read>(
+fn acquire<R: Read>(
     sources: &Sources,
     operation: &Operation,
     job_id: &str,
@@ -63,6 +63,7 @@ pub fn run_reader<R: Read>(
     origin: &str,
     now_ms: impl Fn() -> i64,
 ) -> Result<StoredJob, String> {
+    super::input::validate_origin(origin)?;
     let (mut job, preview) = sources.with_ingestion_database(operation, |db| {
         let job = db.job(job_id)?.ok_or("Задача импорта не найдена.")?;
         authorize(db, &job, now_ms())?;
@@ -90,19 +91,8 @@ pub fn run_reader<R: Read>(
             attached_authorities: 0,
         },
     };
-    if cursor.schema_version != 1
-        || cursor.origin != origin
-        || cursor.fingerprint != preview.fingerprint
-        || cursor.started_at_ms < 0
-        || cursor.started_at_ms > now_ms()
-        || cursor.next_message > job.state.budget.max_documents as u64
-        || cursor.prefix_sha256.len() != 64
-        || !cursor
-            .prefix_sha256
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        || (cursor.next_message == 0 && cursor.prefix_sha256 != format!("{:x}", Sha256::digest([])))
-    {
+    validate_cursor(&job, &cursor, &preview.fingerprint, now_ms())?;
+    if cursor.origin != origin {
         return Err(INVALID.into());
     }
     let remaining = remaining_ms(&job, &cursor, now_ms())?;
@@ -284,6 +274,46 @@ fn date_ms(value: &str) -> Result<i64, String> {
         .map(|date| date.and_utc().timestamp_millis())
         .ok_or_else(|| "Неверное время источника.".into())
 }
+pub(super) fn restore_origin(
+    job: &StoredJob,
+    fingerprint: &InputFingerprint,
+    now: i64,
+) -> Result<Option<String>, String> {
+    job.state
+        .checkpoint
+        .cursor
+        .as_deref()
+        .map(|value| {
+            let cursor: Cursor = serde_json::from_str(value).map_err(|_| INVALID)?;
+            validate_cursor(job, &cursor, fingerprint, now)?;
+            Ok(cursor.origin)
+        })
+        .transpose()
+}
+fn validate_cursor(
+    job: &StoredJob,
+    cursor: &Cursor,
+    fingerprint: &InputFingerprint,
+    now: i64,
+) -> Result<(), String> {
+    if cursor.schema_version != 1
+        || &cursor.fingerprint != fingerprint
+        || cursor.started_at_ms < 0
+        || cursor.started_at_ms > now
+        || cursor.next_message > job.state.budget.max_documents as u64
+        || cursor.prefix_sha256.len() != 64
+        || !cursor
+            .prefix_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        || (cursor.next_message == 0 && cursor.prefix_sha256 != format!("{:x}", Sha256::digest([])))
+    {
+        return Err(INVALID.into());
+    }
+    super::input::validate_origin(&cursor.origin)?;
+    remaining_ms(job, cursor, now)?;
+    Ok(())
+}
 fn remaining_ms(job: &StoredJob, cursor: &Cursor, now: i64) -> Result<i64, String> {
     let elapsed = now
         .checked_sub(cursor.started_at_ms)
@@ -318,4 +348,52 @@ fn prefix_hash(
     hash.update(header);
     hash.update(&frame.raw_json);
     Ok(format!("{:x}", hash.finalize()))
+}
+
+#[derive(Debug)]
+pub struct Failure {
+    pub message: String,
+    pub retryable: bool,
+}
+pub fn run_reader<R: Read>(
+    sources: &Sources,
+    operation: &Operation,
+    job_id: &str,
+    reader: R,
+    origin: &str,
+    now_ms: impl Fn() -> i64,
+) -> Result<StoredJob, String> {
+    run_reader_outcome(sources, operation, job_id, reader, origin, now_ms)
+        .map_err(|failure| failure.message)
+}
+pub fn run_reader_outcome<R: Read>(
+    sources: &Sources,
+    operation: &Operation,
+    job_id: &str,
+    reader: R,
+    origin: &str,
+    now_ms: impl Fn() -> i64,
+) -> Result<StoredJob, Failure> {
+    let read_failed = std::cell::Cell::new(false);
+    let reader = TrackedReader {
+        reader,
+        failed: &read_failed,
+    };
+    acquire(sources, operation, job_id, reader, origin, now_ms).map_err(|message| Failure {
+        retryable: read_failed.get() || message == crate::corpus_database::STORAGE_ERROR,
+        message,
+    })
+}
+// Record failures of the actual input reader separately from parser, fingerprint,
+// cancellation and budget checks. Their user-facing text is not an error codec.
+struct TrackedReader<'a, R> {
+    reader: R,
+    failed: &'a std::cell::Cell<bool>,
+}
+impl<R: Read> Read for TrackedReader<'_, R> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.reader
+            .read(buffer)
+            .inspect_err(|_| self.failed.set(true))
+    }
 }

@@ -4,6 +4,10 @@ pub mod fingerprint;
 pub mod grants;
 #[path = "ingestion-input.rs"]
 mod input;
+#[path = "ingestion-job-commands.rs"]
+pub mod job_commands;
+#[path = "ingestion-job-workflow.rs"]
+pub mod job_workflow;
 #[path = "ingestion-operations.rs"]
 pub mod operations;
 #[path = "ingestion-preview.rs"]
@@ -14,6 +18,8 @@ pub mod preview_scan;
 pub mod preview_store;
 #[path = "ingestion-preview-workflow.rs"]
 pub mod preview_workflow;
+#[path = "ingestion-restore-workflow.rs"]
+pub mod restore_workflow;
 #[path = "telegram-archive-json.rs"]
 pub mod telegram_archive_json;
 #[path = "telegram-document.rs"]

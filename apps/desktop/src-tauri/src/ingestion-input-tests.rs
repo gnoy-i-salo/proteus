@@ -221,3 +221,65 @@ fn preview_receipt_cache_is_bounded_without_evicting_existing_jobs_silently() {
         .associate_preview("selected", &"x".repeat(2049))
         .is_err());
 }
+
+#[test]
+fn explicitly_restored_preview_preserves_its_origin_without_changing_new_selections() {
+    let fixture = Fixture::new();
+    let path = fixture.file("original.json", b"exact");
+    let before = SelectedInputs::default();
+    before.insert("old".into(), &path).unwrap();
+    let original = before
+        .read_scoped("old", |_, origin| Ok(origin.to_string()))
+        .unwrap();
+    drop(before);
+    let moved = fixture.0.join("moved.json");
+    fs::rename(path, &moved).unwrap();
+    let after = SelectedInputs::default();
+    after.insert("new".into(), &moved).unwrap();
+    let current = after
+        .read_scoped("new", |_, origin| Ok(origin.to_string()))
+        .unwrap();
+    assert_ne!(original, current);
+    after
+        .restore_checked_preview("new", "receipt", |_, _| Ok((original.clone(), ())))
+        .unwrap();
+    assert_eq!(
+        after
+            .read_preview("receipt", |file, origin| Ok((
+                contents(file)?,
+                origin.to_string()
+            )))
+            .unwrap(),
+        (b"exact".to_vec(), original.clone())
+    );
+    assert_eq!(
+        after
+            .read_scoped("new", |_, origin| Ok(origin.to_string()))
+            .unwrap(),
+        current
+    );
+    assert!(after
+        .restore_checked_preview("new", "receipt", |_, _| Ok((current.clone(), ())))
+        .is_err());
+    after
+        .restore_checked_preview("new", "receipt", |_, _| Ok((original.clone(), ())))
+        .unwrap();
+}
+#[test]
+fn restoring_a_preview_rejects_paths_and_malformed_origin_keys() {
+    let fixture = Fixture::new();
+    let path = fixture.file("archive.json", b"{}");
+    let inputs = SelectedInputs::default();
+    inputs.insert("selected".into(), &path).unwrap();
+    for invalid in [
+        path.to_string_lossy().into_owned(),
+        String::new(),
+        "localArchivePath:1:sha256:abc".into(),
+        format!("localArchivePath:1:sha256:{}", "z".repeat(64)),
+    ] {
+        assert!(inputs
+            .restore_checked_preview("selected", "receipt", |_, _| Ok((invalid.clone(), ())))
+            .is_err());
+        assert!(inputs.read_preview("receipt", |_, _| Ok(())).is_err());
+    }
+}

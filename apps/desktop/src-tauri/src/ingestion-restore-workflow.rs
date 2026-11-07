@@ -1,0 +1,83 @@
+use super::{operations::Operation, SelectedInputs};
+use crate::{corpus_database::StoredJob, sources::Sources};
+use serde::Deserialize;
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RestoreRequest {
+    pub operation_id: String,
+    pub job_id: String,
+    pub source_handle: String,
+}
+pub fn restore(
+    sources: &Sources,
+    inputs: &SelectedInputs,
+    operation: &Operation,
+    request: RestoreRequest,
+    now_ms: impl Fn() -> i64,
+) -> Result<StoredJob, String> {
+    if request.operation_id != operation.id() {
+        return Err("Идентификатор восстановления не соответствует операции.".into());
+    }
+    let (job, preview) = sources.with_ingestion_database(operation, |db| {
+        let job = super::job_workflow::read_job(db, &request.job_id)?;
+        validate(db, &job, now_ms())?;
+        let preview = super::preview_store::read_preview(db, &job.state.selection.preview_id)?;
+        Ok((job, preview))
+    })?;
+    let saved_origin =
+        super::telegram_worker::restore_origin(&job, &preview.fingerprint, now_ms())?;
+    // Input -> database is the same lock order as acquisition. Never reopen a
+    // persisted path; only the freshly selected native capability supplies bytes.
+    inputs.restore_checked_preview(
+        &request.source_handle,
+        &preview.id,
+        |file, current_origin| {
+            let mut reader = super::fingerprint::FingerprintReader::new(
+                file,
+                job.state.budget.max_input_bytes as u64,
+                std::time::Duration::from_millis(job.state.budget.max_duration_ms as u64),
+                operation.cancelled(),
+            )
+            .map_err(|error| error.to_string())?;
+            let mut buffer = [0u8; 8192];
+            while std::io::Read::read(&mut reader, &mut buffer)
+                .map_err(|error| error.to_string())?
+                != 0
+            {}
+            if reader.finish().map_err(|error| error.to_string())? != preview.fingerprint {
+                return Err("Выбранный файл не соответствует исходному архиву задачи.".into());
+            }
+            let current = sources.with_ingestion_database(operation, |db| {
+                let current = super::job_workflow::read_job(db, &request.job_id)?;
+                if current != job {
+                    return Err("Состояние импорта изменилось. Повторите выбор источника.".into());
+                }
+                validate(db, &current, now_ms())?;
+                super::telegram_worker::restore_origin(&current, &preview.fingerprint, now_ms())?;
+                Ok(current)
+            })?;
+            Ok((
+                saved_origin.unwrap_or_else(|| current_origin.into()),
+                current,
+            ))
+        },
+    )
+}
+fn validate(
+    db: &crate::corpus_database::CorpusDatabase,
+    job: &StoredJob,
+    now: i64,
+) -> Result<(), String> {
+    use crate::corpus_database::JobStatus;
+    if !matches!(job.status, JobStatus::Queued | JobStatus::Paused)
+        && !(job.status == JobStatus::Failed
+            && job
+                .state
+                .error
+                .as_ref()
+                .is_some_and(|error| error.retryable))
+    {
+        return Err("Задача не ожидает повторного выбора источника.".into());
+    }
+    super::job_workflow::validate_selection(db, &job.state.selection, now)
+}

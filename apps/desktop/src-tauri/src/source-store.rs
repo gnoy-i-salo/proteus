@@ -51,10 +51,13 @@ impl SourceStore {
             .lock()
             .map_err(|_| "Ошибка состояния базы корпуса.")?;
         if slot.is_none() {
-            let database = crate::corpus_database::CorpusDatabase::open_with_secrets(
+            let mut database = crate::corpus_database::CorpusDatabase::open_with_secrets(
                 &directory.join("metadata.db"),
                 self.secrets.as_ref(),
             )?;
+            // Recover once per newly opened connection, never on a later read
+            // that could otherwise pause a worker running in this process.
+            database.recover_interrupted_jobs()?;
             *slot = Some((directory.to_path_buf(), database));
         }
         let (owner, database) = slot.as_mut().ok_or(INVALID)?;

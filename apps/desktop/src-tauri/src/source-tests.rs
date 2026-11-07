@@ -262,3 +262,12 @@ mod preview_workflow_tests;
 
 #[path = "ingestion-telegram-worker-tests.rs"]
 mod telegram_worker_tests;
+
+#[path = "ingestion-test-fixture.rs"]
+mod ingestion_fixture;
+
+#[path = "ingestion-job-workflow-tests.rs"]
+mod job_workflow_tests;
+
+#[path = "ingestion-restore-workflow-tests.rs"]
+mod restore_workflow_tests;

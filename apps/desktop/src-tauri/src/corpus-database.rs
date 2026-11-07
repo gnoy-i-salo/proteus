@@ -41,8 +41,9 @@ pub use types::{
     RevisionReference, Snapshot, StoredRecord, StoredRevision,
 };
 const INVALID: &str = "Сохранённый корпус повреждён или имеет неподдерживаемую версию.";
+pub(crate) const STORAGE_ERROR: &str = "Не удалось выполнить операцию зашифрованного корпуса.";
 fn sql_error(_: rusqlite::Error) -> String {
-    "Не удалось выполнить операцию зашифрованного корпуса.".into()
+    STORAGE_ERROR.into()
 }
 pub struct CorpusDatabase {
     connection: Connection,

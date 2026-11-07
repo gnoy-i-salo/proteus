@@ -1,97 +1,8 @@
+use super::ingestion_fixture::{archive, prepare, prepare_with_budget};
 use super::*;
-use crate::corpus_database::{
-    JobBudget, JobInput, JobPeriod, JobProvider, JobRole, JobSelection, JobStatus,
-};
-use crate::ingestion::{
-    grants::{create_binding, BindingRequest},
-    preview_workflow::{preview, PreviewRequest},
-    telegram_worker::run_reader,
-    SelectedInputs,
-};
+use crate::corpus_database::{JobBudget, JobInput, JobProvider, JobStatus};
+use crate::ingestion::telegram_worker::run_reader;
 use std::io::{self, Read};
-fn archive() -> String {
-    r#"{"name":"Чат","type":"personal_chat","id":1,"messages":[{"id":1,"type":"message","from_id":"user1","text":"ok"},{"id":2,"type":"message","from_id":"user1","text":"ok"},{"id":3,"type":"message","from_id":"user2","text":"  контекст\r\n"},{"id":4,"type":"message","from_id":"outsider","text":"excluded"}]}"#.into()
-}
-fn prepare(
-    sources: &Sources,
-    dir: &std::path::Path,
-    raw: &str,
-) -> (SelectedInputs, String, String) {
-    let budget = JobBudget {
-        max_input_bytes: 1 << 20,
-        max_expanded_bytes: 1 << 20,
-        max_documents: 100,
-        max_batch_documents: 1,
-        max_batch_bytes: 65536,
-        max_duration_ms: 60000,
-    };
-    prepare_with_budget(sources, dir, raw, budget)
-}
-fn prepare_with_budget(
-    sources: &Sources,
-    dir: &std::path::Path,
-    raw: &str,
-    budget: JobBudget,
-) -> (SelectedInputs, String, String) {
-    std::fs::create_dir_all(dir).unwrap();
-    let path = dir.join("archive.json");
-    std::fs::write(&path, raw).unwrap();
-    let inputs = SelectedInputs::default();
-    inputs.insert("selected".into(), &path).unwrap();
-    let op = sources
-        .begin_ingestion_operation("setup", JobProvider::Telegram)
-        .unwrap();
-    let preview = preview(
-        sources,
-        &inputs,
-        &op,
-        PreviewRequest {
-            operation_id: "setup".into(),
-            source_handle: "selected".into(),
-            budget: budget.clone(),
-        },
-    )
-    .unwrap();
-    sources
-        .with_ingestion_database(&op, |db| {
-            let binding = create_binding(
-                db,
-                BindingRequest {
-                    preview_id: preview.id.clone(),
-                    resource_id: preview.resources[0].id.clone(),
-                    persona_id: "personA".into(),
-                    role: JobRole::Own,
-                    target_author_id: Some("user1".into()),
-                    allowed_context_author_ids: vec!["user2".into()],
-                    allow_unknown_context: false,
-                    period: JobPeriod {
-                        from: None,
-                        to: None,
-                        include_undated: true,
-                    },
-                    allow_model_processing: false,
-                    allow_export: false,
-                },
-                1000,
-            )?;
-            db.create_job(&JobInput {
-                id: "job".into(),
-                adapter_version: "telegramDesktopJson:1".into(),
-                budget,
-                selection: JobSelection {
-                    preview_id: preview.id.clone(),
-                    resource_ids: vec![binding.resource_id.clone()],
-                    bindings: vec![binding],
-                },
-            })?;
-            Ok(())
-        })
-        .unwrap();
-    let origin = inputs
-        .read_scoped("selected", |_, origin| Ok(origin.to_string()))
-        .unwrap();
-    (inputs, preview.id, origin)
-}
 #[test]
 fn archive_worker_publishes_only_selected_authors_in_bounded_batches_with_exact_originals() {
     let (sources, dir) = local();
@@ -457,6 +368,115 @@ fn native_archive_worker_imports_above_old_document_and_byte_limits() {
     assert_eq!(job.state.coverage.used_documents, 0);
     assert!(job.state.checkpoint.committed_batch > 160);
     assert!(job.state.published_snapshot_id.is_some());
+    drop(op);
+    drop(inputs);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn reopening_the_source_store_recovers_interrupted_jobs_once_without_pausing_new_work() {
+    let (sources, dir) = local();
+    let (inputs, _, _) = prepare(&sources, &dir, &archive());
+    let op = sources
+        .begin_ingestion_operation("job", JobProvider::Telegram)
+        .unwrap();
+    sources
+        .with_ingestion_database(&op, |db| {
+            db.start_job("job")?;
+            Ok(())
+        })
+        .unwrap();
+    let connections = sources.0.connections.clone();
+    drop(op);
+    drop(inputs);
+    drop(sources);
+    let restored = Sources::new(dir.clone(), connections);
+    let op = restored
+        .begin_ingestion_operation("inspect", JobProvider::Telegram)
+        .unwrap();
+    restored
+        .with_ingestion_database(&op, |db| {
+            let recovered = db.job("job")?.unwrap();
+            assert_eq!(recovered.status, JobStatus::Paused);
+            assert_eq!(recovered.state.error.as_ref().unwrap().code, "interrupted");
+            db.resume_job("job")?;
+            Ok(())
+        })
+        .unwrap();
+    restored
+        .with_ingestion_database(&op, |db| {
+            assert_eq!(db.job("job")?.unwrap().status, JobStatus::Running);
+            Ok(())
+        })
+        .unwrap();
+    drop(op);
+    drop(restored);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn worker_outcomes_distinguish_retryable_reader_failures_from_changed_source_bytes() {
+    use crate::ingestion::telegram_worker::run_reader_outcome;
+    for io_failure in [true, false] {
+        let (sources, dir) = local();
+        let raw = archive();
+        let (inputs, _, origin) = prepare(&sources, &dir, &raw);
+        let op = sources
+            .begin_ingestion_operation("job", JobProvider::Telegram)
+            .unwrap();
+        let failure = if io_failure {
+            run_reader_outcome(
+                &sources,
+                &op,
+                "job",
+                Interrupted {
+                    bytes: raw.as_bytes(),
+                    remaining: raw.find(r#"{"id":3"#).unwrap(),
+                },
+                &origin,
+                || 1001,
+            )
+            .unwrap_err()
+        } else {
+            let changed = raw.replace("ok", "changed");
+            run_reader_outcome(&sources, &op, "job", changed.as_bytes(), &origin, || 1001)
+                .unwrap_err()
+        };
+        assert_eq!(failure.retryable, io_failure);
+        assert!(!failure.message.is_empty());
+        drop(op);
+        drop(inputs);
+        drop(sources);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[test]
+fn arbitrary_path_cannot_be_persisted_as_an_archive_origin_before_validation() {
+    let (sources, dir) = local();
+    let raw = archive();
+    let (inputs, _, _) = prepare(&sources, &dir, &raw);
+    let op = sources
+        .begin_ingestion_operation("job", JobProvider::Telegram)
+        .unwrap();
+    assert!(run_reader(
+        &sources,
+        &op,
+        "job",
+        raw.as_bytes(),
+        "/tmp/arbitrary-path",
+        || 1001
+    )
+    .is_err());
+    sources
+        .with_ingestion_database(&op, |db| {
+            let job = db.job("job")?.unwrap();
+            assert_eq!(job.status, JobStatus::Queued);
+            assert!(job.state.checkpoint.cursor.is_none());
+            Ok(())
+        })
+        .unwrap();
     drop(op);
     drop(inputs);
     drop(sources);

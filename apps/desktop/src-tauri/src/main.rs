@@ -107,6 +107,8 @@ fn main() {
             sources::import_source,
             ingestion::pick_ingestion_source,
             ingestion::release_ingestion_source,
+            ingestion::preview_ingestion_source,
+            ingestion::cancel_ingestion_operation,
             sources::reserve_model_step,
             sources::clear_source_data,
             sources::delete_source,

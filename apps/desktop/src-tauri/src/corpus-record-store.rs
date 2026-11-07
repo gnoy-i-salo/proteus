@@ -195,29 +195,35 @@ impl CorpusDatabase {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(sql_error)?;
-        let previous = read_record(&tx, id)?.ok_or("Источник не найден.")?;
-        if previous.input.kind == "deleted" {
-            return Ok(());
-        }
-        let tombstone = RecordInput {
-            id: id.into(),
-            kind: "deleted".into(),
-            provider: previous.input.provider,
-            state_json: "{}".into(),
-            documents: vec![],
-        };
-        tx.execute("DELETE FROM snapshots WHERE id IN (SELECT snapshot_id FROM snapshot_records WHERE record_id=?1)",[id]).map_err(sql_error)?;
-        tx.execute("DELETE FROM record_revisions WHERE record_id=?1", [id])
-            .map_err(sql_error)?;
-        tx.execute("UPDATE records SET kind='deleted',state_json='{}',canonical_sha256=?2,generation=generation+1 WHERE id=?1",params![id,record_hash(&tombstone)]).map_err(sql_error)?;
-        tx.execute(
+        remove_record(&tx, id)?;
+        tx.commit().map_err(sql_error)
+    }
+}
+pub(super) fn remove_record(connection: &Connection, id: &str) -> Result<(), String> {
+    let previous = read_record(connection, id)?.ok_or("Источник не найден.")?;
+    if previous.input.kind == "deleted" {
+        return Ok(());
+    }
+    let tombstone = RecordInput {
+        id: id.into(),
+        kind: "deleted".into(),
+        provider: previous.input.provider,
+        state_json: "{}".into(),
+        documents: vec![],
+    };
+    connection.execute("DELETE FROM snapshots WHERE id IN (SELECT snapshot_id FROM snapshot_records WHERE record_id=?1)",[id]).map_err(sql_error)?;
+    connection
+        .execute("DELETE FROM record_revisions WHERE record_id=?1", [id])
+        .map_err(sql_error)?;
+    connection.execute("UPDATE records SET kind='deleted',state_json='{}',canonical_sha256=?2,generation=generation+1 WHERE id=?1",params![id,record_hash(&tombstone)]).map_err(sql_error)?;
+    connection
+        .execute(
             "DELETE FROM record_revision_history WHERE record_id=?1",
             [id],
         )
         .map_err(sql_error)?;
-        tx.execute("DELETE FROM revisions WHERE id NOT IN (SELECT revision_id FROM record_revision_history) AND id NOT IN (SELECT revision_id FROM snapshot_revisions)",[]).map_err(sql_error)?;
-        tx.commit().map_err(sql_error)
-    }
+    connection.execute("DELETE FROM revisions WHERE id NOT IN (SELECT revision_id FROM record_revision_history) AND id NOT IN (SELECT revision_id FROM snapshot_revisions)",[]).map_err(sql_error)?;
+    Ok(())
 }
 fn read_audit(connection: &Connection, id: &str) -> Result<Option<MigrationAudit>, String> {
     connection.query_row("SELECT source_generation,ciphertext_sha256,document_count,canonical_sha256 FROM migration_audits WHERE record_id=?1",[id],|row|Ok(MigrationAudit{source_generation:row.get(0)?,ciphertext_sha256:row.get(1)?,document_count:row.get::<_,i64>(2)? as usize,canonical_sha256:row.get(3)?})).optional().map_err(sql_error)

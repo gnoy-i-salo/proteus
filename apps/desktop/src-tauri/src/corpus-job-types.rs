@@ -60,6 +60,18 @@ pub enum JobProvider {
     Web,
     SavedPage,
 }
+impl JobProvider {
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Telegram => "telegram",
+            Self::Vk => "vk",
+            Self::Instagram => "instagram",
+            Self::Github => "github",
+            Self::Web => "web",
+            Self::SavedPage => "savedPage",
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum JobRole {

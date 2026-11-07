@@ -972,3 +972,6 @@ fn streamed_job_hash_preserves_the_existing_canonical_bytes() {
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[path = "corpus-revocation-tests.rs"]
+mod revocation_tests;

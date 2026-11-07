@@ -138,14 +138,7 @@ pub fn authorize_binding(
     {
         return Err("Разрешение не соответствует области или истекло.".into());
     }
-    let expected = match binding.provider {
-        JobProvider::Telegram => "telegram",
-        JobProvider::Vk => "vk",
-        JobProvider::Github => "github",
-        JobProvider::Instagram => "instagram",
-        JobProvider::Web => "web",
-        JobProvider::SavedPage => "savedPage",
-    };
+    let expected = binding.provider.key();
     if stored.input.provider != expected {
         return Err("Разрешение принадлежит другому сервису.".into());
     }

@@ -32,15 +32,7 @@ pub(super) fn validate_error(error: &JobError) -> Result<(), String> {
     }
     Ok(())
 }
-pub(super) fn validate_input(input: &JobInput) -> Result<(), String> {
-    if input.id.is_empty()
-        || input.id.len() > 256
-        || input.selection.preview_id.is_empty()
-        || input.selection.preview_id.len() > 2048
-    {
-        return Err(INVALID.into());
-    }
-    let budget = &input.budget;
+pub fn validate_budget(budget: &JobBudget) -> Result<(), String> {
     if [
         budget.max_input_bytes,
         budget.max_expanded_bytes,
@@ -56,6 +48,17 @@ pub(super) fn validate_input(input: &JobInput) -> Result<(), String> {
     {
         return Err("Недопустимый бюджет задачи импорта.".into());
     }
+    Ok(())
+}
+pub(super) fn validate_input(input: &JobInput) -> Result<(), String> {
+    if input.id.is_empty()
+        || input.id.len() > 256
+        || input.selection.preview_id.is_empty()
+        || input.selection.preview_id.len() > 2048
+    {
+        return Err(INVALID.into());
+    }
+    validate_budget(&input.budget)?;
     if input.adapter_version.is_empty() || input.adapter_version.len() > 256 {
         return Err(INVALID.into());
     }

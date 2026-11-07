@@ -26,12 +26,14 @@ pub(super) struct SourceInner {
     pub(super) connections: Connections,
     pub(super) store: SourceStore,
     pub(super) gate: Mutex<()>,
+    pub(super) ingestion_operations: crate::ingestion::operations::Operations,
     pub(super) cancellations: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 #[derive(Clone)]
 pub struct Sources(pub(super) Arc<SourceInner>);
 impl Sources {
     pub fn shutdown(&self) {
+        self.0.ingestion_operations.shutdown();
         if let Ok(flags) = self.0.cancellations.lock() {
             for flag in flags.values() {
                 flag.store(true, Ordering::SeqCst);
@@ -45,6 +47,7 @@ impl Sources {
             connections,
             gate: Mutex::new(()),
             cancellations: Mutex::new(HashMap::new()),
+            ingestion_operations: crate::ingestion::operations::Operations::default(),
         }))
     }
     pub(super) fn path(&self, id: &str) -> Result<PathBuf, String> {
@@ -167,6 +170,10 @@ impl Sources {
             .clone())
     }
     pub(super) fn clear(&self, provider: Provider) -> Result<(), String> {
+        let ingestion_provider = super::ingestion::ingestion_provider(provider);
+        // Block new reads before waiting for the shared database gate. A reader
+        // already outside the gate observes cancellation before persisting data.
+        let _clearing = self.0.ingestion_operations.clear(ingestion_provider)?;
         // Serialize enumeration with creation/import as well as deletion. Otherwise an
         // import finishing between scan and lock could survive a successful clear.
         let _guard = self
@@ -174,6 +181,9 @@ impl Sources {
             .gate
             .lock()
             .map_err(|_| "Ошибка состояния корпуса.")?;
+        self.0.store.with_database(&self.0.directory, |database| {
+            database.revoke_ingestion_provider(ingestion_provider)
+        })?;
         let mut ids: HashSet<String> = self.0.store.ids(&self.0.directory)?.into_iter().collect();
         for directory in [
             &self.0.directory,

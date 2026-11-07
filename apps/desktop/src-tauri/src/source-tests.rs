@@ -253,3 +253,9 @@ fn provider_iso_offsets_are_normalized_before_time_scope_checks() {
     };
     assert!(in_scope(&selected, &item));
 }
+
+#[path = "source-ingestion-tests.rs"]
+mod ingestion_tests;
+
+#[path = "ingestion-preview-workflow-tests.rs"]
+mod preview_workflow_tests;

@@ -14,6 +14,8 @@ mod document;
 mod grant;
 #[path = "source-import.rs"]
 mod import;
+#[path = "source-ingestion.rs"]
+mod ingestion;
 #[path = "source-model.rs"]
 mod model;
 #[path = "source-readers.rs"]

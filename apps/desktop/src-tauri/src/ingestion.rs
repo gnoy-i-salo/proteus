@@ -4,12 +4,16 @@ pub mod fingerprint;
 pub mod grants;
 #[path = "ingestion-input.rs"]
 mod input;
+#[path = "ingestion-operations.rs"]
+pub mod operations;
 #[path = "ingestion-preview.rs"]
 pub mod preview;
 #[path = "ingestion-preview-scan.rs"]
 pub mod preview_scan;
 #[path = "ingestion-preview-store.rs"]
 pub mod preview_store;
+#[path = "ingestion-preview-workflow.rs"]
+pub mod preview_workflow;
 #[path = "telegram-archive-json.rs"]
 pub mod telegram_archive_json;
 pub use input::SelectedInputs;
@@ -66,4 +70,31 @@ pub async fn release_ingestion_source(
     tauri::async_runtime::spawn_blocking(move || inputs.release(&source_handle))
         .await
         .map_err(|_| "Не удалось освободить выбранный источник.".to_string())?
+}
+
+#[tauri::command]
+pub async fn preview_ingestion_source(
+    request: preview_workflow::PreviewRequest,
+    sources: tauri::State<'_, crate::sources::Sources>,
+    inputs: tauri::State<'_, std::sync::Arc<SelectedInputs>>,
+) -> Result<preview_workflow::PreviewResult, String> {
+    let sources = sources.inner().clone();
+    let inputs = inputs.inner().clone();
+    let operation = sources.begin_ingestion_operation(
+        &request.operation_id,
+        crate::corpus_database::JobProvider::Telegram,
+    )?;
+    tauri::async_runtime::spawn_blocking(move || {
+        preview_workflow::preview(&sources, &inputs, &operation, request)
+    })
+    .await
+    .map_err(|_| "Не удалось выполнить предпросмотр источника.".to_string())?
+}
+
+#[tauri::command]
+pub fn cancel_ingestion_operation(
+    operation_id: String,
+    sources: tauri::State<'_, crate::sources::Sources>,
+) -> Result<(), String> {
+    sources.cancel_ingestion_operation(&operation_id)
 }

@@ -8,6 +8,8 @@ mod migrations;
 mod provenance;
 #[path = "corpus-record-store.rs"]
 mod record_store;
+#[path = "corpus-revocation.rs"]
+mod revocation;
 #[path = "corpus-snapshot-store.rs"]
 mod snapshot_store;
 pub use provenance::{Acquisition, HashAlgorithm, ProvenanceLimitation, SourceProvenance};
@@ -21,7 +23,9 @@ mod job_store;
 mod job_types;
 #[path = "corpus-job-validation.rs"]
 mod job_validation;
-pub use job_validation::validate_binding as validate_source_binding;
+pub use job_validation::{
+    validate_binding as validate_source_binding, validate_budget as validate_ingestion_budget,
+};
 #[path = "corpus-jobs.rs"]
 mod jobs;
 #[path = "corpus-types.rs"]

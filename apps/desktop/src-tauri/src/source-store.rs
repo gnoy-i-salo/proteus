@@ -41,7 +41,7 @@ impl SourceStore {
             database: std::sync::Mutex::new(None),
         }
     }
-    fn with_database<T>(
+    pub(super) fn with_database<T>(
         &self,
         directory: &Path,
         action: impl FnOnce(&mut crate::corpus_database::CorpusDatabase) -> Result<T, String>,

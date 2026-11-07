@@ -133,6 +133,7 @@ fn collection_preserves_selected_context_duplicate_words_and_exact_metadata() {
         serde_json::to_value(&read.documents[0]).unwrap(),
         serde_json::to_value(peer).unwrap()
     );
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
@@ -166,6 +167,7 @@ fn legacy_action_cannot_bypass_binding_and_revoked_or_rewritten_scope_fails_clos
     assert!(sources
         .binding_action(&binding.binding.id, SourceAction::Coverage)
         .is_err());
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
@@ -190,6 +192,7 @@ fn deleting_selected_import_revokes_bound_reads_and_clear_removes_all_generation
     assert!(sources
         .binding_action(&binding.binding.id, SourceAction::Coverage)
         .is_err());
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
@@ -212,16 +215,35 @@ fn revision_identity_uses_full_original_and_authorship_metadata() {
         .unwrap();
     assert_eq!(
         read.documents[0].revision_id,
-        binding_policy::revision_id(&original).unwrap()
+        sources
+            .0
+            .store
+            .references(&path)
+            .unwrap()
+            .iter()
+            .find(|reference| reference.document_id == original.id)
+            .unwrap()
+            .revision_id
     );
     assert_eq!(read.documents[0].document.text.len(), 24000);
     assert!(read.documents[0].document.truncated);
     let mut altered = original;
     altered.author_label = Some("Different label".into());
+    record.documents[0] = altered;
+    sources.0.store.write(&path, &record).unwrap();
+    let changed = sources
+        .binding_action(
+            &binding.binding.id,
+            SourceAction::Read {
+                document_ids: vec![record.documents[0].id.clone()],
+            },
+        )
+        .unwrap();
     assert_ne!(
-        binding_policy::revision_id(&altered).unwrap(),
+        changed.documents[0].revision_id,
         read.documents[0].revision_id
     );
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
@@ -282,6 +304,7 @@ fn connected_account_change_and_token_removal_revoke_binding_actions() {
     assert!(sources
         .binding_action(&binding.binding.id, SourceAction::Coverage)
         .is_err());
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
@@ -308,5 +331,37 @@ fn bound_import_does_not_upgrade_authorship_or_rewrite_source_metadata() {
         SpeakerRelation::Target
     );
     assert!(!result.documents[0].can_support_own_words);
+    drop(sources);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+#[test]
+fn projected_revision_refs_match_the_canonical_database_including_reply_targets() {
+    let (sources, directory, binding) = selected();
+    let result = collect(&sources, &binding);
+    let references = sources
+        .0
+        .store
+        .references(&sources.path(&binding.grant.id).unwrap())
+        .unwrap();
+    for projected in &result.documents {
+        let canonical = references
+            .iter()
+            .find(|reference| reference.document_id == projected.document.id)
+            .unwrap();
+        assert_eq!(
+            projected.revision_id, canonical.revision_id,
+            "projection must name the canonical source-key-scoped revision"
+        );
+    }
+    let target = &result.documents[0];
+    assert_eq!(
+        result.documents[1].relations[0]
+            .original
+            .as_ref()
+            .unwrap()
+            .revision_id,
+        target.revision_id
+    );
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }

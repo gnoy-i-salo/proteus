@@ -21,7 +21,20 @@ pub struct SourceBindingResult {
     pub cursor: Option<String>,
     pub limitations: Vec<String>,
 }
-fn relations(document: &SourceDocument, record: &Record) -> Result<Vec<DocumentRelation>, String> {
+fn revision_reference<'a>(
+    references: &'a [crate::corpus_database::RevisionReference],
+    document_id: &str,
+) -> Result<&'a crate::corpus_database::RevisionReference, String> {
+    references
+        .iter()
+        .find(|reference| reference.document_id == document_id)
+        .ok_or_else(|| "Версия документа не найдена в корпусе.".into())
+}
+fn relations(
+    document: &SourceDocument,
+    record: &Record,
+    references: &[crate::corpus_database::RevisionReference],
+) -> Result<Vec<DocumentRelation>, String> {
     let mut relations = Vec::new();
     if let Some(reply) = &document.reply_to {
         // A reference can name an original only when that original is in the same
@@ -36,7 +49,7 @@ fn relations(document: &SourceDocument, record: &Record) -> Result<Vec<DocumentR
                 .map(|doc| {
                     Ok::<_, String>(RevisionReference {
                         document_id: doc.id.clone(),
-                        revision_id: binding_policy::revision_id(doc)?,
+                        revision_id: revision_reference(references, &doc.id)?.revision_id.clone(),
                     })
                 })
                 .transpose()?,
@@ -113,6 +126,7 @@ impl Sources {
         } else if self.0.connections.account_id(binding.provider)? != record.grant.account_id {
             return Err("Подключённый аккаунт изменился. Выберите источник заново.".into());
         }
+        let references = self.0.store.references(&path)?;
         let mut documents = Vec::new();
         for document in result.documents {
             let original = record
@@ -122,16 +136,16 @@ impl Sources {
                     original.id == document.id && original.content_hash == document.content_hash
                 })
                 .ok_or("Версия документа больше не доступна.")?;
-            let mut projected = binding_policy::project(
+            let projected = binding_policy::project(
                 binding,
                 &record.grant,
                 &bounded_document(original.clone()),
-                relations(original, &record)?,
+                &revision_reference(&references, &original.id)?.revision_id,
+                relations(original, &record, &references)?,
                 now,
             )?;
             // Model text can be a bounded prefix, but revision identity always names
             // the complete stored source document, including its original metadata.
-            projected.revision_id = binding_policy::revision_id(original)?;
             documents.push(projected);
         }
         Ok(SourceBindingResult {

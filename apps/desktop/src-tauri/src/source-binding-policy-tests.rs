@@ -1,6 +1,15 @@
 use super::*;
 use crate::sources::model::SourceBudget;
 use serde_json::json;
+fn project(
+    binding: &SourceBinding,
+    grant: &SourceGrant,
+    document: &SourceDocument,
+    relations: Vec<DocumentRelation>,
+    now: i64,
+) -> Result<ModelSourceDocument, String> {
+    super::project(binding, grant, document, "revision:fixture", relations, now)
+}
 fn setup() -> (SourceBinding, SourceGrant, SourceDocument) {
     let source = SourceGrantRequest {
         provider: Provider::Telegram,

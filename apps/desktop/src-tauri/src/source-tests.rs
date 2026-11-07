@@ -4,7 +4,7 @@ use super::{
     document::in_scope,
     grant::{timestamp, validate_request},
     model::{ImportedRecord, RawItem, SourceAction, SourceBudget, SourceGrant, SourceGrantRequest},
-    storage_codec,
+    store,
 };
 use crate::connections::{storage::random_id, Connections, Provider};
 use std::{path::PathBuf, sync::Arc};
@@ -136,6 +136,7 @@ fn import_collection_preserves_undated_text_and_resume_does_not_reset_shared_bud
         sources.reserve_model_step(&grant.id).unwrap_err(),
         "source-budget-exceeded"
     );
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
@@ -148,7 +149,8 @@ fn interrupted_selected_delete_can_be_retried_without_reactivating_old_data() {
     assert!(sources.execute(&grant.id, SourceAction::Coverage).is_err());
     std::fs::remove_dir(&legacy).unwrap();
     assert!(sources.delete(&grant.id).is_ok());
-    assert!(!storage_codec::current_path(&legacy).unwrap().exists());
+    assert!(!store::current_path(&legacy).unwrap().exists());
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
@@ -163,13 +165,30 @@ fn deletion_only_removes_selected_provider_owned_ciphertext() {
         .path(tg.request.resource_id.trim_start_matches("import:"))
         .unwrap()
         .exists());
-    assert!(storage_codec::current_path(&sources.path(&ig.id).unwrap())
-        .unwrap()
-        .exists());
+    assert!(!sources
+        .0
+        .store
+        .is_deleted(&sources.path(&ig.id).unwrap())
+        .unwrap());
+    assert!(sources
+        .0
+        .store
+        .is_deleted(&sources.path(&tg.id).unwrap())
+        .unwrap());
+    assert!(sources
+        .execute(
+            &ig.id,
+            SourceAction::Collect {
+                cursor: None,
+                limit: 1
+            }
+        )
+        .is_ok());
     assert!(directory.join("unrelated.txt").exists());
     assert!(sources.delete("../../other").is_err());
     sources.delete(&ig.id).unwrap();
     assert!(!sources.path(&ig.id).unwrap().exists());
+    drop(sources);
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]

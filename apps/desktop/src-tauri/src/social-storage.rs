@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::RngCore;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::de::DeserializeOwned;
 use std::{fs, path::Path, sync::Arc};
 
 pub(crate) trait SecretStore: Send + Sync {
@@ -73,6 +73,7 @@ pub(crate) fn sync_directory(path: &Path) -> Result<(), String> {
     let _ = path;
     Ok(())
 }
+#[cfg(test)]
 fn prepare_directory(parent: &Path) -> Result<(), String> {
     let mut missing = Vec::new();
     let mut directory = parent;
@@ -100,7 +101,8 @@ impl EncryptedStore {
     pub fn new(secrets: Arc<dyn SecretStore>) -> Self {
         Self { secrets }
     }
-    pub fn write<T: Serialize>(&self, path: &Path, value: &T) -> Result<(), String> {
+    #[cfg(test)]
+    pub fn write<T: serde::Serialize>(&self, path: &Path, value: &T) -> Result<(), String> {
         let plain = serde_json::to_vec(value)
             .map_err(|_| "Не удалось сериализовать корпус.".to_string())?;
         if plain.len() > 32 * 1024 * 1024 {
@@ -141,24 +143,26 @@ impl EncryptedStore {
         }
         result
     }
+    #[cfg(test)]
     pub fn read<T: DeserializeOwned>(&self, path: &Path) -> Result<T, String> {
+        self.read_verified(path).map(|(value, _)| value)
+    }
+    pub fn read_verified<T: DeserializeOwned>(&self, path: &Path) -> Result<(T, String), String> {
+        use sha2::{Digest, Sha256};
         let metadata = fs::symlink_metadata(path).map_err(|_| "Корпус не найден.".to_string())?;
         if !metadata.is_file() || metadata.len() > 33 * 1024 * 1024 {
             return Err("Некорректный файл корпуса.".into());
         }
         let bytes = fs::read(path).map_err(|_| "Не удалось прочитать корпус.".to_string())?;
         let plain = self.decrypt(&bytes)?;
-        serde_json::from_slice(&plain).map_err(|_| "Формат корпуса повреждён.".into())
+        let value = serde_json::from_slice(&plain).map_err(|_| "Формат корпуса повреждён.")?;
+        Ok((value, format!("{:x}", Sha256::digest(&bytes))))
     }
     fn key(&self) -> Result<Vec<u8>, String> {
-        let encoded = match self.secrets.get("corpus-key-v1")? {
-            Some(key) => key,
-            None => {
-                let key = random_id(32)?;
-                self.secrets.set("corpus-key-v1", &key)?;
-                key
-            }
-        };
+        let encoded = self
+            .secrets
+            .get("corpus-key-v1")?
+            .ok_or("Ключ исходного корпуса не найден в системном хранилище.")?;
         let key = URL_SAFE_NO_PAD
             .decode(encoded)
             .map_err(|_| "Ключ корпуса повреждён.".to_string())?;
@@ -167,7 +171,12 @@ impl EncryptedStore {
         }
         Ok(key)
     }
+    #[cfg(test)]
     pub(crate) fn encrypt(&self, plain: &[u8]) -> Result<Vec<u8>, String> {
+        // Fixture producer only: production retains a read-only legacy decoder.
+        if self.secrets.get("corpus-key-v1")?.is_none() {
+            self.secrets.set("corpus-key-v1", &random_id(32)?)?;
+        }
         use chacha20poly1305::{
             aead::{Aead, KeyInit, Payload},
             ChaCha20Poly1305,
@@ -235,6 +244,18 @@ impl SecretStore for MemorySecrets {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reading_legacy_ciphertext_never_invents_a_missing_key() {
+        let original = EncryptedStore::new(Arc::new(MemorySecrets::default()));
+        let bytes = original.encrypt(b"synthetic legacy original").unwrap();
+        let missing = Arc::new(MemorySecrets::default());
+        let reader = EncryptedStore::new(missing.clone());
+        assert!(reader.decrypt(&bytes).is_err());
+        assert!(
+            missing.get("corpus-key-v1").unwrap().is_none(),
+            "a read must not persist a replacement key"
+        );
+    }
     #[test]
     fn corpus_round_trip_is_encrypted_and_rejects_tampering() {
         let secrets = Arc::new(MemorySecrets::default());

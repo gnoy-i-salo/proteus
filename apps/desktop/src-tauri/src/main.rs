@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[path = "corpus-database.rs"]
+pub mod corpus_database;
+
 mod cli;
 #[path = "cli-policy.rs"]
 mod cli_policy;

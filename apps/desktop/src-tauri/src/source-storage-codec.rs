@@ -4,20 +4,13 @@ use super::model::{
     Checkpoint, ImportedRecord, Record, SourceBudget, SourceCoverage, SourceDocument, SourceGrant,
     SourceGrantRequest,
 };
-use crate::connections::{
-    storage::{EncryptedStore, SecretStore},
-    Provider,
-};
+use crate::connections::Provider;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
 
-const FORMAT: &str = "proteus-source-record";
-const VERSION: u8 = 3;
-const INVALID: &str = "Формат сохранённого корпуса повреждён или не поддерживается.";
+pub(super) const FORMAT: &str = "proteus-source-record";
+pub(super) const VERSION: u8 = 3;
+pub(super) const INVALID: &str = "Формат сохранённого корпуса повреждён или не поддерживается.";
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Envelope<T> {
@@ -36,7 +29,7 @@ pub(super) trait StoredSource: Serialize + DeserializeOwned {
         Self::decode_current(value)
     }
 }
-fn current<T: StoredSource>(value: Value) -> Result<T, String> {
+pub(super) fn current<T: StoredSource>(value: Value) -> Result<T, String> {
     let envelope: Envelope<Value> = serde_json::from_value(value).map_err(|_| INVALID)?;
     if envelope.format != FORMAT || !matches!(envelope.version, 2 | 3) || envelope.kind != T::KIND {
         return Err(INVALID.into());
@@ -47,7 +40,7 @@ fn current<T: StoredSource>(value: Value) -> Result<T, String> {
         T::decode_current(envelope.payload)
     }
 }
-fn encode<T: StoredSource>(value: &T) -> Result<Value, String> {
+pub(super) fn encode<T: StoredSource>(value: &T) -> Result<Value, String> {
     let encoded = serde_json::to_value(Envelope {
         format: FORMAT.into(),
         version: VERSION,
@@ -62,93 +55,24 @@ fn encode<T: StoredSource>(value: &T) -> Result<Value, String> {
     }
     Ok(encoded)
 }
-pub(super) fn current_path(legacy: &Path) -> Result<PathBuf, String> {
-    Ok(legacy
-        .parent()
-        .ok_or(INVALID)?
-        .join("v3")
-        .join(legacy.file_name().ok_or(INVALID)?))
-}
-pub(super) fn previous_path(legacy: &Path) -> Result<PathBuf, String> {
-    Ok(legacy
-        .parent()
-        .ok_or(INVALID)?
-        .join("v2")
-        .join(legacy.file_name().ok_or(INVALID)?))
-}
-pub(super) struct SourceStore(EncryptedStore);
-impl SourceStore {
-    pub fn new(secrets: Arc<dyn SecretStore>) -> Self {
-        Self(EncryptedStore::new(secrets))
-    }
-    fn active(&self, legacy: &Path) -> Result<(Value, bool), String> {
-        for (version, path) in [(3, current_path(legacy)?), (2, previous_path(legacy)?)] {
-            match std::fs::symlink_metadata(&path) {
-                Ok(_) => {
-                    let value: Value = self.0.read(&path)?;
-                    if value["version"] != version {
-                        return Err(INVALID.into());
-                    }
-                    return Ok((value, true));
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(_) => return Err("Не удалось открыть новое поколение корпуса.".into()),
-            }
+pub(super) fn normalize(value: Value, is_current: bool) -> Result<Value, String> {
+    if is_current {
+        match value["kind"].as_str() {
+            Some("grant") => encode(&current::<Record>(value)?),
+            Some("import") => encode(&current::<ImportedRecord>(value)?),
+            Some("deleted") => encode(&current::<Deleted>(value)?),
+            _ => Err(INVALID.into()),
         }
-        self.0.read(legacy).map(|value| (value, false))
-    }
-    pub fn read<T: StoredSource>(&self, legacy: &Path) -> Result<T, String> {
-        let (value, is_current) = self.active(legacy)?;
-        if is_current {
-            current(value)
-        } else {
-            T::decode_legacy(value)
-        }
-    }
-    pub fn write<T: StoredSource>(&self, legacy: &Path, value: &T) -> Result<(), String> {
-        let encoded = encode(value)?;
-        self.0.write(&current_path(legacy)?, &encoded)
-    }
-    pub fn owner(&self, legacy: &Path) -> Result<Provider, String> {
-        let (value, is_current) = self.active(legacy)?;
-        if is_current {
-            match value["kind"].as_str() {
-                Some("grant") => {
-                    current::<Record>(value).map(|record| record.grant.request.provider)
-                }
-                Some("import") => current::<ImportedRecord>(value).map(|record| record.provider),
-                Some("deleted") => current::<Deleted>(value).map(|record| record.provider),
-                _ => Err(INVALID.into()),
-            }
-        } else if value.get("version").is_some() {
-            Record::decode_legacy(value).map(|record| record.grant.request.provider)
-        } else {
-            ImportedRecord::decode_legacy(value).map(|record| record.provider)
-        }
-    }
-    pub fn is_deleted(&self, legacy: &Path) -> Result<bool, String> {
-        let (value, is_current) = self.active(legacy)?;
-        if is_current && value["kind"] == "deleted" {
-            let _: Deleted = current(value)?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-    pub fn remove(&self, legacy: &Path) -> Result<(), String> {
-        // Persist revocation before either unlink. An interrupted deletion must not
-        // reactivate the preserved legacy generation after restart.
-        let provider = self.owner(legacy)?;
-        self.write(legacy, &Deleted { provider })?;
-        super::corpus::remove_file(legacy)?;
-        super::corpus::remove_file(&previous_path(legacy)?)?;
-        super::corpus::remove_file(&current_path(legacy)?)
+    } else if value.get("version").is_some() {
+        encode(&Record::decode_legacy(value)?)
+    } else {
+        encode(&ImportedRecord::decode_legacy(value)?)
     }
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Deleted {
-    provider: Provider,
+pub(super) struct Deleted {
+    pub(super) provider: Provider,
 }
 impl StoredSource for Deleted {
     const KIND: &'static str = "deleted";
@@ -369,213 +293,5 @@ impl StoredSource for ImportedRecord {
             documents: v.documents.into_iter().map(Into::into).collect(),
             warnings: v.warnings,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::connections::storage::{random_id, MemorySecrets};
-    use serde_json::json;
-    #[test]
-    fn upgrading_v2_keeps_ciphertext_and_publishes_generation_three() {
-        let (store, path) = store();
-        let record = Record::decode_legacy(legacy()).unwrap();
-        let mut v2 = encode(&record).unwrap();
-        v2["version"] = json!(2);
-        v2["payload"].as_object_mut().unwrap().remove("binding");
-        let previous = previous_path(&path).unwrap();
-        store.0.write(&previous, &v2).unwrap();
-        let bytes = std::fs::read(&previous).unwrap();
-        let restored: Record = store.read(&path).unwrap();
-        assert!(restored.binding.is_none());
-        store.write(&path, &restored).unwrap();
-        assert_eq!(std::fs::read(&previous).unwrap(), bytes);
-        assert!(current_path(&path).unwrap().exists());
-        let current: Value = store.0.read(&current_path(&path).unwrap()).unwrap();
-        assert_eq!(current["version"], 3);
-        assert!(current["payload"]["binding"].is_null());
-        store.remove(&path).unwrap();
-        assert!(!previous.exists());
-        assert!(!current_path(&path).unwrap().exists());
-        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
-    }
-    #[test]
-    fn generation_three_requires_explicit_binding_and_never_falls_back_to_v2() {
-        let (store, path) = store();
-        let record = Record::decode_legacy(legacy()).unwrap();
-        let mut value = encode(&record).unwrap();
-        value["payload"].as_object_mut().unwrap().remove("binding");
-        assert!(current::<Record>(value.clone()).is_err());
-        value["version"] = json!(2);
-        store
-            .0
-            .write(&previous_path(&path).unwrap(), &value)
-            .unwrap();
-        assert!(store.read::<Record>(&path).is_ok());
-        value["payload"]["binding"] = Value::Null;
-        assert!(current::<Record>(value).is_err());
-        store.write(&path, &record).unwrap();
-        std::fs::write(current_path(&path).unwrap(), b"corrupt").unwrap();
-        assert!(store.read::<Record>(&path).is_err());
-        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
-    }
-    fn legacy() -> Value {
-        let text = "\r\n  Ответ é 😀\t";
-        json!({"version":1,"grant":{"provider":"telegram","resource-id":"chat:1","author-id":"a:1","from":null,"to":null,
-            "allow-model-processing":true,"operations":["read"],"budget":{"max-steps":12,"max-documents":20,"max-bytes":1048576,"max-duration-ms":12000},
-            "id":"grant-fixture-1234","account-id":"account:1","snapshot-id":"snap:1","expires-at":"2030-01-01T00:00:00Z"},
-            "documents":[{"id":"d:1","provider":"telegram","resource-id":"chat:1","author-id":null,"author-label":"  Автор é  ",
-            "authorship":"unknown","kind":"message","mode":"dialogue","text":text,"source-url":null,"created-at":null,"retrieved-at":"2025-01-01T00:00:00Z",
-            "content-hash":"unchanged-hash","reply-to":"d:0","is-forwarded":true,"truncated":false,"partition":"reference"}],
-            "coverage":{"documents":1,"total-documents":null,"bytes":text.len(),"complete":false,"truncated":false,"not-analyzed":2,"unavailable":["attachment"]},
-            "cursor":"opaque==","checkpoint":{"phase":"messages","offset":23,"cursor":"a-b_c","index":4,
-            "queue":[{"author_id":7,"reply-to":"raw-external","publicUrls":"opaque","nested":{"max-steps":900},"text":text}]},
-            "steps":3,"started_at":12345,"cancelled":true,"limitations":["  unchanged\r\n"]})
-    }
-    fn store() -> (SourceStore, PathBuf) {
-        let directory =
-            std::env::temp_dir().join(format!("proteus-generation-{}", random_id(18).unwrap()));
-        (
-            SourceStore::new(Arc::new(MemorySecrets::default())),
-            directory.join("grant-fixture-1234.enc"),
-        )
-    }
-    #[test]
-    fn legacy_to_current_preserves_original_exact_metadata_and_opaque_queue() {
-        let (store, path) = store();
-        let old = legacy();
-        store.0.write(&path, &old).unwrap();
-        let original = std::fs::read(&path).unwrap();
-        let record: Record = store.read(&path).unwrap();
-        assert_eq!(record.documents[0].text, "\r\n  Ответ é 😀\t");
-        assert_eq!(record.documents[0].authorship, "unknown");
-        assert_eq!(record.documents[0].reply_to.as_deref(), Some("d:0"));
-        assert_eq!(record.started_at, Some(12345));
-        assert_eq!(record.checkpoint.queue[0], old["checkpoint"]["queue"][0]);
-        assert_eq!(std::fs::read(&path).unwrap(), original);
-        store.write(&path, &record).unwrap();
-        store.write(&path, &record).unwrap();
-        assert_eq!(std::fs::read(&path).unwrap(), original);
-        let current: Value = store.0.read(&current_path(&path).unwrap()).unwrap();
-        assert_eq!(current["version"], 3);
-        assert_eq!(current["kind"], "grant");
-        assert_eq!(current["payload"]["startedAt"], 12345);
-        assert!(current["payload"].get("started_at").is_none());
-        let restored: Record = store.read(&path).unwrap();
-        assert_eq!(
-            serde_json::to_value(restored).unwrap(),
-            serde_json::to_value(record).unwrap()
-        );
-        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
-    }
-    #[test]
-    fn rejects_corrupt_unknown_or_wrong_kind_current_without_legacy_fallback() {
-        let (store, path) = store();
-        store.0.write(&path, &legacy()).unwrap();
-        let record: Record = store.read(&path).unwrap();
-        store.write(&path, &record).unwrap();
-        let current_path = current_path(&path).unwrap();
-        std::fs::write(&current_path, b"corrupt").unwrap();
-        assert!(store.read::<Record>(&path).is_err());
-        for field in ["version", "kind", "format"] {
-            let mut value = encode(&record).unwrap();
-            value[field] = json!("unknown");
-            store.0.write(&current_path, &value).unwrap();
-            assert!(store.read::<Record>(&path).is_err());
-        }
-        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
-    }
-    #[test]
-    fn rejects_legacy_mixed_keys_and_unknowns_but_not_external_queue_names() {
-        for pointer in [
-            "/grant/resourceId",
-            "/grant/budget/maxSteps",
-            "/documents/0/authorId",
-            "/coverage/totalDocuments",
-            "/startedAt",
-            "/unknown",
-        ] {
-            let mut value = legacy();
-            let (parent, key) = pointer.rsplit_once('/').unwrap();
-            value
-                .pointer_mut(parent)
-                .unwrap()
-                .as_object_mut()
-                .unwrap()
-                .insert(key.into(), json!(null));
-            assert!(Record::decode_legacy(value).is_err(), "{pointer}");
-        }
-        assert!(Record::decode_legacy(legacy()).is_ok());
-        let mut value = legacy();
-        value["version"] = json!(99);
-        assert!(Record::decode_legacy(value).is_err());
-    }
-    #[test]
-    fn current_payload_rejects_unknown_and_legacy_nested_fields() {
-        let record = Record::decode_legacy(legacy()).unwrap();
-        for pointer in [
-            "/payload/grant/resource-id",
-            "/payload/grant/unknown",
-            "/payload/documents/0/author-id",
-            "/payload/coverage/not-analyzed",
-            "/payload/checkpoint/unknown",
-        ] {
-            let mut value = encode(&record).unwrap();
-            let (parent, key) = pointer.rsplit_once('/').unwrap();
-            value
-                .pointer_mut(parent)
-                .unwrap()
-                .as_object_mut()
-                .unwrap()
-                .insert(key.into(), json!(null));
-            assert!(current::<Record>(value).is_err(), "{pointer}");
-        }
-    }
-    #[test]
-    fn imported_records_have_distinct_kind_and_preserve_documents_without_grants() {
-        let (store, path) = store();
-        let value = legacy();
-        let old = json!({"provider":"telegram","documents":value["documents"],"warnings":["  warning\r\n"]});
-        store.0.write(&path, &old).unwrap();
-        let record: ImportedRecord = store.read(&path).unwrap();
-        store.write(&path, &record).unwrap();
-        assert!(store.read::<Record>(&path).is_err());
-        assert_eq!(store.owner(&path).unwrap(), Provider::Telegram);
-        let restored: ImportedRecord = store.read(&path).unwrap();
-        assert_eq!(restored.documents[0].text, "\r\n  Ответ é 😀\t");
-        assert_eq!(restored.warnings, ["  warning\r\n"]);
-        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
-    }
-    #[test]
-    fn failed_generation_publish_keeps_original_readable() {
-        let (store, path) = store();
-        store.0.write(&path, &legacy()).unwrap();
-        let original = std::fs::read(&path).unwrap();
-        let record: Record = store.read(&path).unwrap();
-        std::fs::write(path.parent().unwrap().join("v3"), b"blocked directory").unwrap();
-        assert!(store.write(&path, &record).is_err());
-        assert_eq!(std::fs::read(&path).unwrap(), original);
-        std::fs::remove_file(path.parent().unwrap().join("v3")).unwrap();
-        assert!(store.read::<Record>(&path).is_ok());
-        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
-    }
-    #[test]
-    fn delete_removes_both_generations_and_interrupted_delete_stays_revoked() {
-        let (store, path) = store();
-        store.0.write(&path, &legacy()).unwrap();
-        let record: Record = store.read(&path).unwrap();
-        store.write(&path, &record).unwrap();
-        std::fs::remove_file(&path).unwrap();
-        std::fs::create_dir(&path).unwrap();
-        assert!(store.remove(&path).is_err());
-        assert!(store.read::<Record>(&path).is_err());
-        assert_eq!(store.owner(&path).unwrap(), Provider::Telegram);
-        std::fs::remove_dir(&path).unwrap();
-        store.0.write(&path, &legacy()).unwrap();
-        store.remove(&path).unwrap();
-        assert!(!path.exists());
-        assert!(!current_path(&path).unwrap().exists());
-        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }
 }

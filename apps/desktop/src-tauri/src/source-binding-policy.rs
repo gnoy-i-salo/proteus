@@ -2,7 +2,6 @@ use super::grant::timestamp;
 use super::model::{SourceDocument, SourceGrant, SourceGrantRequest};
 use crate::connections::Provider;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 
 pub(super) const POLICY_VERSION: &str = "source-policy-v1";
@@ -251,15 +250,11 @@ pub(super) fn in_period(binding: &SourceBinding, created: Option<&str>) -> Resul
     }
     Ok(())
 }
-pub(super) fn revision_id(document: &SourceDocument) -> Result<String, String> {
-    let bytes =
-        serde_json::to_vec(document).map_err(|_| "Не удалось зафиксировать версию документа.")?;
-    Ok(format!("revision:{:x}", Sha256::digest(bytes)))
-}
 pub(super) fn project(
     binding: &SourceBinding,
     grant: &SourceGrant,
     document: &SourceDocument,
+    revision_id: &str,
     relations: Vec<DocumentRelation>,
     now_ms: i64,
 ) -> Result<ModelSourceDocument, String> {
@@ -281,7 +276,7 @@ pub(super) fn project(
             .any(|item| matches!(item.kind, RelationKind::Forward | RelationKind::Quote));
     Ok(ModelSourceDocument {
         document: document.clone(),
-        revision_id: revision_id(document)?,
+        revision_id: revision_id.into(),
         role: binding.role,
         speaker_relation,
         can_support_own_words,

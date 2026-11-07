@@ -20,6 +20,8 @@ mod model;
 mod readers;
 #[path = "source-storage-codec.rs"]
 mod storage_codec;
+#[path = "source-store.rs"]
+mod store;
 use crate::connections::Provider;
 pub use corpus::Sources;
 pub use model::{ImportedSource, SourceAction, SourceGrant, SourceGrantRequest, SourceResult};

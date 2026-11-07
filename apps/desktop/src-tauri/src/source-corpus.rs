@@ -9,7 +9,7 @@ use super::{
         Checkpoint, ImportedRecord, ImportedSource, Record, SourceBudget, SourceCoverage,
         SourceGrant, SourceGrantRequest,
     },
-    storage_codec::SourceStore,
+    store::SourceStore,
 };
 use crate::connections::{storage::random_id, Connections, Provider};
 use chrono::Utc;
@@ -174,7 +174,7 @@ impl Sources {
             .gate
             .lock()
             .map_err(|_| "Ошибка состояния корпуса.")?;
-        let mut ids = HashSet::new();
+        let mut ids: HashSet<String> = self.0.store.ids(&self.0.directory)?.into_iter().collect();
         for directory in [
             &self.0.directory,
             &self.0.directory.join("v2"),

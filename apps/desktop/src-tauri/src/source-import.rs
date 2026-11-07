@@ -33,7 +33,7 @@ pub(crate) fn parse(
             let messages = value.get("messages").and_then(Value::as_array).filter(|_| value.get("participants").is_some()).ok_or("Нужен JSON выбранной переписки Instagram. Для иных материалов используйте текстовый импорт.")?;
             for (index, message) in messages.iter().enumerate() {
                 let author = message.get("sender_name").and_then(Value::as_str).map(str::to_owned);
-                items.push(RawItem { id: format!("message{index}"), author: author.clone(), author_label: author, text: message.get("content").and_then(Value::as_str).unwrap_or("").into(), created: message.get("timestamp_ms").and_then(Value::as_i64).and_then(|ms| iso(ms / 1000)), kind: "message".into(), mode: "dialogue".into(), ..RawItem::default() });
+                items.push(RawItem { id: format!("message{index}"), author: None, author_label: author, text: message.get("content").and_then(Value::as_str).unwrap_or("").into(), created: message.get("timestamp_ms").and_then(Value::as_i64).and_then(|ms| iso(ms / 1000)), kind: "message".into(), mode: "dialogue".into(), ..RawItem::default() });
             }
             warnings.push("В экспорте Instagram автор указан отображаемым именем, а не подтверждённым ID; вложения не распознаны.".into());
         }
@@ -107,6 +107,11 @@ mod tests {
         let (items, warnings) = parse(Provider::Instagram, data, "json").unwrap();
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].text, "hey\n:)");
+        assert!(
+            items[0].author.is_none(),
+            "Instagram display label cannot establish an author identity"
+        );
+        assert_eq!(items[0].author_label.as_deref(), Some("Example"));
         assert!(items[1].text.is_empty());
         assert!(!warnings.is_empty());
     }

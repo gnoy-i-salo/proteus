@@ -1,3 +1,6 @@
+use super::binding_policy::{
+    validate_selection, BindingPeriod, SourceBinding, SourceBindingRequest, POLICY_VERSION,
+};
 use super::{
     document::document,
     grant::{iso, valid_id, validate_request},
@@ -56,7 +59,17 @@ impl Sources {
             .ok_or("Неверный импортированный ресурс.")?;
         self.0.store.read(&self.path(id)?)
     }
-    pub(super) fn create(&self, mut request: SourceGrantRequest) -> Result<SourceGrant, String> {
+    pub(super) fn create(&self, request: SourceGrantRequest) -> Result<SourceGrant, String> {
+        self.create_record(request, None).map(|record| record.grant)
+    }
+    pub(super) fn create_record(
+        &self,
+        mut request: SourceGrantRequest,
+        selection: Option<SourceBindingRequest>,
+    ) -> Result<Record, String> {
+        if let Some(selection) = &selection {
+            validate_selection(selection)?;
+        }
         validate_request(&mut request)?;
         let _guard = self
             .0
@@ -97,14 +110,38 @@ impl Sources {
         {
             limitations.push("Один выбранный разговор или источник используется как reference; независимая holdout-выборка не сформирована.".into());
         }
-        if grant.request.author_id.is_some() {
+        if grant.request.author_id.is_some() && selection.is_none() {
             limitations.push("Ответы других участников исключены фильтром автора; контекст реплик может быть неполным.".into());
         }
-        if grant.request.from.is_some() || grant.request.to.is_some() {
+        if (grant.request.from.is_some() || grant.request.to.is_some())
+            && selection
+                .as_ref()
+                .is_none_or(|scope| !scope.include_undated)
+        {
             limitations
                 .push("Материал без подтверждённого времени исключён выбранным периодом.".into());
         }
+        let binding = selection.map(|selection| SourceBinding {
+            schema_version: 1,
+            id: format!("binding:{}", grant.id),
+            persona_id: selection.persona_id,
+            provider: grant.request.provider,
+            account_id: Some(grant.account_id.clone()),
+            resource_id: grant.request.resource_id.clone(),
+            grant_id: grant.id.clone(),
+            policy_version: POLICY_VERSION.into(),
+            role: selection.role,
+            target_author_id: grant.request.author_id.clone(),
+            allowed_context_author_ids: selection.allowed_context_author_ids,
+            allow_unknown_context: selection.allow_unknown_context,
+            period: BindingPeriod {
+                from: grant.request.from.clone(),
+                to: grant.request.to.clone(),
+                include_undated: selection.include_undated,
+            },
+        });
         let record = Record {
+            binding,
             grant: grant.clone(),
             documents: vec![],
             coverage: SourceCoverage::default(),
@@ -116,7 +153,7 @@ impl Sources {
             limitations,
         };
         self.0.store.write(&self.path(&grant.id)?, &record)?;
-        Ok(grant)
+        Ok(record)
     }
     pub(super) fn flag(&self, id: &str) -> Result<Arc<AtomicBool>, String> {
         self.path(id)?;
@@ -138,7 +175,11 @@ impl Sources {
             .lock()
             .map_err(|_| "Ошибка состояния корпуса.")?;
         let mut ids = HashSet::new();
-        for directory in [&self.0.directory, &self.0.directory.join("v2")] {
+        for directory in [
+            &self.0.directory,
+            &self.0.directory.join("v2"),
+            &self.0.directory.join("v3"),
+        ] {
             let entries = match std::fs::read_dir(directory) {
                 Ok(entries) => entries,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,

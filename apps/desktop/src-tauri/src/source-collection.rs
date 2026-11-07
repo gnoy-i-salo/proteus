@@ -1,3 +1,4 @@
+use super::binding_policy;
 use super::{
     corpus::Sources,
     document::{bounded_document, document, in_scope},
@@ -8,12 +9,20 @@ use super::{
 use crate::connections::storage::random_id;
 use chrono::Utc;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::Path,
     sync::atomic::{AtomicBool, Ordering},
 };
 impl Sources {
     pub(super) fn execute(&self, id: &str, action: SourceAction) -> Result<SourceResult, String> {
+        self.execute_scoped(id, None, action)
+    }
+    pub(super) fn execute_scoped(
+        &self,
+        id: &str,
+        binding_id: Option<&str>,
+        action: SourceAction,
+    ) -> Result<SourceResult, String> {
         let path = self.path(id)?;
         let flag = self.flag(id)?;
         let _guard = self
@@ -23,6 +32,13 @@ impl Sources {
             .map_err(|_| "Ошибка состояния корпуса.")?;
         let mut record: Record = self.0.store.read(&path)?;
         let now = Utc::now().timestamp_millis();
+        match (&record.binding, binding_id) {
+            (None, None) => {}
+            (Some(binding), Some(selected)) if binding.id == selected => {
+                binding_policy::validate_authority(binding, &record.grant, now)?
+            }
+            _ => return Err("Используйте выбранную нативную привязку источника.".into()),
+        }
         if record.grant.id != id {
             return Err("Корпус не соответствует разрешению.".into());
         }
@@ -189,9 +205,17 @@ impl Sources {
         } else {
             let deadline =
                 started.saturating_add(record.grant.request.budget.max_duration_ms as i64);
+            let mut imported_originals = HashMap::new();
             let mut page = if record.grant.request.resource_id.starts_with("import:") {
                 let imported = self.imported(&record.grant.request.resource_id)?;
                 let end = (record.checkpoint.index + limit).min(imported.documents.len());
+                if record.binding.is_some() {
+                    imported_originals.extend(
+                        imported.documents[record.checkpoint.index.min(end)..end]
+                            .iter()
+                            .map(|doc| (doc.id.clone(), doc.clone())),
+                    );
+                }
                 let items = imported.documents[record.checkpoint.index.min(end)..end]
                     .iter()
                     .map(|doc| RawItem {
@@ -255,15 +279,29 @@ impl Sources {
                     record.coverage.not_analyzed += 1;
                     continue;
                 }
-                if !in_scope(&record.grant.request, &item) {
+                let selected = if let Some(binding) = &record.binding {
+                    binding_policy::speaker(binding, item.author.as_deref()).is_ok()
+                        && binding_policy::in_period(binding, item.created.as_deref()).is_ok()
+                } else {
+                    in_scope(&record.grant.request, &item)
+                };
+                if !selected {
                     continue;
                 }
-                let doc = document(
-                    &record.grant.request,
-                    item,
-                    !record.grant.request.resource_id.starts_with("import:"),
-                );
-                if ids.contains(&doc.id) || hashes.contains(&doc.content_hash) {
+                let doc = if let Some(original) = imported_originals.remove(&item.id) {
+                    // Binding projection never rewrites saved provenance, authorship,
+                    // IDs or reply relationships, including legacy unknown metadata.
+                    original
+                } else {
+                    document(
+                        &record.grant.request,
+                        item,
+                        !record.grant.request.resource_id.starts_with("import:"),
+                    )
+                };
+                if ids.contains(&doc.id)
+                    || (record.binding.is_none() && hashes.contains(&doc.content_hash))
+                {
                     continue;
                 }
                 if record.coverage.documents >= record.grant.request.budget.max_documents as u64

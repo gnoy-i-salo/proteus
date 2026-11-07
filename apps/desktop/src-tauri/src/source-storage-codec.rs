@@ -16,7 +16,7 @@ use std::{
 };
 
 const FORMAT: &str = "proteus-source-record";
-const VERSION: u8 = 2;
+const VERSION: u8 = 3;
 const INVALID: &str = "Формат сохранённого корпуса повреждён или не поддерживается.";
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -32,13 +32,20 @@ pub(super) trait StoredSource: Serialize + DeserializeOwned {
     fn decode_current(value: Value) -> Result<Self, String> {
         serde_json::from_value(value).map_err(|_| INVALID.into())
     }
+    fn decode_v2(value: Value) -> Result<Self, String> {
+        Self::decode_current(value)
+    }
 }
 fn current<T: StoredSource>(value: Value) -> Result<T, String> {
     let envelope: Envelope<Value> = serde_json::from_value(value).map_err(|_| INVALID)?;
-    if envelope.format != FORMAT || envelope.version != VERSION || envelope.kind != T::KIND {
+    if envelope.format != FORMAT || !matches!(envelope.version, 2 | 3) || envelope.kind != T::KIND {
         return Err(INVALID.into());
     }
-    T::decode_current(envelope.payload)
+    if envelope.version == 2 {
+        T::decode_v2(envelope.payload)
+    } else {
+        T::decode_current(envelope.payload)
+    }
 }
 fn encode<T: StoredSource>(value: &T) -> Result<Value, String> {
     let encoded = serde_json::to_value(Envelope {
@@ -59,6 +66,13 @@ pub(super) fn current_path(legacy: &Path) -> Result<PathBuf, String> {
     Ok(legacy
         .parent()
         .ok_or(INVALID)?
+        .join("v3")
+        .join(legacy.file_name().ok_or(INVALID)?))
+}
+pub(super) fn previous_path(legacy: &Path) -> Result<PathBuf, String> {
+    Ok(legacy
+        .parent()
+        .ok_or(INVALID)?
         .join("v2")
         .join(legacy.file_name().ok_or(INVALID)?))
 }
@@ -68,14 +82,20 @@ impl SourceStore {
         Self(EncryptedStore::new(secrets))
     }
     fn active(&self, legacy: &Path) -> Result<(Value, bool), String> {
-        let path = current_path(legacy)?;
-        match std::fs::symlink_metadata(&path) {
-            Ok(_) => self.0.read(&path).map(|value| (value, true)),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                self.0.read(legacy).map(|value| (value, false))
+        for (version, path) in [(3, current_path(legacy)?), (2, previous_path(legacy)?)] {
+            match std::fs::symlink_metadata(&path) {
+                Ok(_) => {
+                    let value: Value = self.0.read(&path)?;
+                    if value["version"] != version {
+                        return Err(INVALID.into());
+                    }
+                    return Ok((value, true));
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(_) => return Err("Не удалось открыть новое поколение корпуса.".into()),
             }
-            Err(_) => Err("Не удалось открыть новое поколение корпуса.".into()),
         }
+        self.0.read(legacy).map(|value| (value, false))
     }
     pub fn read<T: StoredSource>(&self, legacy: &Path) -> Result<T, String> {
         let (value, is_current) = self.active(legacy)?;
@@ -121,6 +141,7 @@ impl SourceStore {
         let provider = self.owner(legacy)?;
         self.write(legacy, &Deleted { provider })?;
         super::corpus::remove_file(legacy)?;
+        super::corpus::remove_file(&previous_path(legacy)?)?;
         super::corpus::remove_file(&current_path(legacy)?)
     }
 }
@@ -274,7 +295,18 @@ struct LegacyRecord {
 }
 impl StoredSource for Record {
     const KIND: &'static str = "grant";
+    fn decode_v2(mut value: Value) -> Result<Self, String> {
+        let fields = value.as_object_mut().ok_or(INVALID)?;
+        if fields.contains_key("binding") {
+            return Err(INVALID.into());
+        }
+        fields.insert("binding".into(), Value::Null);
+        Self::decode_current(value)
+    }
     fn decode_current(value: Value) -> Result<Self, String> {
+        if value.get("binding").is_none() {
+            return Err(INVALID.into());
+        }
         // Serde flatten does not reject the outer grant's unknown fields through
         // SourceGrantRequest. Validate this exact flat schema before deserializing.
         let grant = value
@@ -308,6 +340,7 @@ impl StoredSource for Record {
             return Err(INVALID.into());
         }
         Ok(Self {
+            binding: None,
             grant: v.grant.into(),
             documents: v.documents.into_iter().map(Into::into).collect(),
             coverage: v.coverage.into(),
@@ -344,6 +377,49 @@ mod tests {
     use super::*;
     use crate::connections::storage::{random_id, MemorySecrets};
     use serde_json::json;
+    #[test]
+    fn upgrading_v2_keeps_ciphertext_and_publishes_generation_three() {
+        let (store, path) = store();
+        let record = Record::decode_legacy(legacy()).unwrap();
+        let mut v2 = encode(&record).unwrap();
+        v2["version"] = json!(2);
+        v2["payload"].as_object_mut().unwrap().remove("binding");
+        let previous = previous_path(&path).unwrap();
+        store.0.write(&previous, &v2).unwrap();
+        let bytes = std::fs::read(&previous).unwrap();
+        let restored: Record = store.read(&path).unwrap();
+        assert!(restored.binding.is_none());
+        store.write(&path, &restored).unwrap();
+        assert_eq!(std::fs::read(&previous).unwrap(), bytes);
+        assert!(current_path(&path).unwrap().exists());
+        let current: Value = store.0.read(&current_path(&path).unwrap()).unwrap();
+        assert_eq!(current["version"], 3);
+        assert!(current["payload"]["binding"].is_null());
+        store.remove(&path).unwrap();
+        assert!(!previous.exists());
+        assert!(!current_path(&path).unwrap().exists());
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
+    #[test]
+    fn generation_three_requires_explicit_binding_and_never_falls_back_to_v2() {
+        let (store, path) = store();
+        let record = Record::decode_legacy(legacy()).unwrap();
+        let mut value = encode(&record).unwrap();
+        value["payload"].as_object_mut().unwrap().remove("binding");
+        assert!(current::<Record>(value.clone()).is_err());
+        value["version"] = json!(2);
+        store
+            .0
+            .write(&previous_path(&path).unwrap(), &value)
+            .unwrap();
+        assert!(store.read::<Record>(&path).is_ok());
+        value["payload"]["binding"] = Value::Null;
+        assert!(current::<Record>(value).is_err());
+        store.write(&path, &record).unwrap();
+        std::fs::write(current_path(&path).unwrap(), b"corrupt").unwrap();
+        assert!(store.read::<Record>(&path).is_err());
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
     fn legacy() -> Value {
         let text = "\r\n  Ответ é 😀\t";
         json!({"version":1,"grant":{"provider":"telegram","resource-id":"chat:1","author-id":"a:1","from":null,"to":null,
@@ -382,7 +458,7 @@ mod tests {
         store.write(&path, &record).unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), original);
         let current: Value = store.0.read(&current_path(&path).unwrap()).unwrap();
-        assert_eq!(current["version"], 2);
+        assert_eq!(current["version"], 3);
         assert_eq!(current["kind"], "grant");
         assert_eq!(current["payload"]["startedAt"], 12345);
         assert!(current["payload"].get("started_at").is_none());
@@ -477,10 +553,10 @@ mod tests {
         store.0.write(&path, &legacy()).unwrap();
         let original = std::fs::read(&path).unwrap();
         let record: Record = store.read(&path).unwrap();
-        std::fs::write(path.parent().unwrap().join("v2"), b"blocked directory").unwrap();
+        std::fs::write(path.parent().unwrap().join("v3"), b"blocked directory").unwrap();
         assert!(store.write(&path, &record).is_err());
         assert_eq!(std::fs::read(&path).unwrap(), original);
-        std::fs::remove_file(path.parent().unwrap().join("v2")).unwrap();
+        std::fs::remove_file(path.parent().unwrap().join("v3")).unwrap();
         assert!(store.read::<Record>(&path).is_ok());
         std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }

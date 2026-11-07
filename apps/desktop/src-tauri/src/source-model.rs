@@ -1,3 +1,4 @@
+use super::binding_policy::SourceBinding;
 use crate::connections::Provider;
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Deserialize, Serialize)]
@@ -148,6 +149,7 @@ pub(crate) struct Page {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Record {
+    pub(super) binding: Option<SourceBinding>,
     pub(super) grant: SourceGrant,
     pub(super) documents: Vec<SourceDocument>,
     pub(super) coverage: SourceCoverage,

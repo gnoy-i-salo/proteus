@@ -1,0 +1,110 @@
+{
+  "createRequest": {
+    "source": {
+      "provider": "telegram",
+      "resourceId": "-12345",
+      "authorId": "target:1",
+      "from": null,
+      "to": null,
+      "allowModelProcessing": true,
+      "operations": ["describe", "read"],
+      "budget": {
+        "maxSteps": 4,
+        "maxDocuments": 100,
+        "maxBytes": 4096,
+        "maxDurationMs": 3000
+      }
+    },
+    "personaId": "persona-a",
+    "role": "own",
+    "allowedContextAuthorIds": ["peer:2"],
+    "allowUnknownContext": true,
+    "includeUndated": true
+  },
+  "created": {
+    "binding": {
+      "schemaVersion": 1,
+      "id": "binding:grant-binding-123456",
+      "personaId": "persona-a",
+      "provider": "telegram",
+      "accountId": "account:1",
+      "resourceId": "-12345",
+      "grantId": "grant-binding-123456",
+      "policyVersion": "source-policy-v1",
+      "role": "own",
+      "targetAuthorId": "target:1",
+      "allowedContextAuthorIds": ["peer:2"],
+      "allowUnknownContext": true,
+      "period": {
+        "from": null,
+        "to": null,
+        "includeUndated": true
+      }
+    },
+    "grant": {
+      "provider": "telegram",
+      "resourceId": "-12345",
+      "authorId": "target:1",
+      "from": null,
+      "to": null,
+      "allowModelProcessing": true,
+      "operations": ["describe", "read"],
+      "budget": {
+        "maxSteps": 4,
+        "maxDocuments": 100,
+        "maxBytes": 4096,
+        "maxDurationMs": 3000
+      },
+      "id": "grant-binding-123456",
+      "accountId": "account:1",
+      "snapshotId": "snapshot:1",
+      "expiresAt": "2040-01-01T00:00:00Z"
+    }
+  },
+  "action": {
+    "action": "read",
+    "documentIds": ["document:peer"]
+  },
+  "result": {
+    "snapshotId": "snapshot-id",
+    "documents": [
+      {
+        "document": {
+          "id": "document:peer",
+          "provider": "telegram",
+          "resourceId": "-12345",
+          "authorId": "peer:2",
+          "authorship": "other",
+          "authorLabel": "  Иван — коллега\r\n",
+          "kind": "message",
+          "mode": "dialogue",
+          "text": "  Собеседник: é 👩🏽‍🔬\r\nhttps://example.test/a-b?x_y=1\t",
+          "sourceUrl": "https://example.test/source-url?author-id=unchanged",
+          "createdAt": null,
+          "retrievedAt": "2026-11-07T00:00:00Z",
+          "contentHash": "opaque-hash",
+          "replyTo": null,
+          "isForwarded": false,
+          "truncated": false,
+          "partition": "reference"
+        },
+        "revisionId": "revision:peer",
+        "role": "own",
+        "speakerRelation": "context",
+        "canSupportOwnWords": false,
+        "relations": []
+      }
+    ],
+    "coverage": {
+      "documents": 1,
+      "totalDocuments": null,
+      "bytes": 123,
+      "complete": false,
+      "truncated": true,
+      "notAnalyzed": 1,
+      "unavailable": ["точный исходный текст\r\n"]
+    },
+    "cursor": null,
+    "limitations": ["факт?\r\n гипотеза"]
+  }
+}

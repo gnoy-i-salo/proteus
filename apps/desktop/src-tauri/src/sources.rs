@@ -1,3 +1,9 @@
+#[path = "source-binding.rs"]
+mod binding;
+#[path = "source-binding-policy.rs"]
+mod binding_policy;
+pub use binding::SourceBindingResult;
+pub use binding_policy::{CreatedSourceBinding, SourceBindingRequest};
 #[path = "source-collection.rs"]
 mod collection;
 #[path = "source-corpus.rs"]
@@ -121,6 +127,27 @@ pub async fn import_source(
     .map_err(|_| "Не удалось импортировать источник.".to_string())?
 }
 
+#[tauri::command]
+pub async fn create_source_binding(
+    request: SourceBindingRequest,
+    sources: tauri::State<'_, Sources>,
+) -> Result<CreatedSourceBinding, String> {
+    let sources = sources.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || sources.create_binding(request))
+        .await
+        .map_err(|_| "Не удалось создать привязку источника.".to_string())?
+}
+#[tauri::command]
+pub async fn source_binding_action(
+    binding_id: String,
+    action: SourceAction,
+    sources: tauri::State<'_, Sources>,
+) -> Result<SourceBindingResult, String> {
+    let sources = sources.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || sources.binding_action(&binding_id, action))
+        .await
+        .map_err(|_| "Не удалось прочитать выбранный контекст.".to_string())?
+}
 #[cfg(test)]
 #[path = "source-tests.rs"]
 mod tests;

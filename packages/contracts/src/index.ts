@@ -135,3 +135,8 @@ export type {
   InvocationValidation,
 } from './execution';
 export { decodeExecutionSnapshot } from './execution-metadata';
+export type {
+  SourceBindingRequest,
+  CreatedSourceBinding,
+  SourceBindingResult,
+} from './source-binding';

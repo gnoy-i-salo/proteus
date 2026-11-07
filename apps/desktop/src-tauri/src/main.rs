@@ -94,6 +94,8 @@ fn main() {
             connections::advance_connection,
             connections::disconnect_connection,
             sources::create_source_grant,
+            sources::create_source_binding,
+            sources::source_binding_action,
             sources::source_action,
             sources::cancel_source,
             sources::resume_source,

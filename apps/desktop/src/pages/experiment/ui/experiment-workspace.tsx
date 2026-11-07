@@ -1,11 +1,13 @@
 import { For, Show } from 'solid-js';
 import type { ExperimentRunModel } from '../model/experiment-run';
+import type { TraceNavigation } from '../model/trace-navigation';
 import { ExperimentResultView } from './experiment-result-view';
 import { ExperimentProgressView } from './experiment-progress-view';
 import styles from './experiment-page.module.scss';
 
 export function ExperimentWorkspace(props: {
   readonly run: ExperimentRunModel;
+  readonly traces: TraceNavigation;
   readonly names: readonly string[];
   readonly selected: number;
   readonly detail: string;
@@ -69,13 +71,19 @@ export function ExperimentWorkspace(props: {
           fallback={
             <ExperimentResultView
               run={props.run}
+              traces={props.traces}
               selected={props.selected}
               detail={props.detail}
               onDetail={(value) => props.onDetail(value)}
             />
           }
         >
-          <ExperimentProgressView run={props.run} selected={props.selected} names={props.names} />
+          <ExperimentProgressView
+            run={props.run}
+            traces={props.traces}
+            selected={props.selected}
+            names={props.names}
+          />
         </Show>
       </section>
     </div>

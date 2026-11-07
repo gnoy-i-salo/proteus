@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import type { ExperimentResult } from '@proteus-int/pipeline';
 interface NativeFixtureWindow {
   readonly stageCalls: readonly string[];
@@ -287,21 +287,6 @@ async function noOverflow(page: Page) {
     ),
   ).toEqual([]);
 }
-async function openStage(logs: Locator, name: RegExp) {
-  for (let index = 0; index < 8; index++) {
-    const button = logs.getByRole('button', { name });
-    if (await button.count()) {
-      await button.click();
-      return;
-    }
-    const next = logs
-      .getByRole('navigation', { name: 'Страницы этапов', exact: true })
-      .getByRole('button', { name: '→', exact: true });
-    await expect(next).toBeEnabled();
-    await next.click();
-  }
-  throw new Error(`Missing trace stage ${name}`);
-}
 
 test('rubric review freezes the protocol before sources and answers are requested', async ({
   page,
@@ -378,8 +363,9 @@ test('failed solution remains incomplete and unscored instead of receiving zero'
   ).toBe(false);
   await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
   const logs = page.getByRole('region', { name: 'Текст Intelligence traces' });
-  await openStage(logs, /A · Решение/);
   const failedStage = logs.getByRole('button', { name: /A · Решение/ });
+  await expect(failedStage).toHaveAttribute('aria-pressed', 'true');
+  await logs.getByRole('radio', { name: 'A', exact: true }).check();
   await expect(failedStage).toContainText('!');
   await expect(failedStage).not.toContainText('✓');
 });
@@ -508,17 +494,17 @@ for (const [width, height] of [
     await nativeFixture(page);
     await fillExperiment(page);
     const dialog = page.getByRole('region', { name: 'Текст Intelligence traces' });
-    await expect(page.getByRole('button', { name: 'Текст reasoning', exact: true })).toHaveCount(0);
     await expect(dialog).toContainText('Сравниваю ограничения');
     await noOverflow(page);
     await page.screenshot({ path: test.info().outputPath('inline-traces.png') });
+    await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+    await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
     const navigation = dialog.getByRole('navigation', { name: 'Страницы текста' });
     await navigation.getByRole('button', { name: 'Следующая страница текста' }).click();
     await expect(navigation).toContainText('2 /');
-    await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+    await page.getByRole('button', { name: 'Анализ', exact: true }).click();
     await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
-    await expect(dialog.getByLabel('Этап reasoning')).toHaveCount(0);
-    await expect(dialog.getByRole('article')).toHaveCount(3);
+    await expect(navigation).toContainText('2 /');
     expect(
       await page.evaluate(() =>
         (window as unknown as NativeFixtureWindow).savedExperiment.traces.every(
@@ -537,6 +523,7 @@ test('missing reasoning is explicit and never replaced with the answer', async (
   const dialog = page.getByRole('region', { name: 'Текст Intelligence traces' });
   await expect(dialog).toContainText('CLI не передал текст reasoning');
   await expect(dialog).not.toContainText('Длинный ответ');
+  await expect(dialog.getByRole('navigation', { name: 'Страницы текста' })).toHaveCount(0);
 });
 
 for (const [width, height] of [
@@ -601,12 +588,12 @@ test('sidebar switches independent scores, answers and inline persona logs', asy
   await expect(page.getByText(/Ответ B\./)).toBeVisible();
   await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
   const logs = page.getByRole('region', { name: 'Текст Intelligence traces' });
-  await expect(logs.getByRole('combobox')).toHaveCount(0);
-  await openStage(logs, /B · Решение/);
+  await logs.getByRole('radio', { name: 'B', exact: true }).check();
+  await logs.getByRole('button', { name: /B · Решение/ }).click();
   await expect(logs).toContainText('Персона B:');
   await expect(logs).not.toContainText('Персона A:');
-  await page.getByRole('button', { name: /Person A/ }).click();
-  await openStage(logs, /A · Решение/);
+  await logs.getByRole('radio', { name: 'A', exact: true }).check();
+  await logs.getByRole('button', { name: /A · Решение/ }).click();
   await expect(logs).toContainText('Персона A:');
   await expect(logs).not.toContainText('Персона B:');
 });
@@ -760,4 +747,118 @@ test('long preparation failure remains fully readable without overflowing the co
   await expect(
     status.getByRole('button', { name: 'Развернуть: Причина', exact: true }),
   ).toBeFocused();
+});
+
+test('manual stage selection pauses the visible follow and one click resumes it', async ({
+  page,
+}) => {
+  await nativeFixture(page, false, true, { holdStage: 'PERSON' });
+  await fillExperiment(page);
+  const region = page.getByRole('region', { name: 'Текст Intelligence traces' });
+  await expect(region.getByText('Следим за текущим этапом')).toBeVisible();
+  await expect(region.getByRole('button', { name: /A · Решение/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await region
+    .getByRole('navigation', { name: 'Страницы списка этапов', exact: true })
+    .getByRole('button', { name: 'Предыдущая страница этапов', exact: true })
+    .click();
+  await expect(region.getByText('Следование приостановлено')).toBeVisible();
+  await region.getByRole('button', { name: /A · Наблюдения и источники/ }).click();
+  await expect(region.getByText('Следим за текущим этапом')).toHaveCount(0);
+  await expect(region.getByText('Следование приостановлено')).toBeVisible();
+  await expect(region.getByRole('button', { name: 'К текущему этапу', exact: true })).toBeVisible();
+  await region.getByRole('button', { name: 'К текущему этапу', exact: true }).click();
+  await expect(region.getByText('Следим за текущим этапом')).toBeVisible();
+  await expect(region.getByRole('button', { name: /A · Решение/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+});
+
+test('manual selection while stages stream keeps the reader on traces after completion', async ({
+  page,
+}) => {
+  await nativeFixture(page);
+  await fillExperiment(page);
+  const region = page.getByRole('region', { name: 'Текст Intelligence traces' });
+  await region.getByRole('button', { name: /Общие · Критерии задачи/ }).click();
+  await expect(region.getByText('Следование приостановлено')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Intelligence traces', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(region.getByRole('button', { name: /Общие · Критерии задачи/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(region).toContainText('Персона Общее:');
+  await expect(region).not.toContainText('Следим за текущим этапом');
+});
+
+test('per-stage reading positions survive stage, persona and detail tab switches', async ({
+  page,
+}) => {
+  await nativeFixture(page);
+  await fillExperiment(page);
+  await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+  await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
+  const region = page.getByRole('region', { name: 'Текст Intelligence traces' });
+  const textPages = region.getByRole('navigation', { name: 'Страницы текста' });
+  await textPages.getByRole('button', { name: 'Следующая страница текста' }).click();
+  await expect(textPages).toContainText('2 /');
+  await region.getByRole('radio', { name: 'A', exact: true }).check();
+  await region.getByRole('button', { name: /A · Решение/ }).click();
+  await region.getByRole('radio', { name: 'Общие', exact: true }).check();
+  await region
+    .getByRole('button', { name: /Общие · Слепая оценка · прогон 1 · порядок 2/ })
+    .click();
+  await expect(textPages).toContainText('2 /');
+  await page.getByRole('button', { name: /Person B/ }).click();
+  await expect(textPages).toContainText('2 /');
+  await page.getByRole('button', { name: 'Анализ', exact: true }).click();
+  await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
+  await expect(textPages).toContainText('2 /');
+  await noOverflow(page);
+});
+
+test('trace filters respond to keyboard and narrow the stage list', async ({ page }) => {
+  await nativeFixture(page);
+  await fillExperiment(page);
+  await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+  await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
+  const region = page.getByRole('region', { name: 'Текст Intelligence traces' });
+  const phases = region.getByRole('radiogroup', { name: 'Фазы', exact: true });
+  await phases.getByRole('radio', { name: 'Все', exact: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(phases.getByRole('radio', { name: 'Подготовка', exact: true })).toBeChecked();
+  await expect(region.getByRole('button', { name: /Стратегия для задачи/ }).first()).toBeVisible();
+  await expect(region.getByRole('button', { name: /Решение/ })).toHaveCount(0);
+  await page.keyboard.press('ArrowRight');
+  await expect(phases.getByRole('radio', { name: 'Прогоны', exact: true })).toBeChecked();
+  await expect(region.getByLabel('Прогон', { exact: true })).toBeVisible();
+  await expect(region.getByRole('button', { name: /A · Решение/ })).toBeVisible();
+  await expect(region.getByRole('button', { name: /Стратегия для задачи/ })).toHaveCount(0);
+  const participants = region.getByRole('radiogroup', { name: 'Участники', exact: true });
+  await participants.getByRole('radio', { name: 'Все', exact: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(participants.getByRole('radio', { name: 'A', exact: true })).toBeChecked();
+  await expect(region.getByRole('button', { name: /A · Решение/ })).toBeVisible();
+  await expect(region.getByRole('button', { name: /Контроль · Решение/ })).toHaveCount(0);
+});
+
+test('compact trace navigation stays readable when the text size grows to 125 percent', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  await nativeFixture(page);
+  await fillExperiment(page);
+  await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+  await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
+  await page.evaluate(() => document.documentElement.style.setProperty('--reading', '17.5px'));
+  const region = page.getByRole('region', { name: 'Текст Intelligence traces' });
+  await expect(region.getByLabel('Этап', { exact: true })).toBeVisible();
+  await expect(region).toContainText('Сравниваю ограничения');
+  await noOverflow(page);
 });

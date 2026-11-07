@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, on } from 'solid-js';
+import { createEffect, createMemo, createSignal, on, untrack } from 'solid-js';
 import {
   applyPageEdit,
   domOffset,
@@ -12,11 +12,21 @@ import {
 } from '../../lib/text-document';
 import type { TextLayout, TextSelection } from '../../lib/text-document';
 
+export interface TextWorkspacePosition {
+  readonly anchor: number;
+  readonly selection: TextSelection;
+  readonly query: string;
+  readonly match: number;
+  readonly bookmark?: { anchor: number; selection: TextSelection };
+}
+
 export function createTextWorkspace(options: {
   value: () => string;
   resetKey: () => string | number | undefined;
   change?: (value: string) => void;
   interact?: () => void;
+  position?: () => TextWorkspacePosition | undefined;
+  onPosition?: (position: TextWorkspacePosition) => void;
 }) {
   const [layout, setLayout] = createSignal<TextLayout>({
     width: 20,
@@ -116,13 +126,26 @@ export function createTextWorkspace(options: {
   };
   createEffect(
     on(options.resetKey, () => {
-      setAnchor(0);
-      setSelection({ start: 0, end: 0, direction: 'none' });
-      setBookmark(undefined);
-      setQuery('');
-      setMatch(-1);
+      const saved = options.position?.();
+      setAnchor(saved?.anchor ?? 0);
+      setSelection(saved?.selection ?? { start: 0, end: 0, direction: 'none' });
+      setBookmark(saved?.bookmark ? { ...saved.bookmark } : undefined);
+      setQuery(saved?.query ?? '');
+      setMatch(saved?.match ?? -1);
     }),
   );
+  createEffect(() => {
+    const position = {
+      anchor: anchor(),
+      selection: selection(),
+      query: query(),
+      match: match(),
+      ...(bookmark() ? { bookmark: { ...bookmark()! } } : {}),
+    };
+    // A new stage changes the callback's owner. It must not publish the previous
+    // stage's coordinates before reset has restored the new stage's position.
+    untrack(() => options.onPosition?.(position));
+  });
   return {
     pages,
     pageIndex,

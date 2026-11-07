@@ -1,5 +1,6 @@
 import { Show } from 'solid-js';
 import type { ExperimentRunModel } from '../model/experiment-run';
+import type { TraceNavigation } from '../model/trace-navigation';
 import { TraceReader } from './trace-reader';
 import { ProtocolReview } from './protocol-review';
 import { ExecutionStatus } from './execution-status';
@@ -17,13 +18,13 @@ export function ExperimentProgressView(props: {
     | 'progress'
     | 'total'
     | 'pendingProtocol'
-    | 'reasoningStages'
     | 'running'
     | 'events'
     | 'approveProtocol'
     | 'returnToInput'
     | 'stop'
   >;
+  readonly traces: TraceNavigation;
   readonly selected: number;
   readonly names: readonly string[];
 }) {
@@ -34,11 +35,7 @@ export function ExperimentProgressView(props: {
         <>
           <ExecutionStatus run={props.run} names={props.names} />
           <div class={styles['experiment__traces']}>
-            <TraceReader
-              stages={props.run.reasoningStages()}
-              running={props.run.running()}
-              person={props.selected}
-            />
+            <TraceReader navigation={props.traces} running={props.run.running()} />
           </div>
           <nav class={styles['experiment__tracePages']}>
             <span>{props.run.events().at(-1)?.message}</span>

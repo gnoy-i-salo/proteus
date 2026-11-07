@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js';
 import {
   domOffset,
   moveTextOffset,
@@ -6,6 +6,7 @@ import {
   sourceOffset,
 } from '../../lib/text-document';
 import { createTextWorkspace } from './text-workspace-model';
+import type { TextWorkspacePosition } from './text-workspace-model';
 import styles from './text-workspace.module.scss';
 
 export function TextWorkspace(props: {
@@ -15,12 +16,16 @@ export function TextWorkspace(props: {
   readonly resetKey?: string | number;
   readonly compact?: boolean | undefined;
   readonly onInteraction?: (() => void) | undefined;
+  readonly position?: (() => TextWorkspacePosition | undefined) | undefined;
+  readonly onPositionChange?: ((position: TextWorkspacePosition) => void) | undefined;
 }) {
   const model = createTextWorkspace({
     value: () => props.value,
     resetKey: () => props.resetKey,
     change: (value) => props.onChange?.(value),
     interact: () => props.onInteraction?.(),
+    position: () => props.position?.(),
+    onPosition: (position) => props.onPositionChange?.(position),
   });
   const [expanded, setExpanded] = createSignal(false);
   let frame!: HTMLElement;
@@ -120,6 +125,9 @@ export function TextWorkspace(props: {
       restoreInert?.();
     });
   });
+  // A streamed stage can change both the text and the surrounding reader height.
+  // Reflow in the same reactive update, before the next ResizeObserver delivery.
+  createEffect(on(() => [props.value, props.resetKey] as const, measure));
   createEffect(() => {
     model.visible();
     model.selection();
@@ -404,31 +412,33 @@ export function TextWorkspace(props: {
           }}
         />
       </Show>
-      <footer class={styles['textWorkspace__footer']}>
-        <nav aria-label={props.onChange ? `Страницы: ${props.label}` : 'Страницы текста'}>
-          <button
-            type="button"
-            aria-label={props.onChange ? `Назад: ${props.label}` : 'Предыдущая страница текста'}
-            title="Предыдущая страница"
-            disabled={model.pageIndex() === 0}
-            onClick={() => navigate(model.pageIndex() - 1)}
-          >
-            ←
-          </button>
-          <span title={`Страница ${model.pageIndex() + 1} из ${model.pages().length}`}>
-            {model.pageIndex() + 1} / {model.pages().length}
-          </span>
-          <button
-            type="button"
-            aria-label={props.onChange ? `Далее: ${props.label}` : 'Следующая страница текста'}
-            title="Следующая страница"
-            disabled={model.pageIndex() >= model.pages().length - 1}
-            onClick={() => navigate(model.pageIndex() + 1)}
-          >
-            →
-          </button>
-        </nav>
-      </footer>
+      <Show when={props.onChange !== undefined || model.pages().length > 1}>
+        <footer class={styles['textWorkspace__footer']}>
+          <nav aria-label={props.onChange ? `Страницы: ${props.label}` : 'Страницы текста'}>
+            <button
+              type="button"
+              aria-label={props.onChange ? `Назад: ${props.label}` : 'Предыдущая страница текста'}
+              title="Предыдущая страница"
+              disabled={model.pageIndex() === 0}
+              onClick={() => navigate(model.pageIndex() - 1)}
+            >
+              ←
+            </button>
+            <span title={`Страница ${model.pageIndex() + 1} из ${model.pages().length}`}>
+              {model.pageIndex() + 1} / {model.pages().length}
+            </span>
+            <button
+              type="button"
+              aria-label={props.onChange ? `Далее: ${props.label}` : 'Следующая страница текста'}
+              title="Следующая страница"
+              disabled={model.pageIndex() >= model.pages().length - 1}
+              onClick={() => navigate(model.pageIndex() + 1)}
+            >
+              →
+            </button>
+          </nav>
+        </footer>
+      </Show>
     </section>
   );
 }

@@ -6,6 +6,7 @@ import { createExperimentSources } from '../model/experiment-sources';
 import { createExperimentSettings } from '../model/experiment-settings';
 import { createExperimentPresets } from '../model/experiment-presets';
 import { createExperimentRun } from '../model/experiment-run';
+import { createTraceNavigation } from '../model/trace-navigation';
 import { ExperimentEntry } from './experiment-entry';
 import { ExperimentWorkspace } from './experiment-workspace';
 import styles from './experiment-page.module.scss';
@@ -37,8 +38,17 @@ export function ExperimentPage() {
     sourceGrants,
     sourceModelsAvailable,
     reportError: setError,
-    onStarted: () => setSelected(0),
-    onCompleted: () => setDetail('analysis'),
+    onStarted: () => {
+      traces.reset();
+      setSelected(0);
+    },
+    onCompleted: () => setDetail(traces.manual() ? 'traces' : 'analysis'),
+  });
+  const traces = createTraceNavigation({
+    stages: run.reasoningStages,
+    running: run.running,
+    activeStageId: run.activeStageId,
+    failedStageId: run.failedStageId,
   });
   const { pendingPreset, openPreset, savePreset, readBrowserFile, applyPending, dismissPending } =
     createExperimentPresets({
@@ -60,6 +70,7 @@ export function ExperimentPage() {
         fallback={
           <ExperimentWorkspace
             run={run}
+            traces={traces}
             names={input.names()}
             selected={selected()}
             detail={detail()}

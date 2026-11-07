@@ -1,5 +1,6 @@
 import { For, Show } from 'solid-js';
 import type { ExperimentRunModel } from '../model/experiment-run';
+import type { TraceNavigation } from '../model/trace-navigation';
 import { formatInterval, formatScore, reportText, sourceLabel } from './experiment-report';
 import { FailureReason } from './failure-reason';
 import { TraceReader } from './trace-reader';
@@ -8,10 +9,8 @@ import { ReplyReader } from './reply-reader';
 import styles from './experiment-page.module.scss';
 
 export function ExperimentResultView(props: {
-  readonly run: Pick<
-    ExperimentRunModel,
-    'result' | 'savedPath' | 'reasoningStages' | 'download' | 'failureReason'
-  >;
+  readonly run: Pick<ExperimentRunModel, 'result' | 'savedPath' | 'download' | 'failureReason'>;
+  readonly traces: TraceNavigation;
   readonly selected: number;
   readonly detail: string;
   readonly onDetail: (detail: string) => void;
@@ -86,11 +85,7 @@ export function ExperimentResultView(props: {
             </Show>
           }
         >
-          <TraceReader
-            stages={props.run.reasoningStages()}
-            running={false}
-            person={props.selected}
-          />
+          <TraceReader navigation={props.traces} running={false} />
         </Show>
       </div>
       <footer class={styles['experiment__footer']}>

@@ -40,6 +40,16 @@ fn selected_archive_preview_persists_verified_metadata_without_exposing_its_path
         .unwrap();
     let result = preview(&sources, &inputs, &operation, request()).unwrap();
     assert_eq!(result.schema_version, 1);
+    let acquired = inputs
+        .read_preview(&result.id, |file, origin| {
+            use std::io::Read;
+            let mut bytes = Vec::new();
+            file.read_to_end(&mut bytes).unwrap();
+            Ok((bytes, origin.to_string()))
+        })
+        .unwrap();
+    assert_eq!(acquired.0, raw.as_bytes());
+    assert!(acquired.1.starts_with("localArchivePath:1:sha256:"));
     assert_eq!(result.source_handle, "native-handle");
     assert_eq!(result.resources[0].label, "  Чат é\r\n");
     assert_eq!(result.resources[0].author_ids, ["user1"]);
@@ -68,9 +78,9 @@ fn invalid_budgets_handles_or_archive_tails_never_persist_partial_previews() {
         let inputs = selected(
             &dir,
             if case == 3 {
-                "{\"name\":\"chat\",\"id\":1,\"messages\":[]"
+                "{\"name\":\"chat\",\"type\":\"personal_chat\",\"id\":1,\"messages\":[]"
             } else {
-                "{\"name\":\"chat\",\"id\":1,\"messages\":[]}"
+                "{\"name\":\"chat\",\"type\":\"personal_chat\",\"id\":1,\"messages\":[]}"
             },
         );
         let operation = sources
@@ -131,4 +141,34 @@ fn preview_wire_accepts_only_explicit_camel_case_budget_and_capability_fields() 
         forged[field] = serde_json::json!("forged");
         assert!(serde_json::from_value::<PreviewRequest>(forged).is_err());
     }
+}
+
+#[test]
+fn full_native_receipt_cache_does_not_leave_an_unusable_persisted_preview() {
+    let (sources, dir) = local();
+    let inputs = selected(
+        &dir,
+        r#"{"name":"chat","type":"personal_chat","id":1,"messages":[]}"#,
+    );
+    let operation = sources
+        .begin_ingestion_operation("preview", JobProvider::Telegram)
+        .unwrap();
+    let first = preview(&sources, &inputs, &operation, request()).unwrap();
+    inputs.forget_preview(&first.id).unwrap();
+    for i in 0..16 {
+        inputs
+            .associate_preview("native-handle", &format!("receipt-{i}"))
+            .unwrap();
+    }
+    assert!(preview(&sources, &inputs, &operation, request()).is_err());
+    sources
+        .with_ingestion_database(&operation, |db| {
+            assert_eq!(db.ids_in_namespace(RecordNamespace::Ingestion)?, [first.id]);
+            Ok(())
+        })
+        .unwrap();
+    drop(operation);
+    drop(inputs);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
 }

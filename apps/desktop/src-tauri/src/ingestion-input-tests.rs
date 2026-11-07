@@ -111,3 +111,113 @@ fn replacing_selected_path_does_not_redirect_the_open_file() {
     fs::write(&path, b"replacement").unwrap();
     assert_eq!(inputs.read("selected", contents).unwrap(), b"original");
 }
+
+#[test]
+fn archive_origin_survives_reselection_and_edits_without_using_a_grant_or_content_hash() {
+    let fixture = Fixture::new();
+    let path = fixture.file("archive.json", b"before");
+    let first = SelectedInputs::default();
+    first.insert("first".into(), &path).unwrap();
+    let origin = first
+        .read_scoped("first", |_, origin| Ok(origin.to_string()))
+        .unwrap();
+    assert!(origin.starts_with("localArchivePath:1:sha256:"));
+    assert_eq!(origin.len(), "localArchivePath:1:sha256:".len() + 64);
+    assert!(!origin.contains(path.to_str().unwrap()));
+    drop(first);
+    fs::write(&path, b"after").unwrap();
+    let second = SelectedInputs::default();
+    second
+        .insert(
+            "new-capability".into(),
+            &fixture.0.join(".").join("archive.json"),
+        )
+        .unwrap();
+    assert_eq!(
+        second
+            .read_scoped("new-capability", |file, key| Ok((
+                contents(file)?,
+                key.to_string()
+            )))
+            .unwrap(),
+        (b"after".to_vec(), origin)
+    );
+}
+#[test]
+fn identical_bytes_from_different_selected_archive_locations_keep_distinct_source_origins() {
+    let fixture = Fixture::new();
+    let a = fixture.file("a.json", b"ok");
+    let b = fixture.file("b.json", b"ok");
+    let inputs = SelectedInputs::default();
+    inputs.insert("a".into(), &a).unwrap();
+    inputs.insert("b".into(), &b).unwrap();
+    let a = inputs
+        .read_scoped("a", |_, origin| Ok(origin.to_string()))
+        .unwrap();
+    let b = inputs
+        .read_scoped("b", |_, origin| Ok(origin.to_string()))
+        .unwrap();
+    assert_ne!(a, b);
+}
+#[test]
+fn native_preview_receipts_bind_one_selected_file_and_release_invalidates_the_binding() {
+    let fixture = Fixture::new();
+    let a = fixture.file("a.json", b"first");
+    let b = fixture.file("b.json", b"second");
+    let inputs = SelectedInputs::default();
+    inputs.insert("a".into(), &a).unwrap();
+    inputs.insert("b".into(), &b).unwrap();
+    assert!(inputs
+        .associate_preview(a.to_str().unwrap(), "receipt")
+        .is_err());
+    inputs.associate_preview("a", "receipt").unwrap();
+    inputs.associate_preview("a", "receipt").unwrap();
+    assert!(inputs.associate_preview("b", "receipt").is_err());
+    assert_eq!(
+        inputs
+            .read_preview("receipt", |file, _| contents(file))
+            .unwrap(),
+        b"first"
+    );
+    assert_eq!(
+        inputs
+            .read_preview("receipt", |file, _| contents(file))
+            .unwrap(),
+        b"first"
+    );
+    inputs.forget_preview("receipt").unwrap();
+    assert!(inputs
+        .read_preview("receipt", |file, _| contents(file))
+        .is_err());
+    inputs.associate_preview("a", "receipt").unwrap();
+    inputs.release("a").unwrap();
+    assert!(inputs
+        .read_preview("receipt", |file, _| contents(file))
+        .is_err());
+    assert_eq!(inputs.read("b", contents).unwrap(), b"second");
+}
+#[test]
+fn preview_receipt_cache_is_bounded_without_evicting_existing_jobs_silently() {
+    let fixture = Fixture::new();
+    let path = fixture.file("archive.json", b"{}");
+    let inputs = SelectedInputs::default();
+    inputs.insert("selected".into(), &path).unwrap();
+    for i in 0..16 {
+        inputs
+            .associate_preview("selected", &format!("receipt-{i}"))
+            .unwrap();
+    }
+    assert!(inputs.associate_preview("selected", "overflow").is_err());
+    assert_eq!(
+        inputs
+            .read_preview("receipt-0", |file, _| contents(file))
+            .unwrap(),
+        b"{}"
+    );
+    inputs.forget_preview("receipt-0").unwrap();
+    inputs.associate_preview("selected", "replacement").unwrap();
+    assert!(inputs.associate_preview("selected", "").is_err());
+    assert!(inputs
+        .associate_preview("selected", &"x".repeat(2049))
+        .is_err());
+}

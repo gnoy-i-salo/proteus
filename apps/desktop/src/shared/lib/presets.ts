@@ -97,17 +97,19 @@ export async function listenPresets(
     try {
       while (requested && !disposed) {
         requested = false;
-        const raw = await invoke<unknown>('take_pending_presets');
-        if (disposed) break;
-        const files = pendingPresets(raw);
-        for (const file of files) {
+        try {
+          const raw = await invoke<unknown>('take_pending_presets');
           if (disposed) break;
-          if (file.kind === 'ready') receive(file.data);
-          else fail(file.error);
+          const files = pendingPresets(raw);
+          for (const file of files) {
+            if (disposed) break;
+            if (file.kind === 'ready') receive(file.data);
+            else fail(file.error);
+          }
+        } catch (error) {
+          if (!disposed) fail(nativeFailure(error, 'Не удалось прочитать очередь пресетов.'));
         }
       }
-    } catch (error) {
-      if (!disposed) fail(nativeFailure(error, 'Не удалось прочитать очередь пресетов.'));
     } finally {
       draining = false;
     }

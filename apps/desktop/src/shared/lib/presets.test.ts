@@ -226,3 +226,22 @@ it('releases abort handling after subscription registration fails', async () => 
   controller.abort();
   expect(native.unlisten).not.toHaveBeenCalled();
 });
+
+it('drains an event queued during a failed read without waiting for another event', async () => {
+  let reject!: (reason: unknown) => void;
+  const pending = new Promise<never>((_resolve, fail) => {
+    reject = fail;
+  });
+  native.invoke.mockReturnValueOnce(pending).mockResolvedValueOnce([{ Ok: 'new file' }]);
+  const receive = vi.fn();
+  const fail = vi.fn();
+  const subscribed = listenPresets(receive, fail);
+  await tick();
+  native.event?.();
+  reject('Очередь временно недоступна.');
+  const stop = await subscribed;
+  expect(native.invoke).toHaveBeenCalledTimes(2);
+  expect(receive).toHaveBeenCalledWith('new file');
+  expect(fail).toHaveBeenCalledOnce();
+  stop();
+});

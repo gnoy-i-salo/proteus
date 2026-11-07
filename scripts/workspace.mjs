@@ -14,7 +14,7 @@ export const ignored = new Set([
 ]);
 export function walk(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (ignored.has(entry.name)) return [];
+    if (ignored.has(entry.name) || (entry.isFile() && entry.name === '.DS_Store')) return [];
     const path = join(directory, entry.name).replaceAll('\\', '/');
     return entry.isDirectory() ? walk(path) : [path];
   });
@@ -24,10 +24,12 @@ export function readJson(path) {
 }
 export function workspaces() {
   return ['apps', 'packages'].flatMap((parent) =>
-    readdirSync(parent).map((name) => {
-      const path = `${parent}/${name}`;
-      return { path, ...readJson(`${path}/package.json`) };
-    }),
+    readdirSync(parent, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => {
+        const path = `${parent}/${entry.name}`;
+        return { path, ...readJson(`${path}/package.json`) };
+      }),
   );
 }
 export function affectedPackages(packages, changed) {

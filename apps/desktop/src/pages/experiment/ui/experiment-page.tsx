@@ -572,18 +572,15 @@ export function ExperimentPage() {
     }
   };
   onMount(() => {
-    let disposed = false;
-    let stop: (() => void) | undefined;
-    void listenPresets(receivePreset, setError)
-      .then((unlisten) => {
-        if (disposed) unlisten();
-        else stop = unlisten;
-      })
-      .catch((failure) => setError(String(failure)));
-    onCleanup(() => {
-      disposed = true;
-      stop?.();
+    const controller = new AbortController();
+    void listenPresets(
+      receivePreset,
+      (failure) => setError(failure.message),
+      controller.signal,
+    ).catch((failure) => {
+      if (!controller.signal.aborted) setError(String(failure));
     });
+    onCleanup(() => controller.abort());
   });
   const currentInput = (): ExperimentInput => {
     const person = (index: number): PersonInput => ({

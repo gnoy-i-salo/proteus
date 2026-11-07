@@ -19,7 +19,12 @@ for (const platform of ['MacIntel', 'Win32', 'Linux x86_64']) {
           }
           if (command === 'plugin:window|is_fullscreen') return fullscreen;
           if (command === 'plugin:window|set_fullscreen') fullscreen = args.value === true;
-          if (command === 'cli_status' || command === 'take_pending_presets') return [];
+          if (command === 'cli_status')
+            return [
+              { provider: 'codex', available: false, path: null },
+              { provider: 'kimi', available: false, path: null },
+            ];
+          if (command === 'take_pending_presets') return [];
           return 1;
         },
       });

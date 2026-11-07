@@ -286,3 +286,27 @@ export function encodeLegacyCliRequest(value: unknown): LegacyCliRequest {
     ...('sourceContext' in source ? { 'source-context': source.sourceContext } : {}),
   };
 }
+
+export interface CliWireStatus {
+  readonly provider: ProviderId;
+  readonly available: boolean;
+  readonly path: string | null;
+}
+export function decodeCliStatuses(value: unknown): CliWireStatus[] {
+  if (!Array.isArray(value)) throw new Error('Неверный список доступности CLI.');
+  const statuses = value.map((item: unknown): CliWireStatus => {
+    const source = fields(item, ['provider', 'available', 'path']);
+    const available = boolean(source['available']);
+    const path = source['path'];
+    if ((path !== null && typeof path !== 'string') || available !== (path !== null))
+      throw new Error('Неверные данные доступности CLI.');
+    return { provider: choice(source['provider'], ['codex', 'kimi'] as const), available, path };
+  });
+  if (new Set(statuses.map((status) => status.provider)).size !== statuses.length)
+    throw new Error('Повторяющийся провайдер CLI.');
+  return statuses;
+}
+export function decodeSavedExperimentPath(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('Неверный путь сохранённого эксперимента.');
+  return value;
+}

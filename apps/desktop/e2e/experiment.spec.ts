@@ -44,8 +44,8 @@ async function nativeFixture(
           if (command === 'take_pending_presets') return pendingPresets.splice(0);
           if (command === 'cli_status')
             return [
-              { provider: 'codex', available: true },
-              { provider: 'kimi', available: true },
+              { provider: 'codex', available: true, path: '/test/bin/codex' },
+              { provider: 'kimi', available: true, path: '/test/bin/kimi' },
             ];
           if (command === 'cancel_cli') {
             rejectRun?.(new Error('cancelled'));

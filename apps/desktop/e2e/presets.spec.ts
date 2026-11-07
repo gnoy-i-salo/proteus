@@ -28,7 +28,11 @@ for (const mode of ['import', 'system'] as const) {
         Reflect.set(window, '__TAURI_INTERNALS__', {
           transformCallback: () => 1,
           async invoke(command: string, args: { data?: string }) {
-            if (command === 'cli_status') return [];
+            if (command === 'cli_status')
+              return [
+                { provider: 'codex', available: false, path: null },
+                { provider: 'kimi', available: false, path: null },
+              ];
             if (command === 'take_pending_presets')
               return mode === 'system' ? [{ Ok: preset }] : [];
             if (command === 'import_preset') return preset;

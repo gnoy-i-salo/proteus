@@ -43,7 +43,12 @@ async function nativeConnections(page: Page) {
         return callbackId;
       },
       async invoke(command: string, args: Record<string, unknown> = {}) {
-        if (command === 'cli_status' || command === 'take_pending_presets') return [];
+        if (command === 'cli_status')
+          return [
+            { provider: 'codex', available: false, path: null },
+            { provider: 'kimi', available: false, path: null },
+          ];
+        if (command === 'take_pending_presets') return [];
         if (command === 'plugin:event|listen') {
           eventHandlers.set(String(args['event']), Number(args['handler']));
           return args['handler'];
@@ -68,6 +73,7 @@ async function nativeConnections(page: Page) {
           return snapshot;
         }
         calls.push({ command, args });
+        if (command === 'export_preset') return null;
         if (command === 'open_connection_page') return;
         if (command === 'begin_connection' || command === 'disconnect_connection') {
           if (Reflect.get(window, 'rejectNextConnectionAction')) {

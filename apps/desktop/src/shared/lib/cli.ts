@@ -9,17 +9,19 @@ import type {
 import { IntelligenceRunError } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { isDesktop } from './window-controls';
-import { decodeCliEvent, decodeCliResult, encodeCliRequest } from './cli-wire-codec';
-import type { CliWireEvent } from './cli-wire-codec';
-export interface CliStatus {
-  provider: ProviderId;
-  available: boolean;
-  path: string | null;
-}
+import {
+  decodeCliEvent,
+  decodeCliResult,
+  encodeCliRequest,
+  decodeCliStatuses,
+  decodeSavedExperimentPath,
+} from './cli-wire-codec';
+import type { CliWireEvent, CliWireStatus } from './cli-wire-codec';
+export type CliStatus = CliWireStatus;
 export type CliEvent = CliWireEvent;
 
 export async function cliStatus(): Promise<CliStatus[]> {
-  return isDesktop() ? invoke('cli_status') : [];
+  return isDesktop() ? invoke<unknown>('cli_status').then(decodeCliStatuses) : [];
 }
 export function cliProviders(
   onEvent: (event: CliEvent) => void,
@@ -150,5 +152,8 @@ export function cliProviders(
 }
 export async function saveExperiment(data: unknown): Promise<string> {
   if (!isDesktop()) return '';
-  return invoke('save_experiment', { id: crypto.randomUUID(), data: JSON.stringify(data) });
+  return invoke<unknown>('save_experiment', {
+    id: crypto.randomUUID(),
+    data: JSON.stringify(data),
+  }).then(decodeSavedExperimentPath);
 }

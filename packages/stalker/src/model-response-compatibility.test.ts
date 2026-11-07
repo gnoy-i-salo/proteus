@@ -41,10 +41,12 @@ const legacyReport = {
 };
 
 function provider(value: Record<string, unknown>) {
-  const run = vi.fn<IntelligenceProvider['run']>().mockImplementation(async () => ({
-    answer: JSON.stringify(value),
-    trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'done' },
-  }));
+  const run = vi.fn<IntelligenceProvider['run']>().mockImplementation(() =>
+    Promise.resolve({
+      answer: JSON.stringify(value),
+      trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'done' },
+    }),
+  );
   return { id: 'codex' as const, run };
 }
 
@@ -153,8 +155,8 @@ describe('STALKER model response schema compatibility', () => {
             },
       );
       const port: SourcePort = {
-        async execute() {
-          throw new Error('No extra source reads');
+        execute() {
+          return Promise.reject(new Error('No extra source reads'));
         },
         async reserveModelCall() {},
       };

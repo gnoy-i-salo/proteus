@@ -34,12 +34,12 @@ const report: StalkerReport = {
 function provider(output: unknown, calls: IntelligenceRequest[] = []): IntelligenceProvider {
   return {
     id: 'codex',
-    async run(request) {
+    run(request) {
       calls.push(request);
-      return {
+      return Promise.resolve({
         answer: JSON.stringify(output),
         trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'done' },
-      };
+      });
     },
   };
 }
@@ -80,7 +80,7 @@ describe('frozen evidence-linked personas', () => {
         calls,
       ),
     );
-    expect(JSON.parse(calls[0]!.task).styleExemplars).toEqual([sample]);
+    expect(JSON.parse(calls[0]!.task)).toHaveProperty('styleExemplars', [sample]);
     expect(result.profile.styleExemplars).toEqual([sample]);
     expect(result.profile.styleProfile?.voiceRules).toEqual([styleRule]);
     expect(result.profile.styleProfile?.contextModes).toContainEqual({
@@ -114,7 +114,7 @@ describe('frozen evidence-linked personas', () => {
       task,
       provider({ skills: [{ ...rule, id: 's1', evidenceIds: [] }] }, calls),
     );
-    expect(JSON.parse(calls[0]!.task).task).toBe(task);
+    expect(JSON.parse(calls[0]!.task)).toHaveProperty('task', task);
   });
   it('builds the profile without a task and preserves hypothesis status and opaque references', async () => {
     const calls: IntelligenceRequest[] = [];
@@ -183,8 +183,8 @@ describe('frozen evidence-linked personas', () => {
     expect(base.skills).toEqual([]);
     expect(adapted.profile.skills).toEqual([skill.instruction]);
     expect(calls.map((call) => call.effort)).toEqual(['medium', 'medium']);
-    expect(JSON.parse(calls[0]!.task).personaLabel).toBe('Ada');
-    expect(JSON.parse(calls[1]!.task).personaLabel).toBeNull();
+    expect(JSON.parse(calls[0]!.task)).toHaveProperty('personaLabel', 'Ada');
+    expect(JSON.parse(calls[1]!.task)).toHaveProperty('personaLabel', null);
     expect(neutral.sourceStatus).toBe('neutral');
     expect(neutral.rules).toEqual([]);
   });

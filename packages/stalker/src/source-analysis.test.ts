@@ -7,8 +7,8 @@ import { sourceModelDocument } from './source-model-document';
 import { collectSource, type SourceCollection } from './source-collection';
 
 const analysisPort: SourcePort = {
-  async execute() {
-    throw new Error('Analysis must not read sources');
+  execute() {
+    return Promise.reject(new Error('Analysis must not read sources'));
   },
   async reserveModelCall() {},
 };
@@ -32,7 +32,7 @@ function collection(documents = [sourceDocument()]): SourceCollection {
   };
 }
 function analyzer(change?: (value: Record<string, unknown>) => void) {
-  const run = vi.fn<IntelligenceProvider['run']>().mockImplementation(async (request) => {
+  const run = vi.fn<IntelligenceProvider['run']>().mockImplementation((request) => {
     const documents = (JSON.parse(request.task) as { documents: { id: string; text: string }[] })
       .documents;
     const value: Record<string, unknown> = {
@@ -55,10 +55,10 @@ function analyzer(change?: (value: Record<string, unknown>) => void) {
       behaviorSummary: 'unknown',
     };
     change?.(value);
-    return {
+    return Promise.resolve({
       answer: JSON.stringify(value),
       trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'done' },
-    };
+    });
   });
   return { id: 'codex' as const, run };
 }
@@ -69,9 +69,11 @@ describe('source corpus analysis', () => {
       const grant = { ...sourceGrant, budget: { ...sourceGrant.budget, maxSteps: maxSteps } };
       let spent = 0;
       let pages = 0;
-      const reserve = async () => {
-        if (spent >= maxSteps) throw new Error('source-budget-exceeded');
+      const reserve = () => {
+        if (spent >= maxSteps) return Promise.reject(new Error('source-budget-exceeded'));
         spent++;
+
+        return Promise.resolve();
       };
       const port: SourcePort = {
         async execute() {
@@ -191,8 +193,11 @@ describe('source corpus analysis', () => {
       exportAllowed: false,
       redactions: [],
     });
-    const modelInput = JSON.parse(provider.run.mock.calls[0]![0].task);
-    expect(modelInput.documents[0]).toMatchObject({ text: original, authorId: 'author-ada' });
+    const modelInput: unknown = JSON.parse(provider.run.mock.calls[0]![0].task);
+    expect(modelInput).toHaveProperty(
+      ['documents', 0],
+      expect.objectContaining({ text: original, authorId: 'author-ada' }),
+    );
     expect(JSON.stringify(modelInput)).not.toContain('held out voice');
   });
   it('analyzes all reference chunks and accounts for budget-limited unread documents', async () => {

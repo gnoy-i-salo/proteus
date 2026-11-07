@@ -22,9 +22,11 @@ export class IntelligenceRunError extends Error {
 export function createUnconfiguredProvider(id: ProviderId): IntelligenceProvider {
   return {
     id,
-    async run() {
-      throw new Error(
-        `Provider ${id} is not configured. Connect a native adapter before running tasks.`,
+    run() {
+      return Promise.reject(
+        new Error(
+          `Provider ${id} is not configured. Connect a native adapter before running tasks.`,
+        ),
       );
     },
   };

@@ -36,7 +36,7 @@ function providers() {
   const calls: Call[] = [];
   const provider = (id: ProviderId): IntelligenceProvider => ({
     id,
-    async run(request, signal) {
+    run(request, signal) {
       signal?.throwIfAborted();
       const stage = request.systemPrompt.split('\n')[0]!;
       calls.push({ stage, request, provider: id });
@@ -141,8 +141,8 @@ function providers() {
             ],
           })),
         };
-      } else throw new Error(`Unexpected fixture stage: ${stage}`);
-      return {
+      } else return Promise.reject(new Error(`Unexpected fixture stage: ${stage}`));
+      return Promise.resolve({
         answer: JSON.stringify(data),
         trace: {
           provider: id,
@@ -152,7 +152,7 @@ function providers() {
           summary: 'Completed',
           reasoning: [{ id: 'r', kind: 'summary', text: 'Public summary' }],
         },
-      };
+      });
     },
   });
   return { calls, adapters: { codex: provider('codex'), kimi: provider('kimi') } };
@@ -203,9 +203,9 @@ describe('controlled persona experiment', () => {
       sourceGrants: [[selected], []],
       sourcePort: {
         async reserveModelCall() {},
-        async execute(id) {
+        execute(id) {
           executions.push(id);
-          return {
+          return Promise.resolve({
             snapshotId: 'snapshot-a',
             documents: [document],
             cursor: null,
@@ -219,12 +219,14 @@ describe('controlled persona experiment', () => {
               unavailable: [],
             },
             limitations: [],
-          };
+          });
         },
       },
-      onProtocol: async (protocol) => {
+      onProtocol: (protocol) => {
         expect(protocol.sourceSnapshots).toEqual([['snapshot-a'], []]);
         Object.assign(selected, { id: 'mutated-grant' });
+
+        return Promise.resolve();
       },
     });
     expect(executions).toEqual(['source-grant']);
@@ -250,8 +252,8 @@ describe('controlled persona experiment', () => {
         sourceGrants: [[{ ...grant, allowModelProcessing: false }], []],
         sourcePort: {
           async reserveModelCall() {},
-          async execute() {
-            throw new Error('Should not retrieve');
+          execute() {
+            return Promise.reject(new Error('Should not retrieve'));
           },
         },
       }),
@@ -346,9 +348,9 @@ describe('controlled persona experiment', () => {
     const requests: IntelligenceRequest[] = [];
     const adapter: IntelligenceProvider = {
       id: 'codex',
-      async run(request) {
+      run(request) {
         requests.push(request);
-        throw new Error('Stop after observing the first stage');
+        return Promise.reject(new Error('Stop after observing the first stage'));
       },
     };
     await expect(
@@ -441,8 +443,10 @@ describe('controlled persona experiment', () => {
     };
     const result = await runExperiment(input, settings, adapters, {
       repetitions: 3,
-      onProtocol: async () => {
+      onProtocol: () => {
         settings.aliases.person = 'later-change';
+
+        return Promise.resolve();
       },
     });
     expect(calls).toHaveLength(23);
@@ -587,8 +591,8 @@ describe('controlled persona experiment', () => {
     const { calls, adapters } = providers();
     await expect(
       runExperiment(input, createModelSettings(), adapters, {
-        onProtocol: async () => {
-          throw new Error('Protocol not accepted');
+        onProtocol: () => {
+          return Promise.reject(new Error('Protocol not accepted'));
         },
       }),
     ).rejects.toThrow('Protocol not accepted');

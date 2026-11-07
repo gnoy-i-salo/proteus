@@ -10,17 +10,19 @@ const request: IntelligenceRequest = {
   effort: 'medium',
 };
 function setup(answers: string[] = ['{"ok":true}'], options = {}) {
-  const run = vi.fn<IntelligenceProvider['run']>().mockImplementation(async () => ({
-    answer: answers.shift() ?? '{"ok":true}',
-    trace: {
-      provider: 'codex',
-      reasoningMs: 4,
-      wallTimeMs: 4,
-      terminalMs: 0,
-      summary: 'Actual summary',
-      reasoning: [],
-    },
-  }));
+  const run = vi.fn<IntelligenceProvider['run']>().mockImplementation(() =>
+    Promise.resolve({
+      answer: answers.shift() ?? '{"ok":true}',
+      trace: {
+        provider: 'codex',
+        reasoningMs: 4,
+        wallTimeMs: 4,
+        terminalMs: 0,
+        summary: 'Actual summary',
+        reasoning: [],
+      },
+    }),
+  );
   const adapter = { id: 'codex' as const, run };
   const runner = createStageRunner(
     {
@@ -118,9 +120,11 @@ describe('logical stages and individual model calls', () => {
     const controller = new AbortController();
     const { runner } = setup(undefined, { signal: controller.signal });
     await expect(
-      runner.runStage('sources-0', 'stalker', 0, 'Sources', async () => {
+      runner.runStage('sources-0', 'stalker', 0, 'Sources', () => {
         controller.abort();
         controller.signal.throwIfAborted();
+
+        return Promise.resolve();
       }),
     ).rejects.toThrow();
     expect(runner.snapshot().stages[0]).toMatchObject({
@@ -134,9 +138,9 @@ describe('logical stages and individual model calls', () => {
   it('distinguishes cancelled and failed calls and explicit skipped stages', async () => {
     const controller = new AbortController();
     const { runner, run } = setup(undefined, { signal: controller.signal });
-    run.mockImplementationOnce(async () => {
+    run.mockImplementationOnce(() => {
       controller.abort();
-      throw new Error('Stopped');
+      return Promise.reject(new Error('Stopped'));
     });
     await expect(
       runner.runStage('reply', 'person', 0, 'Reply', (p) => p.run(request, controller.signal)),

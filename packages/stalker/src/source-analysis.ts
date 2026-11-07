@@ -3,6 +3,7 @@ import type {
   PersonInput,
   StyleExemplar,
   SourcePort,
+  SourceDocument,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
@@ -111,29 +112,7 @@ export async function analyzeSourceCollections(
           behaviorSummary: data.behaviorSummary,
         });
         analyzed += chunk.length;
-        for (const doc of chunk) {
-          if (
-            exemplars.length >= 12 ||
-            doc.authorship !== 'owner' ||
-            doc.isForwarded ||
-            doc.truncated ||
-            !doc.text.trim() ||
-            doc.text.length > 1200 ||
-            doc.kind === 'code'
-          )
-            continue;
-          const parent = reference.find((item) => item.id === doc.replyTo);
-          const context = parent ? parent.text.slice(0, 300) : 'No preceding context available';
-          exemplars.push({
-            id: `s${exemplars.length + 1}`,
-            documentId: doc.id,
-            mode: doc.mode,
-            text: doc.text,
-            context,
-            redactions: [],
-            exportAllowed: false,
-          });
-        }
+        appendStyleExemplars(exemplars, chunk, reference);
       }
     } catch (error) {
       signal?.throwIfAborted();
@@ -155,4 +134,34 @@ export async function analyzeSourceCollections(
     });
   }
   return { report: mergeSourceReports(reports, exemplars, coverage), traces };
+}
+
+function appendStyleExemplars(
+  exemplars: StyleExemplar[],
+  chunk: readonly SourceDocument[],
+  reference: readonly SourceDocument[],
+): void {
+  for (const doc of chunk) {
+    if (
+      exemplars.length >= 12 ||
+      doc.authorship !== 'owner' ||
+      doc.isForwarded ||
+      doc.truncated ||
+      !doc.text.trim() ||
+      doc.text.length > 1200 ||
+      doc.kind === 'code'
+    )
+      continue;
+    const parent = reference.find((item) => item.id === doc.replyTo);
+    const context = parent ? parent.text.slice(0, 300) : 'No preceding context available';
+    exemplars.push({
+      id: `s${exemplars.length + 1}`,
+      documentId: doc.id,
+      mode: doc.mode,
+      text: doc.text,
+      context,
+      redactions: [],
+      exportAllowed: false,
+    });
+  }
 }

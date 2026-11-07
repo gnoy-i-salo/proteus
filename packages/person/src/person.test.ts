@@ -33,21 +33,24 @@ it('passes selected identity and first-person role instructions with provenance 
   let request: IntelligenceRequest | undefined;
   const provider: IntelligenceProvider = {
     id: 'codex',
-    async run(value) {
+    run(value) {
       request = value;
-      return {
+      return Promise.resolve({
         answer: '{"answer":"A room plan","summary":"Plan complete"}',
         trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: '' },
-      };
+      });
     },
   };
   await personRuntime.solve(profile, 'Design a room', provider);
-  expect(JSON.parse(request!.task).personaLabel).toBe('Ada');
+  expect(JSON.parse(request!.task)).toHaveProperty('personaLabel', 'Ada');
   expect(request!.systemPrompt).toMatch(/first person/i);
-  expect(JSON.parse(request!.task).rules[0]).toMatchObject({
-    status: 'hypothesis',
-    evidenceIds: ['e1'],
-  });
+  expect(JSON.parse(request!.task)).toHaveProperty(
+    ['rules', 0],
+    expect.objectContaining({
+      status: 'hypothesis',
+      evidenceIds: ['e1'],
+    }),
+  );
 });
 it('exports the provenance and limitations alongside persona instructions', () => {
   const artifacts = personaArtifacts(profile);
@@ -65,14 +68,14 @@ it('keeps the neutral control outside the named first-person persona role', asyn
   };
   const provider: IntelligenceProvider = {
     id: 'codex',
-    async run(request) {
-      expect(JSON.parse(request.task).personaLabel).toBeNull();
+    run(request) {
+      expect(JSON.parse(request.task)).toHaveProperty('personaLabel', null);
       expect(request.systemPrompt).toContain('without adopting a personal identity');
       expect(request.systemPrompt).not.toContain('Respond in first person as the selected persona');
-      return {
+      return Promise.resolve({
         answer: '{"messages":["A room plan"],"summary":"Plan complete"}',
         trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: '' },
-      };
+      });
     },
   };
   await personRuntime.solve(neutral, 'Design a room', provider);
@@ -82,13 +85,13 @@ it('preserves exact Unicode, whitespace, Markdown and separate replies', async (
   const messages = ['  ну...\n\n  **да** 🤷🏽‍♀️  ', 'e\u0301\t\nок??\r\n'];
   const provider: IntelligenceProvider = {
     id: 'codex',
-    async run(request) {
+    run(request) {
       expect(request.operation).toBe('persona-reply');
       expect(request.sourceContext).toBe(true);
-      return {
+      return Promise.resolve({
         answer: JSON.stringify({ messages, summary: 'Готово', styleConflicts: [] }),
         trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: '' },
-      };
+      });
     },
   };
   const result = await personRuntime.solve(
@@ -124,8 +127,8 @@ it.each(['legacy', 'canonical'])(
     const conflicts = ['Task asks a list'];
     const provider: IntelligenceProvider = {
       id: 'codex',
-      async run() {
-        return {
+      run() {
+        return Promise.resolve({
           answer: JSON.stringify({
             messages,
             summary: 'Готово',
@@ -134,7 +137,7 @@ it.each(['legacy', 'canonical'])(
               : { styleConflicts: conflicts }),
           }),
           trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: '' },
-        };
+        });
       },
     };
     const result = await personRuntime.solve(profile, 'Исходная задача', provider);
@@ -146,8 +149,8 @@ it.each(['legacy', 'canonical'])(
 it('rejects mixed reply aliases instead of silently discarding a style conflict', async () => {
   const provider: IntelligenceProvider = {
     id: 'codex',
-    async run() {
-      return {
+    run() {
+      return Promise.resolve({
         answer: JSON.stringify({
           messages: ['Answer'],
           summary: 'Готово',
@@ -155,7 +158,7 @@ it('rejects mixed reply aliases instead of silently discarding a style conflict'
           'style-conflicts': ['legacy conflict'],
         }),
         trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: '' },
-      };
+      });
     },
   };
   await expect(personRuntime.solve(profile, 'Task', provider)).rejects.toThrow(

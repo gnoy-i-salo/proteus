@@ -51,8 +51,7 @@ export function parseAnalysis(
       throw new Error(
         'STALKER: supported observations need authored document evidence and excerpt',
       );
-    const summary = text(item.summary, 'evidence.summary');
-    if (summary.length > 1000) throw new Error('STALKER: evidence summary exceeds limit');
+    const summary = evidenceSummary(item.summary);
     const source = cited[0];
     return {
       id: 'pending',
@@ -60,7 +59,7 @@ export function parseAnalysis(
       status: item.status as EvidenceStatus,
       summary,
       documentIds: ids,
-      excerpt: excerpt as string | null,
+      excerpt,
       sourceUrl: source?.sourceUrl ?? '',
       retrievedAt: source?.retrievedAt ?? null,
       verification: cited.length ? 'source-retrieved' : 'unverified',
@@ -78,4 +77,10 @@ export function parseAnalysis(
     activity: text(data.activity, 'activity'),
     behaviorSummary: text(data.behaviorSummary, 'behaviorSummary'),
   };
+}
+
+function evidenceSummary(value: unknown): string {
+  const summary = text(value, 'evidence.summary');
+  if (summary.length > 1000) throw new Error('STALKER: evidence summary exceeds limit');
+  return summary;
 }

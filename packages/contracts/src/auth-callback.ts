@@ -65,15 +65,8 @@ export function parseVkAuthCallback(search: string): AuthCallbackResult {
   }
 
   const parameters = new URLSearchParams(query);
-  const seen = new Set<string>();
-  for (const [key, value] of parameters) {
-    if (seen.has(key)) return { status: 'invalid', reason: 'ambiguous-callback' };
-    seen.add(key);
-    if (!Object.hasOwn(parameterLimits, key))
-      return { status: 'invalid', reason: 'unexpected-parameter' };
-    if (value.length > parameterLimits[key]! || (!value && key !== 'error_description'))
-      return { status: 'invalid', reason: 'invalid-field' };
-  }
+  const invalid = validateParameters(parameters);
+  if (invalid) return invalid;
 
   const state = parameters.get('state');
   if (!opaque(state)) return { status: 'invalid', reason: 'invalid-field' };
@@ -104,4 +97,20 @@ export function parseVkAuthCallback(search: string): AuthCallbackResult {
     return { status: 'invalid', reason: 'invalid-field' };
 
   return { status: 'success', deepLink: handoff({ code, device_id: deviceId, state }) };
+}
+
+function validateParameters(
+  parameters: URLSearchParams,
+): Extract<AuthCallbackResult, { status: 'invalid' }> | null {
+  const seen = new Set<string>();
+  for (const [key, value] of parameters) {
+    if (seen.has(key)) return { status: 'invalid', reason: 'ambiguous-callback' };
+    seen.add(key);
+    if (!Object.hasOwn(parameterLimits, key))
+      return { status: 'invalid', reason: 'unexpected-parameter' };
+    if (value.length > parameterLimits[key]! || (!value && key !== 'error_description'))
+      return { status: 'invalid', reason: 'invalid-field' };
+  }
+
+  return null;
 }

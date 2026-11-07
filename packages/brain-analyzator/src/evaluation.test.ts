@@ -16,10 +16,12 @@ const rubric: EvaluationRubric = {
   ],
 };
 function provider(data: unknown) {
-  const run = vi.fn<IntelligenceProvider['run']>(async () => ({
-    answer: JSON.stringify(data),
-    trace: { provider: 'codex' as const, reasoningMs: 50, terminalMs: 0, summary: 'Done' },
-  }));
+  const run = vi.fn<IntelligenceProvider['run']>(() =>
+    Promise.resolve({
+      answer: JSON.stringify(data),
+      trace: { provider: 'codex' as const, reasoningMs: 50, terminalMs: 0, summary: 'Done' },
+    }),
+  );
   return { id: 'codex' as const, run } satisfies IntelligenceProvider;
 }
 const assessment = {
@@ -34,7 +36,7 @@ describe('blind criterion evaluation', () => {
     const result = await createRubric('Make a plan', adapter);
     expect(result.rubric).toEqual(rubric);
     expect(Object.isFrozen(result.rubric.criteria[0]?.anchors)).toBe(true);
-    expect(JSON.parse(adapter.run.mock.calls[0]![0]!.task)).toEqual({ task: 'Make a plan' });
+    expect(JSON.parse(adapter.run.mock.calls[0]![0].task)).toEqual({ task: 'Make a plan' });
   });
   it('rejects duplicated rubric IDs and nonpositive weights', async () => {
     await expect(
@@ -60,8 +62,8 @@ describe('blind criterion evaluation', () => {
       'private-boris',
       'private-ada',
     ]);
-    const payload = JSON.parse(adapter.run.mock.calls[0]![0]!.task);
-    expect(payload.answers).toEqual([
+    const payload: unknown = JSON.parse(adapter.run.mock.calls[0]![0].task);
+    expect(payload).toHaveProperty('answers', [
       { label: 'answer-1', answer: 'Plan B' },
       { label: 'answer-2', answer: 'No useful output' },
     ]);

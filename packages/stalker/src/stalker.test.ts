@@ -21,8 +21,8 @@ const evidence = {
 function provider(items: unknown[]): IntelligenceProvider {
   return {
     id: 'codex',
-    async run() {
-      return {
+    run() {
+      return Promise.resolve({
         answer: JSON.stringify({
           evidence: items,
           character: 'unknown',
@@ -31,7 +31,7 @@ function provider(items: unknown[]): IntelligenceProvider {
           behaviorSummary: 'unknown',
         }),
         trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'done' },
-      };
+      });
     },
   };
 }

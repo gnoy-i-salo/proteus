@@ -66,18 +66,26 @@ describe('partial public traces in experiment results', () => {
       let solves = 0;
       const provider: IntelligenceProvider = {
         id: 'codex',
-        async run(request) {
+        run(request) {
           if (request.systemPrompt.startsWith('PERSON\n')) {
             solves++;
             if (solves === 1)
-              return { answer: 'invalid JSON', trace: trace('First public summary', 10) };
+              return Promise.resolve({
+                answer: 'invalid JSON',
+                trace: trace('First public summary', 10),
+              });
             if (cancelled) controller.abort();
-            throw new IntelligenceRunError('Provider interrupted', {
-              ...trace('Partial second public summary', 20),
-              reasoningTruncated: true,
-            });
+            return Promise.reject(
+              new IntelligenceRunError('Provider interrupted', {
+                ...trace('Partial second public summary', 20),
+                reasoningTruncated: true,
+              }),
+            );
           }
-          return { answer: JSON.stringify(preparation(request)), trace: trace('Preparation', 5) };
+          return Promise.resolve({
+            answer: JSON.stringify(preparation(request)),
+            trace: trace('Preparation', 5),
+          });
         },
       };
       const result = await runExperiment(

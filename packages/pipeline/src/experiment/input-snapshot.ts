@@ -19,18 +19,18 @@ export function createExperimentSnapshot(
 ) {
   const input = freeze(structuredClone(sourceInput));
   const settings = freeze(structuredClone(sourceSettings));
-  const sourceGrants = freeze(structuredClone(options.sourceGrants ?? [[], []])) as readonly [
-    readonly SourceGrant[],
-    readonly SourceGrant[],
-  ];
+  const sourceGrants = freeze<readonly [readonly SourceGrant[], readonly SourceGrant[]]>(
+    structuredClone(options.sourceGrants ?? [[], []]),
+  );
   const sourcePort = options.sourcePort;
+  const grantsByPerson = sourceGrants;
   if (
     !Array.isArray(sourceGrants) ||
     sourceGrants.length !== 2 ||
     sourceGrants.some((grants) => !Array.isArray(grants) || grants.length > 5)
   )
     throw new Error('Выберите до пяти источников на каждую из двух персон.');
-  const selected = sourceGrants.flat();
+  const selected = grantsByPerson.flat();
   if (selected.length && !sourcePort)
     throw new Error('Для выбранных источников не настроен source port.');
   if (new Set(selected.map((grant) => grant.id)).size !== selected.length)

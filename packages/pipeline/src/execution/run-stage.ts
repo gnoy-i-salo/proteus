@@ -3,6 +3,7 @@ import { IntelligenceRunError } from '@proteus-int/intelligence';
 import type { ComponentId, IntelligenceProvider, ModelSettings } from '@proteus-int/intelligence';
 import { collectTraces, duration } from './collect-traces';
 import { executionLifecycle } from './execution-lifecycle';
+import { returnedTrace, failedTrace } from './attempt-trace';
 import type { StageCallbacks } from './types';
 
 interface StageInputs {
@@ -105,28 +106,12 @@ export function createStageRunner(inputs: StageInputs, options: StageCallbacks) 
             wallTimeMs: elapsed,
             error: null,
           });
-          const combined: IntelligenceTrace = {
-            ...result.trace,
+          const combined = returnedTrace(result.trace, previous, {
             requestedModel: settings.aliases[component],
             requestedEffort: request.effort,
-            resolvedModel: result.trace.resolvedModel ?? null,
-            appliedEffort: result.trace.appliedEffort ?? null,
-            cliVersion: result.trace.cliVersion ?? null,
-            activeReasoningMs: null,
-            reasoningMs: (previous ? duration(previous) : 0) + elapsed,
-            wallTimeMs: (previous ? duration(previous) : 0) + elapsed,
-            terminalMs: (previous?.terminalMs ?? 0) + result.trace.terminalMs,
-            reasoning: [
-              ...(previous?.reasoning ?? []),
-              ...(result.trace.reasoning ?? []).map((block) => ({
-                ...block,
-                id: `${attempts.length}:${block.id}`,
-              })),
-            ],
-            reasoningTruncated: Boolean(
-              previous?.reasoningTruncated || result.trace.reasoningTruncated,
-            ),
-          };
+            index: attempts.length,
+            elapsed,
+          });
           previous = combined;
           save();
           return { ...result, trace: combined, invocationId: callId };
@@ -146,30 +131,12 @@ export function createStageRunner(inputs: StageInputs, options: StageCallbacks) 
             wallTimeMs: elapsed,
             error: message,
           });
-          previous = {
-            ...partial,
-            provider: adapter.id,
-            reasoningMs: (previous ? duration(previous) : 0) + elapsed,
-            wallTimeMs: (previous ? duration(previous) : 0) + elapsed,
-            activeReasoningMs: null,
+          previous = failedTrace(partial, previous, adapter.id, message, {
             requestedModel: settings.aliases[component],
             requestedEffort: request.effort,
-            resolvedModel: partial?.resolvedModel ?? null,
-            appliedEffort: partial?.appliedEffort ?? null,
-            cliVersion: partial?.cliVersion ?? null,
-            terminalMs: (previous?.terminalMs ?? 0) + (partial?.terminalMs ?? 0),
-            reasoning: [
-              ...(previous?.reasoning ?? []),
-              ...(partial?.reasoning ?? []).map((block) => ({
-                ...block,
-                id: `${attempts.length}:${block.id}`,
-              })),
-            ],
-            reasoningTruncated: Boolean(
-              previous?.reasoningTruncated || partial?.reasoningTruncated,
-            ),
-            summary: `Запрос не завершён: ${message}`,
-          };
+            index: attempts.length,
+            elapsed,
+          });
           save();
           throw failure;
         }

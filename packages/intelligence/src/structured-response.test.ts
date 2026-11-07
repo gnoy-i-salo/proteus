@@ -7,7 +7,7 @@ const decode = (data: Record<string, unknown>) => ({ answer: text(data.answer, '
 describe('structured model output', () => {
   it('carries the explicit operation and distinguishes a format retry from a new action', async () => {
     const run = vi
-      .fn()
+      .fn<IntelligenceProvider['run']>()
       .mockResolvedValueOnce({ answer: 'broken', trace })
       .mockResolvedValueOnce({ answer: '{"answer":"ok"}', trace });
     await structured(
@@ -24,13 +24,15 @@ describe('structured model output', () => {
       ['corpus-analysis', 1],
       ['corpus-analysis', 2],
     ]);
-    const plain = vi.fn().mockResolvedValue({ answer: '{"answer":"ok"}', trace });
+    const plain = vi
+      .fn<IntelligenceProvider['run']>()
+      .mockResolvedValue({ answer: '{"answer":"ok"}', trace });
     await structured({ id: 'codex', run: plain }, 'STALKER', '', {}, undefined, 'medium', decode);
     expect(plain.mock.calls[0]![0].operation).toBe('generation');
   });
   it('repairs invalid field types once with precise feedback', async () => {
     const run = vi
-      .fn()
+      .fn<IntelligenceProvider['run']>()
       .mockResolvedValueOnce({ answer: '{"answer":{}}', trace })
       .mockResolvedValueOnce({ answer: '{"answer":"Исправленный ответ"}', trace });
     const result = await structured(
@@ -48,7 +50,9 @@ describe('structured model output', () => {
     expect(run.mock.calls[1]?.[0].systemPrompt).toContain('previous response');
   });
   it('stops after two invalid responses and identifies the stage and field', async () => {
-    const run = vi.fn().mockResolvedValue({ answer: '{"answer":null}', trace });
+    const run = vi
+      .fn<IntelligenceProvider['run']>()
+      .mockResolvedValue({ answer: '{"answer":null}', trace });
     await expect(
       structured({ id: 'codex', run }, 'PERSON', '', {}, undefined, 'high', decode),
     ).rejects.toThrow(/PERSON.*answer/);
@@ -56,22 +60,22 @@ describe('structured model output', () => {
   });
   it('repairs malformed JSON but does not retry CLI failures or cancellation', async () => {
     const run = vi
-      .fn()
+      .fn<IntelligenceProvider['run']>()
       .mockResolvedValueOnce({ answer: 'broken', trace })
       .mockResolvedValueOnce({ answer: '{"answer":"ok"}', trace });
     await expect(
       structured({ id: 'codex', run }, 'PERSON', '', {}, undefined, 'high', decode),
     ).resolves.toMatchObject({ data: { answer: 'ok' } });
-    const unavailable: IntelligenceProvider = {
+    const unavailable = {
       id: 'codex',
-      run: vi.fn().mockRejectedValue(new Error('CLI login required')),
-    };
+      run: vi.fn<IntelligenceProvider['run']>().mockRejectedValue(new Error('CLI login required')),
+    } satisfies IntelligenceProvider;
     await expect(structured(unavailable, 'PERSON', '', {})).rejects.toThrow('CLI login required');
     expect(unavailable.run).toHaveBeenCalledTimes(1);
     const controller = new AbortController();
-    const cancelled = vi.fn().mockImplementation(async () => {
+    const cancelled = vi.fn<IntelligenceProvider['run']>().mockImplementation(() => {
       controller.abort();
-      return { answer: 'broken', trace };
+      return Promise.resolve({ answer: 'broken', trace });
     });
     await expect(
       structured({ id: 'codex', run: cancelled }, 'PERSON', '', {}, controller.signal),

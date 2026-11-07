@@ -2,6 +2,7 @@
 
 #[path = "corpus-database.rs"]
 pub mod corpus_database;
+pub mod ingestion;
 
 mod cli;
 #[path = "cli-policy.rs"]
@@ -55,6 +56,7 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(presets::PendingPresets::default())
+        .manage(std::sync::Arc::new(ingestion::SelectedInputs::default()))
         .setup(|app| {
             let directory = app.path().app_data_dir()?.join("sources");
             let connections =
@@ -103,6 +105,8 @@ fn main() {
             sources::cancel_source,
             sources::resume_source,
             sources::import_source,
+            ingestion::pick_ingestion_source,
+            ingestion::release_ingestion_source,
             sources::reserve_model_step,
             sources::clear_source_data,
             sources::delete_source,

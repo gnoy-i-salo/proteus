@@ -259,3 +259,6 @@ mod ingestion_tests;
 
 #[path = "ingestion-preview-workflow-tests.rs"]
 mod preview_workflow_tests;
+
+#[path = "ingestion-telegram-worker-tests.rs"]
+mod telegram_worker_tests;

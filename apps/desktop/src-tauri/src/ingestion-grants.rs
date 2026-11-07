@@ -109,12 +109,11 @@ pub fn create_binding(
     })?;
     Ok(binding)
 }
-pub fn authorize_binding(
+fn read_authorized_grant(
     db: &CorpusDatabase,
     binding: &JobBinding,
-    purpose: GrantUse,
     now_ms: i64,
-) -> Result<(), String> {
+) -> Result<GrantRecord, String> {
     validate_source_binding(binding)?;
     let stored = db
         .read(&binding.grant_id)?
@@ -142,6 +141,16 @@ pub fn authorize_binding(
     if stored.input.provider != expected {
         return Err("Разрешение принадлежит другому сервису.".into());
     }
+    read_preview(db, &grant.preview_id)?;
+    Ok(grant)
+}
+pub fn authorize_binding(
+    db: &CorpusDatabase,
+    binding: &JobBinding,
+    purpose: GrantUse,
+    now_ms: i64,
+) -> Result<(), String> {
+    let grant = read_authorized_grant(db, binding, now_ms)?;
     match purpose {
         GrantUse::Model if !grant.allow_model_processing => {
             Err("Модельная обработка источника не разрешена.".into())
@@ -149,6 +158,18 @@ pub fn authorize_binding(
         GrantUse::Export if !grant.allow_export => Err("Экспорт источника не разрешён.".into()),
         _ => Ok(()),
     }
+}
+pub fn authorize_preview_binding(
+    db: &CorpusDatabase,
+    binding: &JobBinding,
+    preview_id: &str,
+    now_ms: i64,
+) -> Result<(), String> {
+    let grant = read_authorized_grant(db, binding, now_ms)?;
+    if grant.preview_id != preview_id {
+        return Err("Разрешение выдано для другого выбранного архива.".into());
+    }
+    Ok(())
 }
 #[cfg(test)]
 #[path = "ingestion-grants-tests.rs"]

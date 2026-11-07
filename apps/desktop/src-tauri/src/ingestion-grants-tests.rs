@@ -163,3 +163,34 @@ fn caller_cannot_inject_native_authority_or_indefinite_lifetime_into_request() {
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn an_archive_grant_cannot_be_replayed_against_another_preview_of_the_same_chat() {
+    let (mut db, dir, request) = setup();
+    let binding = create_binding(&mut db, request.clone(), 1000).unwrap();
+    let original = read_preview(&db, &request.preview_id).unwrap();
+    let another = issue_preview(
+        original.provider,
+        original.source_format,
+        original.adapter_version,
+        original.fingerprint,
+        original.resources,
+    )
+    .unwrap();
+    save_preview(&mut db, &another).unwrap();
+    assert!(authorize_preview_binding(&db, &binding, &request.preview_id, 1001).is_ok());
+    assert!(authorize_preview_binding(&db, &binding, &another.id, 1001).is_err());
+    assert!(authorize_preview_binding(&db, &binding, "missing", 1001).is_err());
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn removing_a_preview_revokes_the_authority_of_its_existing_binding() {
+    let (mut db, dir, request) = setup();
+    let binding = create_binding(&mut db, request.clone(), 1000).unwrap();
+    db.remove(&request.preview_id).unwrap();
+    assert!(authorize_binding(&db, &binding, GrantUse::Corpus, 1001).is_err());
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}

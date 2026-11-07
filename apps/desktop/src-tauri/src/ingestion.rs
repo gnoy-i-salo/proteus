@@ -16,6 +16,10 @@ pub mod preview_store;
 pub mod preview_workflow;
 #[path = "telegram-archive-json.rs"]
 pub mod telegram_archive_json;
+#[path = "telegram-document.rs"]
+pub mod telegram_document;
+#[path = "ingestion-telegram-worker.rs"]
+pub mod telegram_worker;
 pub use input::SelectedInputs;
 use serde::Serialize;
 use tauri_plugin_dialog::DialogExt;

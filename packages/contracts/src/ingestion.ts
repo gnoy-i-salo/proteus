@@ -9,6 +9,21 @@ export interface IngestionBudget {
   readonly maxDurationMs: number;
 }
 
+export type IngestionBindingRequest = Pick<
+  SourceBinding,
+  | 'personaId'
+  | 'role'
+  | 'targetAuthorId'
+  | 'allowedContextAuthorIds'
+  | 'allowUnknownContext'
+  | 'period'
+> & {
+  readonly previewId: string;
+  readonly resourceId: string;
+  readonly allowModelProcessing: boolean;
+  readonly allowExport: boolean;
+};
+
 export interface IngestionSelection {
   readonly previewId: string;
   readonly resourceIds: readonly string[];
@@ -54,6 +69,7 @@ export interface IngestionJob {
 
 // sourceHandle is issued by a native picker; never a model-provided filesystem path.
 export interface IngestionPort {
+  createBinding(request: IngestionBindingRequest, signal?: AbortSignal): Promise<SourceBinding>;
   preview(
     sourceHandle: string,
     budget: IngestionBudget,

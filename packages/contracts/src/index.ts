@@ -85,6 +85,7 @@ export { projectBoundExcerpt } from './source-excerpt';
 export { parseMemoryAction, validateRetrievalReceipt } from './memory-validation';
 export type { RetrievalReceiptScope } from './memory-validation';
 export type {
+  IngestionBindingRequest,
   IngestionBudget,
   IngestionSelection,
   IngestionPreview,
@@ -145,6 +146,7 @@ export { validateRevisionProvenance } from './document-provenance';
 
 export { decodeSourceBinding } from './source-binding-codec';
 export {
+  decodeIngestionBindingRequest,
   decodeIngestionBudget,
   decodeIngestionSelection,
   decodeIngestionPreview,

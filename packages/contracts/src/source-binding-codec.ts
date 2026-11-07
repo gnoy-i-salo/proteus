@@ -57,14 +57,11 @@ export function decodeSourceBinding(value: unknown): SourceBinding {
     'period',
   ]);
   if (input.schemaVersion !== 1) throw new Error('Неизвестная версия привязки источника.');
-  const period = fields(input.period, ['from', 'to', 'includeUndated']);
-  const targetAuthorId = input.targetAuthorId === null ? null : identifier(input.targetAuthorId);
-  const role = choice(input.role, ['own', 'context', 'about', 'reference'] as const);
-  if (role === 'own' && targetAuthorId === null) throw new Error('В привязке отсутствует автор.');
+  const selection = decodeBindingSelection(input);
   return {
     schemaVersion: 1,
     id: identifier(input.id),
-    personaId: identifier(input.personaId),
+    personaId: selection.personaId,
     provider: choice(input.provider, [
       'telegram',
       'vk',
@@ -77,6 +74,33 @@ export function decodeSourceBinding(value: unknown): SourceBinding {
     resourceId: text(input.resourceId),
     grantId: identifier(input.grantId),
     policyVersion: text(input.policyVersion),
+    role: selection.role,
+    targetAuthorId: selection.targetAuthorId,
+    allowedContextAuthorIds: selection.allowedContextAuthorIds,
+    allowUnknownContext: selection.allowUnknownContext,
+    period: selection.period,
+  };
+}
+
+// Shared structural selection validation; the outer owning decoder checks its
+// exact schema. This function never issues IDs, permissions or native authority.
+export function decodeBindingSelection(
+  input: Record<string, unknown>,
+): Pick<
+  SourceBinding,
+  | 'personaId'
+  | 'role'
+  | 'targetAuthorId'
+  | 'allowedContextAuthorIds'
+  | 'allowUnknownContext'
+  | 'period'
+> {
+  const period = fields(input.period, ['from', 'to', 'includeUndated']);
+  const targetAuthorId = input.targetAuthorId === null ? null : identifier(input.targetAuthorId);
+  const role = choice(input.role, ['own', 'context', 'about', 'reference'] as const);
+  if (role === 'own' && targetAuthorId === null) throw new Error('В привязке отсутствует автор.');
+  return {
+    personaId: identifier(input.personaId),
     role,
     targetAuthorId,
     allowedContextAuthorIds: contextIds(input.allowedContextAuthorIds, targetAuthorId),

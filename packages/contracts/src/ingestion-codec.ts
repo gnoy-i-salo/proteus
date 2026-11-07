@@ -1,11 +1,12 @@
 import type {
+  IngestionBindingRequest,
   IngestionBudget,
   IngestionJob,
   IngestionPreview,
   IngestionSelection,
 } from './ingestion';
 import type { CorpusCoverage } from './corpus';
-import { decodeSourceBinding } from './source-binding-codec';
+import { decodeSourceBinding, decodeBindingSelection } from './source-binding-codec';
 
 function fields(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (
@@ -175,7 +176,11 @@ function checkpoint(value: unknown): IngestionJob['checkpoint'] {
 function failure(value: unknown): IngestionJob['error'] {
   if (value === null) return null;
   const input = fields(value, ['code', 'message', 'retryable']);
-  return { code: id(input.code), message: text(input.message), retryable: flag(input.retryable) };
+  return {
+    code: id(input.code),
+    message: text(input.message),
+    retryable: flag(input.retryable),
+  };
 }
 
 /** Structural boundary only. Native must authorize every operation and publication. */
@@ -224,4 +229,26 @@ export function decodeIngestionJob(value: unknown): IngestionJob {
   )
     throw new Error('Импорт превысил выделенный бюджет.');
   return job;
+}
+
+export function decodeIngestionBindingRequest(value: unknown): IngestionBindingRequest {
+  const input = fields(value, [
+    'previewId',
+    'resourceId',
+    'personaId',
+    'role',
+    'targetAuthorId',
+    'allowedContextAuthorIds',
+    'allowUnknownContext',
+    'period',
+    'allowModelProcessing',
+    'allowExport',
+  ]);
+  return {
+    ...decodeBindingSelection(input),
+    previewId: id(input.previewId),
+    resourceId: id(input.resourceId),
+    allowModelProcessing: flag(input.allowModelProcessing),
+    allowExport: flag(input.allowExport),
+  };
 }

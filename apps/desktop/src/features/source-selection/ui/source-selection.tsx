@@ -1,11 +1,7 @@
-import { createSignal, For, onCleanup, onMount, Show, untrack } from 'solid-js';
+import { For, onCleanup, onMount, Show } from 'solid-js';
 import { connectionProviders } from '@proteus-int/contracts';
 import type { ImportedSource, SourceGrant, SourceProvider } from '@proteus-int/contracts';
-import {
-  deleteSourceGrant,
-  createSourceGrant,
-  importSource,
-} from '../../../shared/lib/connections';
+import { createSourceSelectionModel } from '../model/source-selection-model';
 import { isDesktop } from '../../../shared/lib/window-controls';
 import styles from './source-selection.module.scss';
 
@@ -35,96 +31,35 @@ export function SourceSelection(props: {
   onChange: (grants: readonly SourceGrant[]) => void;
   onClose: () => void;
 }) {
-  const [provider, setProvider] = createSignal<SourceProvider>('telegram');
-  const [resource, setResource] = createSignal('');
-  const [consent, setConsent] = createSignal(false);
-  const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal('');
-  const [selectedGrant, setSelectedGrant] = createSignal(0);
-  const [adding, setAdding] = createSignal(untrack(() => props.grants.length === 0));
+  const {
+    provider,
+    resource,
+    consent,
+    busy,
+    error,
+    selectedGrant,
+    adding,
+    current,
+    setConsent,
+    setSelectedGrant,
+    setAdding,
+    selectProvider,
+    changeResource,
+    pick,
+    add,
+    remove,
+  } = createSourceSelectionModel({
+    grants: () => props.grants,
+    modelProcessingAvailable: () => props.modelProcessingAvailable,
+    onImported: (provider, source) => props.onImported(provider, source),
+    onChange: (grants) => props.onChange(grants),
+  });
   let dialog: HTMLElement | undefined;
-  let disposed = false;
   const previousFocus = document.activeElement;
-  const current = () => props.grants[Math.min(selectedGrant(), props.grants.length - 1)];
   onMount(() => dialog?.querySelector<HTMLButtonElement>('button')?.focus());
   onCleanup(() => {
-    disposed = true;
     if (previousFocus instanceof HTMLElement) previousFocus.focus();
   });
-  const pick = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      const source = await importSource(provider());
-      if (source && !disposed) {
-        props.onImported(provider(), source);
-        setResource(source.id);
-        setConsent(false);
-      }
-    } catch {
-      if (!disposed)
-        setError('Не удалось прочитать файл. Выберите поддерживаемый JSON или текстовый экспорт.');
-    } finally {
-      if (!disposed) setBusy(false);
-    }
-  };
-  const add = async (form: HTMLFormElement) => {
-    if (!consent() || busy() || props.grants.length >= 5 || !props.modelProcessingAvailable) return;
-    const fields = new FormData(form);
-    const date = (key: string, end: boolean) => {
-      const value = String(fields.get(key) ?? '');
-      return value ? `${value}T${end ? '23:59:59.999' : '00:00:00.000'}Z` : null;
-    };
-    setBusy(true);
-    setError('');
-    try {
-      const grant = await createSourceGrant({
-        provider: provider(),
-        resourceId: resource().trim(),
-        authorId: String(fields.get('author') ?? '').trim() || null,
-        from: date('from', false),
-        to: date('to', true),
-        allowModelProcessing: true,
-        operations: ['describe', 'search', 'collect', 'read', 'coverage'],
-        budget: {
-          maxSteps: 40,
-          maxDocuments: 1000,
-          maxBytes: 1048576,
-          maxDurationMs: 300000,
-        },
-      });
-      if (!disposed) {
-        props.onChange([...props.grants, grant]);
-        setSelectedGrant(props.grants.length - 1);
-        setAdding(false);
-        setConsent(false);
-      }
-    } catch {
-      if (!disposed)
-        setError(
-          'Не удалось разрешить доступ. Проверьте подключение, ресурс, автора и диапазон дат.',
-        );
-    } finally {
-      if (!disposed) setBusy(false);
-    }
-  };
-  const remove = async () => {
-    const grant = current();
-    if (!grant) return;
-    setBusy(true);
-    setError('');
-    try {
-      await deleteSourceGrant(grant.id);
-      if (!disposed) {
-        props.onChange(props.grants.filter((item) => item.id !== grant.id));
-        if (!props.grants.length) setAdding(true);
-      }
-    } catch {
-      if (!disposed) setError('Не удалось отменить доступ. Повторите попытку.');
-    } finally {
-      if (!disposed) setBusy(false);
-    }
-  };
   return (
     <section
       class={styles['source-selection']}
@@ -202,7 +137,12 @@ export function SourceSelection(props: {
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void add(event.currentTarget);
+              const fields = new FormData(event.currentTarget);
+              void add({
+                author: String(fields.get('author') ?? ''),
+                from: String(fields.get('from') ?? ''),
+                to: String(fields.get('to') ?? ''),
+              });
             }}
           >
             <div class={styles['source-selection__provider']}>
@@ -213,10 +153,10 @@ export function SourceSelection(props: {
                   value={provider()}
                   disabled={busy()}
                   onChange={(event) => {
-                    setProvider(event.currentTarget.value as SourceProvider);
-                    setResource('');
-                    setConsent(false);
-                    setError('');
+                    const provider = connectionProviders.find(
+                      (value) => value === event.currentTarget.value,
+                    );
+                    if (provider) selectProvider(provider);
                   }}
                 >
                   <For each={connectionProviders}>
@@ -232,8 +172,7 @@ export function SourceSelection(props: {
                     disabled={busy()}
                     value={resource().startsWith('import:') ? resource() : ''}
                     onChange={(event) => {
-                      setResource(event.currentTarget.value);
-                      setConsent(false);
+                      changeResource(event.currentTarget.value);
                     }}
                   >
                     <option value="">Выберите файл</option>
@@ -259,8 +198,7 @@ export function SourceSelection(props: {
                   value={resource()}
                   disabled={busy()}
                   onInput={(event) => {
-                    setResource(event.currentTarget.value);
-                    setConsent(false);
+                    changeResource(event.currentTarget.value);
                   }}
                 />
               </label>

@@ -70,3 +70,16 @@ describe('honest evidence provenance', () => {
     });
   });
 });
+
+it('keeps public research task-free while retaining the original selected identity and context', async () => {
+  const model: IntelligenceProvider = {
+    id: 'codex',
+    async run(request) {
+      expect(JSON.parse(request.task)).toEqual(input);
+      expect(JSON.parse(request.task)).not.toHaveProperty('task');
+      expect(request.operation).toBe('public-research');
+      return provider([]).run(request);
+    },
+  };
+  await collectPerson(input, model);
+});

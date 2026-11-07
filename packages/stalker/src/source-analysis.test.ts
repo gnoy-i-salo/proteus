@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PersonInput, SourceDocument, SourcePort } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { analyzeSourceCollections as runAnalysis } from './source-analysis';
-import { sourceDocument, sourceGrant, sourceInput, sourceResult } from './source-fixtures';
+import { sourceDocument, sourceGrant, sourceInput, sourceResult } from './testing/source-fixtures';
 import { sourceModelDocument } from './source-model-document';
-import { collectSource, type SourceCollection } from './source-controller';
+import { collectSource, type SourceCollection } from './source-collection';
 
 const analysisPort: SourcePort = {
   async execute() {

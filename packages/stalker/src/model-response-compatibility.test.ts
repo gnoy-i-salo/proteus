@@ -3,8 +3,8 @@ import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import type { SourcePort } from '@proteus-int/contracts';
 import { collectPerson, sourceSkill } from './index';
 import { analyzeSourceCollections } from './source-analysis';
-import { parseCollectionAction } from './source-controller';
-import { sourceDocument, sourceGrant, sourceInput, sourceResult } from './source-fixtures';
+import { parseCollectionAction } from './collection-action';
+import { sourceDocument, sourceGrant, sourceInput, sourceResult } from './testing/source-fixtures';
 
 const excerpt = '  Анна → Борис\r\n«Ёлка» 👩🏽‍🔬\nhttps://example.org/Exact-ID  ';
 const canonicalEvidence = {

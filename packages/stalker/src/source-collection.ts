@@ -1,5 +1,4 @@
 import type {
-  CollectionAction,
   IntelligenceTrace,
   PersonInput,
   SourceCoverage,
@@ -10,9 +9,12 @@ import type {
   SourceAction,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
-import { decodeResponseFields, structured } from '@proteus-int/intelligence';
+import { structured } from '@proteus-int/intelligence';
 import { sourceSkill } from './source-skills';
 import { sourceModelDocument } from './source-model-document';
+import { parseCollectionAction } from './collection-action';
+import { validateSourceGrant, validateSourceResult } from './source-scope';
+import { CollectionStop, collectionStepBudget, isSourceBudgetFailure } from './source-budget';
 
 export interface SourceCollection {
   readonly grant: SourceGrant;
@@ -28,47 +30,6 @@ export interface SourceCollection {
   };
 }
 
-export function parseCollectionAction(raw: Record<string, unknown>): CollectionAction {
-  const value = decodeResponseFields(raw, [['document-ids', 'documentIds']]);
-  const allowed: Record<string, readonly string[]> = {
-    describe: ['action'],
-    coverage: ['action'],
-    search: ['action', 'query', 'limit'],
-    collect: ['action', 'cursor', 'limit'],
-    read: ['action', 'documentIds'],
-    finish: ['action', 'reason'],
-  };
-  const fields = typeof value.action === 'string' ? allowed[value.action] : undefined;
-  const fail = () => {
-    throw new Error('STALKER: invalid source action');
-  };
-  if (!fields || Object.keys(value).some((key) => !fields.includes(key))) return fail();
-  const bounded = (item: unknown, max: number): item is string =>
-    typeof item === 'string' && item.trim().length > 0 && item.length <= max;
-  if (
-    (value.action === 'collect' || value.action === 'search') &&
-    (!Number.isInteger(value.limit) || Number(value.limit) < 1 || Number(value.limit) > 20)
-  )
-    return fail();
-  if (value.action === 'search' && !bounded(value.query, 256)) return fail();
-  if (value.action === 'collect' && value.cursor !== null && !bounded(value.cursor, 1024))
-    return fail();
-  if (
-    value.action === 'read' &&
-    (!Array.isArray(value.documentIds) ||
-      !value.documentIds.length ||
-      value.documentIds.length > 20 ||
-      value.documentIds.some((id) => !bounded(id, 128)))
-  )
-    return fail();
-  if (value.action === 'finish' && !bounded(value.reason, 1000)) return fail();
-  return value as unknown as CollectionAction;
-}
-
-class CollectionStop extends Error {}
-export function isSourceBudgetFailure(error: unknown): boolean {
-  return (error instanceof Error ? error.message : error) === 'source-budget-exceeded';
-}
 const emptyCoverage = (): SourceCoverage => ({
   documents: 0,
   totalDocuments: null,
@@ -78,74 +39,6 @@ const emptyCoverage = (): SourceCoverage => ({
   notAnalyzed: 0,
   unavailable: [],
 });
-export function validateSourceGrant(grant: SourceGrant) {
-  if (
-    !grant.id ||
-    !grant.snapshotId ||
-    !grant.accountId ||
-    !grant.resourceId ||
-    grant.allowModelProcessing !== true ||
-    !(Date.parse(grant.expiresAt) > Date.now()) ||
-    (grant.from !== null && !Number.isFinite(Date.parse(grant.from))) ||
-    (grant.to !== null && !Number.isFinite(Date.parse(grant.to))) ||
-    (grant.from !== null && grant.to !== null && Date.parse(grant.from) > Date.parse(grant.to)) ||
-    !grant.operations.includes('collect') ||
-    Object.values(grant.budget).some((value) => !Number.isSafeInteger(value) || value <= 0) ||
-    grant.budget.maxSteps > 100 ||
-    grant.budget.maxDocuments > 5000 ||
-    grant.budget.maxBytes > 5 * 1024 * 1024 ||
-    grant.budget.maxDurationMs > 600000
-  )
-    throw new Error('STALKER: invalid or expired source grant');
-}
-function validateResult(result: SourceResult, grant: SourceGrant) {
-  if (
-    result.snapshotId !== grant.snapshotId ||
-    !Array.isArray(result.documents) ||
-    result.documents.length > 20
-  )
-    throw new Error('STALKER: invalid source scope or result size');
-  for (const doc of result.documents) {
-    if (
-      !doc.id ||
-      doc.id.length > 128 ||
-      doc.provider !== grant.provider ||
-      doc.resourceId !== grant.resourceId ||
-      typeof doc.text !== 'string' ||
-      doc.text.length > 24000 ||
-      !doc.contentHash ||
-      (doc.createdAt !== null && !Number.isFinite(Date.parse(doc.createdAt))) ||
-      typeof doc.truncated !== 'boolean' ||
-      typeof doc.isForwarded !== 'boolean' ||
-      (doc.authorLabel !== null && typeof doc.authorLabel !== 'string') ||
-      !['reference', 'holdout'].includes(doc.partition) ||
-      !['owner', 'other', 'unknown'].includes(doc.authorship) ||
-      !['dialogue', 'comment', 'formal'].includes(doc.mode) ||
-      (grant.authorId && doc.authorship === 'owner' && doc.authorId !== grant.authorId) ||
-      (grant.from && (!doc.createdAt || Date.parse(doc.createdAt) < Date.parse(grant.from))) ||
-      (grant.to && (!doc.createdAt || Date.parse(doc.createdAt) > Date.parse(grant.to)))
-    )
-      throw new Error('STALKER: document outside source scope or invalid document');
-    if (doc.retrievedAt !== null && !Number.isFinite(Date.parse(doc.retrievedAt)))
-      throw new Error('STALKER: invalid source retrieval receipt');
-  }
-  if (
-    ![result.coverage.documents, result.coverage.bytes, result.coverage.notAnalyzed].every(
-      (n) => Number.isSafeInteger(n) && n >= 0,
-    ) ||
-    typeof result.coverage.complete !== 'boolean' ||
-    typeof result.coverage.truncated !== 'boolean' ||
-    (result.coverage.totalDocuments !== null &&
-      (!Number.isSafeInteger(result.coverage.totalDocuments) ||
-        result.coverage.totalDocuments < 0)) ||
-    (result.cursor !== null && result.coverage.complete) ||
-    (result.cursor !== null &&
-      (typeof result.cursor !== 'string' || result.cursor.length > 1024)) ||
-    !Array.isArray(result.limitations) ||
-    !Array.isArray(result.coverage.unavailable)
-  )
-    throw new Error('STALKER: invalid source coverage');
-}
 
 export async function collectSource(
   grant: SourceGrant,
@@ -166,9 +59,7 @@ export async function collectSource(
   );
   // Reads and planning share the persistent native budget with corpus analysis.
   // Leave room for analysis plus a format repair, while allowing one initial read.
-  const maxSteps = grant.budget.maxSteps;
-  const analysisSteps = Math.min(maxSteps - 1, Math.max(2, Math.min(4, Math.floor(maxSteps / 3))));
-  const collectionSteps = maxSteps - analysisSteps;
+  const { analysisSteps, collectionSteps } = collectionStepBudget(grant.budget.maxSteps);
   let steps = 0;
   let bytes = 0;
   let coverage = emptyCoverage();
@@ -201,7 +92,7 @@ export async function collectSource(
     )
       throw new CollectionStop('Source read is outside the known reference documents');
     const result = await port.execute(grant.id, action, controller.signal);
-    validateResult(result, grant);
+    validateSourceResult(result, grant);
     coverage = result.coverage;
     limitations.push(...result.limitations);
     for (const doc of result.documents) {

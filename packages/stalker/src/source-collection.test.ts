@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import type { PersonInput, SourceGrant, SourcePort } from '@proteus-int/contracts';
-import { collectSource as runCollection, parseCollectionAction } from './source-controller';
-import { sourceInput, sourceGrant, sourceDocument, sourceResult } from './source-fixtures';
+import { collectSource as runCollection } from './source-collection';
+import { sourceInput, sourceGrant, sourceDocument, sourceResult } from './testing/source-fixtures';
 
 function collectSource(
   grant: SourceGrant,
@@ -188,17 +188,5 @@ describe('bounded source collection', () => {
     await expect(
       collectSource(sourceGrant, sourceInput, sourceProvider(), { execute }),
     ).rejects.toThrow(/coverage/i);
-  });
-});
-
-describe('source action allowlist', () => {
-  it.each([
-    { action: 'send', text: 'hello' },
-    { action: 'collect', cursor: null, limit: 21 },
-    { action: 'read', documentIds: [] },
-    { action: 'search', query: 'x', limit: 1, url: 'https://other.example' },
-    { action: 'finish', reason: 'done', token: 'secret' },
-  ])('rejects malformed or unlisted action %j', (value) => {
-    expect(() => parseCollectionAction(value)).toThrow(/action/i);
   });
 });

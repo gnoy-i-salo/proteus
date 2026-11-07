@@ -10,6 +10,8 @@ const adapters = new Set([
   'cli',
   'sources',
   'source-bindings',
+  'ingestion-input',
+  'ingestion',
   'connections',
   'presets',
   'model-settings-storage',

@@ -152,3 +152,18 @@ test('inline-only type specifiers still emit an adapter import under verbatimMod
     [],
   );
 });
+
+test('ingestion picker and job adapters stay behind UI scenario models', () => {
+  for (const adapter of ['ingestion-input', 'ingestion']) {
+    const source = `import { action } from '../../../shared/lib/${adapter}';`;
+    assert.ok(uiBoundaryErrors(source, ui).length, adapter);
+    assert.deepEqual(
+      uiBoundaryErrors(source, 'apps/desktop/src/features/source-selection/model/import.ts'),
+      [],
+    );
+    assert.deepEqual(
+      uiBoundaryErrors(`import type { Input } from '../../../shared/lib/${adapter}';`, ui),
+      [],
+    );
+  }
+});

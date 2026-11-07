@@ -10,6 +10,8 @@ mod provenance;
 mod record_store;
 #[path = "corpus-revocation.rs"]
 mod revocation;
+#[path = "corpus-search.rs"]
+pub mod search;
 #[path = "corpus-snapshot-store.rs"]
 mod snapshot_store;
 pub use provenance::{Acquisition, HashAlgorithm, ProvenanceLimitation, SourceProvenance};
@@ -61,7 +63,7 @@ impl CorpusDatabase {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .map_err(sql_error)?;
-        if !(0..=3).contains(&version) {
+        if !(0..=4).contains(&version) {
             return Err(INVALID.into());
         }
         if version == 0 {
@@ -73,6 +75,8 @@ impl CorpusDatabase {
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(sql_error)?;
             tx.execute_batch(include_str!("corpus-schema.sql"))
+                .map_err(sql_error)?;
+            tx.execute_batch(include_str!("corpus-search-schema.sql"))
                 .map_err(sql_error)?;
             tx.commit().map_err(sql_error)?;
         }
@@ -88,6 +92,9 @@ impl CorpusDatabase {
         if (1..=2).contains(&version) {
             migrations::upgrade_record_namespaces(&mut connection)?;
         }
+        if (1..=3).contains(&version) {
+            migrations::upgrade_search(&mut connection)?;
+        }
         Ok(Self { connection })
     }
 }
@@ -100,3 +107,7 @@ mod namespace_tests;
 #[cfg(test)]
 #[path = "corpus-database-tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "corpus-search-migration-tests.rs"]
+mod search_migration_tests;

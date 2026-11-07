@@ -644,7 +644,12 @@ fn review_total_documents_cannot_be_less_than_loaded() {
 
 #[test]
 fn review_version_one_database_upgrades_atomically_and_preserves_exact_records() {
-    let (mut db, dir) = setup();
+    let dir = std::env::temp_dir().join(format!("proteus-v1-upgrade-{}", rand::random::<u64>()));
+    let connection = crypto::open(&dir.join("corpus.db"), &[31; 32]).unwrap();
+    connection
+        .execute_batch(include_str!("fixtures/corpus-v3.sql"))
+        .unwrap();
+    let mut db = CorpusDatabase { connection };
     db.save(&record("legacy", "legacy/source", "  exact é\r\n😀"))
         .unwrap();
     let before = db.read("legacy").unwrap().unwrap();
@@ -655,7 +660,7 @@ fn review_version_one_database_upgrades_atomically_and_preserves_exact_records()
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 3);
+    assert_eq!(version, 4);
     assert_eq!(db.read("legacy").unwrap().unwrap(), before);
     db.create_job(&job_input("upgraded")).unwrap();
     db.start_job("upgraded").unwrap();
@@ -706,7 +711,7 @@ fn review_actual_v1_fixture_migrates_but_unsupported_job_data_is_retained_and_re
                 .connection
                 .pragma_query_value(None, "user_version", |row| row.get(0))
                 .unwrap();
-            assert_eq!(version, 3);
+            assert_eq!(version, 4);
         }
         std::fs::remove_dir_all(dir).unwrap();
     }

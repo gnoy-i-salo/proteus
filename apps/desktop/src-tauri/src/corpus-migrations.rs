@@ -28,3 +28,15 @@ pub(super) fn upgrade_record_namespaces(connection: &mut Connection) -> Result<(
     tx.execute_batch("ALTER TABLE records ADD COLUMN namespace TEXT NOT NULL DEFAULT 'sourceService' CHECK(namespace IN ('sourceService','ingestion')); CREATE TRIGGER immutable_record_namespace BEFORE UPDATE OF namespace ON records WHEN NEW.namespace<>OLD.namespace BEGIN SELECT RAISE(ABORT,'immutable record namespace'); END; PRAGMA user_version=3;").map_err(sql_error)?;
     tx.commit().map_err(sql_error)
 }
+
+/// Derived search data is rebuildable; existing corpus/job bytes are untouched.
+pub(super) fn upgrade_search(connection: &mut Connection) -> Result<(), String> {
+    let tx = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sql_error)?;
+    tx.execute_batch(include_str!("corpus-search-schema.sql"))
+        .map_err(sql_error)?;
+    tx.pragma_update(None, "user_version", 4)
+        .map_err(sql_error)?;
+    tx.commit().map_err(sql_error)
+}

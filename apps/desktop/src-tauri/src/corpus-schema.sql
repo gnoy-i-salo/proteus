@@ -59,4 +59,4 @@ CREATE TABLE job_records (
     PRIMARY KEY(job_id,position),UNIQUE(job_id,record_id)
 );
 PRAGMA application_id=1347572819;
-PRAGMA user_version=3;
+PRAGMA user_version=4;

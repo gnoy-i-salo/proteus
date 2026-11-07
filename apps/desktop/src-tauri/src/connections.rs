@@ -27,6 +27,19 @@ pub enum Provider {
     Github,
     Instagram,
 }
+#[derive(Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum TelegramMethod {
+    #[default]
+    Qr,
+    Phone,
+}
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConnectionPage {
+    VkAuth,
+    InstagramExport,
+}
 impl Provider {
     pub(crate) fn key(self) -> &'static str {
         match self {
@@ -65,6 +78,8 @@ pub struct ConnectionStatus {
     pub user_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub poll_after_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qr_code: Option<String>,
     pub capabilities: Vec<String>,
 }
 
@@ -159,6 +174,7 @@ impl Connections {
             api_id: config.as_ref().and_then(|c| c.api_id),
             user_code: None,
             poll_after_ms: None,
+            qr_code: None,
             capabilities: vec!["archive-import".into()],
         };
         if provider == Provider::Telegram {
@@ -170,7 +186,9 @@ impl Connections {
                 .map_err(|_| "Ошибка состояния Telegram.")?
                 .as_ref()
             {
-                status.status = client.status()?;
+                let (state, qr_code) = client.view()?;
+                status.status = state;
+                status.qr_code = qr_code;
                 if status.status == "connected" {
                     let me = client.me()?;
                     status.label = Some(telegram::label(&me));
@@ -335,7 +353,14 @@ impl Connections {
         )?;
         self.status(provider)
     }
-    fn begin(&self, provider: Provider) -> Result<ConnectionStatus, String> {
+    fn begin(
+        &self,
+        provider: Provider,
+        telegram_method: Option<TelegramMethod>,
+    ) -> Result<ConnectionStatus, String> {
+        if provider != Provider::Telegram && telegram_method.is_some() {
+            return Err("Метод входа доступен только для Telegram.".into());
+        }
         let _guard = self
             .0
             .gate
@@ -387,21 +412,31 @@ impl Connections {
                         .telegram
                         .lock()
                         .map_err(|_| "Ошибка состояния Telegram.")?;
-                    if slot.is_none() {
-                        let key = match self.0.secrets.get("telegram-database-key")? {
-                            Some(key) => key,
-                            None => {
-                                let key = storage::random_id(32)?;
-                                self.0.secrets.set("telegram-database-key", &key)?;
-                                key
-                            }
-                        };
-                        *slot = Some(telegram::Telegram::start(
-                            config.api_id.ok_or("API ID не настроен.")?,
-                            config.api_hash.ok_or("API hash не настроен.")?,
-                            &self.0.directory.join("telegram"),
-                            &key,
-                        )?);
+                    if slot.as_ref().is_none_or(|client| {
+                        client.status().is_ok_and(|state| state == "disconnected")
+                    }) {
+                        slot.take();
+                        *slot = Some(self.start_telegram(&config)?);
+                    }
+                    let method = telegram_method.unwrap_or_default();
+                    if slot
+                        .as_ref()
+                        .ok_or("Не удалось начать Telegram.")?
+                        .prepare_login(method)?
+                    {
+                        // prepare_login returns restart only after authorizationStateClosed.
+                        // On timeout/error the existing slot remains owned and is not reopened.
+                        slot.take();
+                        *slot = Some(self.start_telegram(&config)?);
+                        if slot
+                            .as_ref()
+                            .ok_or("Не удалось начать Telegram.")?
+                            .prepare_login(method)?
+                        {
+                            return Err(
+                                "Telegram не подготовил новый вход. Повторите позже.".into()
+                            );
+                        }
                     }
                 }
                 #[cfg(not(feature = "telegram"))]
@@ -414,6 +449,44 @@ impl Connections {
             }
         }
         self.status(provider)
+    }
+    #[cfg(feature = "telegram")]
+    fn start_telegram(&self, config: &ConnectionConfig) -> Result<telegram::Telegram, String> {
+        let key = match self.0.secrets.get("telegram-database-key")? {
+            Some(key) => key,
+            None => {
+                let key = storage::random_id(32)?;
+                self.0.secrets.set("telegram-database-key", &key)?;
+                key
+            }
+        };
+        telegram::Telegram::start(
+            config.api_id.ok_or("API ID не настроен.")?,
+            config.api_hash.clone().ok_or("API hash не настроен.")?,
+            &self.0.directory.join("telegram"),
+            &key,
+        )
+    }
+    fn open_page(&self, page: ConnectionPage) -> Result<(), String> {
+        let _guard = self
+            .0
+            .gate
+            .lock()
+            .map_err(|_| "Ошибка состояния подключений.")?;
+        let url = match page {
+            ConnectionPage::VkAuth => oauth::reopen_vk_url(
+                self.0.secrets.as_ref(),
+                &self
+                    .config(Provider::Vk)?
+                    .client_id
+                    .ok_or("Client ID не настроен.")?,
+                Utc::now().timestamp(),
+            )?,
+            ConnectionPage::InstagramExport => {
+                url::Url::parse(oauth::INSTAGRAM_EXPORT).expect("fixed Instagram export URL")
+            }
+        };
+        oauth::open_browser(&url)
     }
     fn advance(
         &self,
@@ -760,15 +833,15 @@ impl Connections {
             .map_err(|_| "Ошибка состояния подключений.")?;
         #[cfg(feature = "telegram")]
         if provider == Provider::Telegram {
-            if let Some(client) = self
+            let mut slot = self
                 .0
                 .telegram
                 .lock()
-                .map_err(|_| "Ошибка состояния Telegram.")?
-                .take()
-            {
+                .map_err(|_| "Ошибка состояния Telegram.")?;
+            if let Some(client) = slot.as_ref() {
                 client.logout()?;
             }
+            slot.take();
         }
         self.0
             .secrets
@@ -842,12 +915,23 @@ pub async fn connection_statuses(
 #[tauri::command]
 pub async fn begin_connection(
     provider: Provider,
+    telegram_method: Option<TelegramMethod>,
     connections: tauri::State<'_, Connections>,
 ) -> Result<ConnectionStatus, String> {
     let hub = connections.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || hub.begin(provider))
+    tauri::async_runtime::spawn_blocking(move || hub.begin(provider, telegram_method))
         .await
         .map_err(|_| "Не удалось начать подключение.".to_string())?
+}
+#[tauri::command]
+pub async fn open_connection_page(
+    page: ConnectionPage,
+    connections: tauri::State<'_, Connections>,
+) -> Result<(), String> {
+    let hub = connections.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || hub.open_page(page))
+        .await
+        .map_err(|_| "Не удалось открыть страницу сервиса.".to_string())?
 }
 #[tauri::command]
 pub async fn advance_connection(

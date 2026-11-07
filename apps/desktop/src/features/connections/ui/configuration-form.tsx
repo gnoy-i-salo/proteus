@@ -67,7 +67,9 @@ export function ConfigurationForm(props: {
             aria-label={`Client ID ${names[props.provider]}`}
             maxLength={128}
             required
-            value={untrack(() => props.status['client-id'] ?? '')}
+            value={untrack(
+              () => props.status['client-id'] ?? (props.provider === 'vk' ? '54881156' : ''),
+            )}
             disabled={props.busy}
           />
         </label>

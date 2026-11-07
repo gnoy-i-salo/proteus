@@ -1,11 +1,14 @@
 import type { SourceProvider } from './sources';
 
 export const connectionProviders = ['telegram', 'vk', 'github', 'instagram'] as const;
+export type TelegramAuthMethod = 'qr' | 'phone';
+export type ConnectionPage = 'vk-auth' | 'instagram-export';
 
 export type ConnectionState =
   | 'unconfigured'
   | 'disconnected'
   | 'pending'
+  | 'qr-required'
   | 'phone-required'
   | 'code-required'
   | 'password-required'
@@ -15,7 +18,9 @@ export type ConnectionState =
   | 'error'
   | 'unavailable';
 
-/** Native status contains public configuration and sanitized display text, never credentials. */
+/** Public configuration and ephemeral login challenges; never access tokens or PKCE verifiers.
+ * Do not persist, log, export or send login challenges to a model.
+ */
 export interface ConnectionStatus {
   readonly provider: SourceProvider;
   readonly status: ConnectionState;
@@ -24,6 +29,8 @@ export interface ConnectionStatus {
   readonly 'client-id'?: string;
   readonly 'api-id'?: number;
   readonly 'user-code'?: string;
+  /** Native-generated SVG image data URL, at most 128 KiB; only present while QR is required. */
+  readonly 'qr-code'?: string;
   readonly 'poll-after-ms'?: number;
   readonly capabilities: readonly string[];
 }

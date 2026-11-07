@@ -88,6 +88,7 @@ fn main() {
             connections::configure_connection,
             connections::connection_statuses,
             connections::begin_connection,
+            connections::open_connection_page,
             connections::advance_connection,
             connections::disconnect_connection,
             sources::create_source_grant,

@@ -2,7 +2,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type {
   ConnectionConfig,
+  ConnectionPage,
   ConnectionStatus,
+  TelegramAuthMethod,
   ImportedSource,
   SourceProvider,
   SourceGrant,
@@ -31,9 +33,17 @@ export function configureConnection(request: ConnectionConfig): Promise<Connecti
   return invoke('configure_connection', { request });
 }
 
-export function beginConnection(provider: SourceProvider): Promise<ConnectionStatus> {
+export function beginConnection(
+  provider: SourceProvider,
+  telegramMethod?: TelegramAuthMethod,
+): Promise<ConnectionStatus> {
   requireDesktop();
-  return invoke('begin_connection', { provider });
+  return invoke('begin_connection', { provider, ...(telegramMethod ? { telegramMethod } : {}) });
+}
+
+export function openConnectionPage(page: ConnectionPage): Promise<void> {
+  requireDesktop();
+  return invoke('open_connection_page', { page });
 }
 
 export function advanceConnection(

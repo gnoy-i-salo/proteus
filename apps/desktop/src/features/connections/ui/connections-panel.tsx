@@ -9,6 +9,7 @@ import {
   disconnectConnection,
   importSource,
   clearSourceData,
+  openConnectionPage,
 } from '../../../shared/lib/connections';
 import { isDesktop } from '../../../shared/lib/window-controls';
 import { ConfigurationForm } from './configuration-form';
@@ -29,7 +30,9 @@ export function ConnectionsPanel(props: {
   const [selected, setSelected] = createSignal<SourceProvider>('telegram');
   const [statuses, setStatuses] = createSignal<readonly ConnectionStatus[]>([]);
   const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal('');
+  const [actionError, setError] = createSignal('');
+  const [pollError, setPollError] = createSignal('');
+  const error = () => actionError() || pollError();
   const [editing, setEditing] = createSignal(false);
   const [instagramMode, setInstagramMode] = createSignal<'archive' | 'api'>('archive');
   const [imported, setImported] = createSignal<ImportedSource>();
@@ -38,6 +41,7 @@ export function ConnectionsPanel(props: {
   let disposed = false;
   let revision = 0;
   let nextPoll = 0;
+  let refreshing = false;
   const current = (): ConnectionStatus =>
     statuses().find((item) => item.provider === selected()) ?? {
       provider: selected(),
@@ -46,14 +50,38 @@ export function ConnectionsPanel(props: {
     };
   const challenge = () => challenges[current().status];
   const configurationVisible = () => editing() || current().status === 'unconfigured';
+  const qrCode = () => {
+    const value = current()['qr-code'];
+    return selected() === 'telegram' &&
+      current().status === 'qr-required' &&
+      !busy() &&
+      !error() &&
+      value &&
+      value.length <= 128 * 1024 &&
+      /^data:image\/svg\+xml;base64,[A-Za-z0-9+/]+={0,2}$/u.test(value)
+      ? value
+      : undefined;
+  };
+  const withoutQr = (status: ConnectionStatus): ConnectionStatus => {
+    const result = { ...status };
+    delete result['qr-code'];
+    return result;
+  };
+  const visibleStatus = (status: ConnectionStatus): ConnectionStatus =>
+    selected() === 'telegram' && status.provider === 'telegram' && status.status === 'qr-required'
+      ? status
+      : withoutQr(status);
+  const clearQr = () => setStatuses((items) => items.map(withoutQr));
 
   const refresh = async () => {
-    if (!desktop || busy()) return;
+    if (!desktop || busy() || refreshing) return;
+    refreshing = true;
     const version = revision;
     try {
       const result = await connectionStatuses();
       if (!disposed && version === revision) {
-        setStatuses(result);
+        setStatuses(result.map(visibleStatus));
+        setPollError('');
         const pending = result.find(
           (item) => item.provider === 'github' && item.status === 'pending',
         );
@@ -61,28 +89,38 @@ export function ConnectionsPanel(props: {
           nextPoll = Date.now() + Math.max(1000, pending['poll-after-ms'] ?? 5000);
       }
     } catch {
-      if (!disposed && version === revision)
-        setError('Не удалось получить состояние подключений. Попробуйте ещё раз.');
+      if (!disposed && version === revision) {
+        clearQr();
+        setPollError('Не удалось получить состояние подключений. Попробуйте ещё раз.');
+      }
+    } finally {
+      refreshing = false;
     }
   };
-  const perform = async (operation: () => Promise<ConnectionStatus>) => {
+  const perform = async (
+    operation: () => Promise<ConnectionStatus | void>,
+    failureMessage = 'Не удалось выполнить подключение. Проверьте данные и повторите попытку.',
+  ) => {
     if (busy()) return;
     const version = ++revision;
+    clearQr();
     setBusy(true);
     setError('');
+    setPollError('');
     try {
       const result = await operation();
       if (!disposed && version === revision) {
-        setStatuses((items) => [
-          ...items.filter((item) => item.provider !== result.provider),
-          result,
-        ]);
+        if (result) {
+          setStatuses((items) => [
+            ...items.filter((item) => item.provider !== result.provider),
+            visibleStatus(result),
+          ]);
+          nextPoll = Date.now() + Math.max(1000, result['poll-after-ms'] ?? 5000);
+        }
         setEditing(false);
-        nextPoll = Date.now() + Math.max(1000, result['poll-after-ms'] ?? 5000);
       }
     } catch {
-      if (!disposed && version === revision)
-        setError('Не удалось выполнить подключение. Проверьте данные и повторите попытку.');
+      if (!disposed && version === revision) setError(failureMessage);
     } finally {
       if (!disposed && version === revision) setBusy(false);
     }
@@ -90,8 +128,10 @@ export function ConnectionsPanel(props: {
   const pickImport = async () => {
     if (busy()) return;
     ++revision;
+    clearQr();
     setBusy(true);
     setError('');
+    setPollError('');
     setCleared(false);
     const provider = selected();
     try {
@@ -114,8 +154,10 @@ export function ConnectionsPanel(props: {
       return;
     }
     ++revision;
+    clearQr();
     setBusy(true);
     setError('');
+    setPollError('');
     const provider = selected();
     try {
       await clearSourceData(provider);
@@ -142,6 +184,7 @@ export function ConnectionsPanel(props: {
     onCleanup(() => {
       disposed = true;
       revision++;
+      clearQr();
       window.clearInterval(timer);
     });
   });
@@ -158,9 +201,12 @@ export function ConnectionsPanel(props: {
               aria-controls="connection-details"
               disabled={busy()}
               onClick={() => {
+                ++revision;
+                clearQr();
                 setSelected(provider);
                 setEditing(false);
                 setError('');
+                setPollError('');
                 setImported(undefined);
                 setClearConfirm(false);
                 setCleared(false);
@@ -172,7 +218,11 @@ export function ConnectionsPanel(props: {
         </For>
       </div>
       <div id="connection-details" role="tabpanel" aria-labelledby={`connection-tab-${selected()}`}>
-        <p class={styles['connections-panel__description']}>{descriptions[selected()]}</p>
+        <p class={styles['connections-panel__description']}>
+          {selected() === 'telegram' && current().status === 'qr-required'
+            ? 'Доступная история выбранного чата.'
+            : descriptions[selected()]}
+        </p>
         <Show
           when={desktop}
           fallback={<p role="status">Подключения доступны в настольном приложении PROTEUS.</p>}
@@ -233,6 +283,7 @@ export function ConnectionsPanel(props: {
               when={
                 !configurationVisible() &&
                 selected() !== 'instagram' &&
+                selected() !== 'telegram' &&
                 (current().status === 'disconnected' || current().status === 'error')
               }
             >
@@ -242,8 +293,59 @@ export function ConnectionsPanel(props: {
                   void perform(() => beginConnection(selected()));
                 }}
               >
-                Подключить {names[selected()]}
+                {selected() === 'vk'
+                  ? 'Войти в VK через браузер'
+                  : `Подключить ${names[selected()]}`}
               </button>
+            </Show>
+            <Show
+              when={
+                selected() === 'telegram' &&
+                !configurationVisible() &&
+                (current().status === 'disconnected' || current().status === 'error')
+              }
+            >
+              <div class={styles['connections-panel__actions']}>
+                <button
+                  disabled={busy()}
+                  onClick={() => void perform(() => beginConnection('telegram', 'qr'))}
+                >
+                  Войти по QR-коду
+                </button>
+                <button
+                  disabled={busy()}
+                  onClick={() => void perform(() => beginConnection('telegram', 'phone'))}
+                >
+                  Войти по номеру телефона
+                </button>
+              </div>
+            </Show>
+            <Show when={selected() === 'telegram' && current().status === 'qr-required'}>
+              <div class={styles['connections-panel__qr']}>
+                <Show
+                  when={qrCode()}
+                  fallback={
+                    <div class={styles['connections-panel__qr-placeholder']}>
+                      Ожидаем актуальный QR-код…
+                    </div>
+                  }
+                >
+                  <img src={qrCode()} alt="QR-код входа в Telegram" width="176" height="176" />
+                </Show>
+                <div>
+                  <p>
+                    В Telegram на телефоне откройте Настройки → Устройства → Подключить устройство.
+                  </p>
+                  <p>QR-код обновляется автоматически.</p>
+                  <button
+                    disabled={busy()}
+                    onClick={() => void perform(() => beginConnection('telegram', 'phone'))}
+                  >
+                    Отменить вход по QR и войти по номеру
+                  </button>
+                  <p>Текущая попытка входа будет отменена.</p>
+                </div>
+              </div>
             </Show>
             <Show when={challenge()} keyed>
               {(step) => (
@@ -275,7 +377,12 @@ export function ConnectionsPanel(props: {
                 </form>
               )}
             </Show>
-            <Show when={current().status === 'pending'}>
+            <Show when={current().status === 'pending' && selected() === 'telegram'}>
+              <p class={styles['connections-panel__note']}>
+                Готовим вход в Telegram. Дождитесь обновления состояния.
+              </p>
+            </Show>
+            <Show when={current().status === 'pending' && selected() !== 'telegram'}>
               <Show when={current()['user-code']}>
                 <p class={styles['connections-panel__device-code']}>
                   Код для страницы подтверждения: <strong>{current()['user-code']}</strong>
@@ -285,6 +392,19 @@ export function ConnectionsPanel(props: {
                 Завершите вход в открывшемся браузере. Здесь появится подтверждённое состояние
                 аккаунта.
               </p>
+              <Show when={selected() === 'vk'}>
+                <button
+                  disabled={busy()}
+                  onClick={() =>
+                    void perform(
+                      () => openConnectionPage('vk-auth'),
+                      'Не удалось открыть страницу входа. Если попытка истекла, отмените подключение и войдите заново.',
+                    )
+                  }
+                >
+                  Открыть браузер ещё раз
+                </button>
+              </Show>
               <button
                 disabled={busy()}
                 onClick={() => {
@@ -306,7 +426,12 @@ export function ConnectionsPanel(props: {
             </Show>
             <div class={styles['connections-panel__actions']}>
               <Show
-                when={!configurationVisible() && !challenge() && current().status !== 'pending'}
+                when={
+                  !configurationVisible() &&
+                  !challenge() &&
+                  current().status !== 'pending' &&
+                  current().status !== 'qr-required'
+                }
               >
                 <button disabled={busy()} onClick={() => setEditing(true)}>
                   Настроить {names[selected()]}
@@ -314,7 +439,10 @@ export function ConnectionsPanel(props: {
               </Show>
               <Show
                 when={
-                  current().status === 'connected' || current().status === 'pending' || challenge()
+                  current().status === 'connected' ||
+                  current().status === 'pending' ||
+                  current().status === 'qr-required' ||
+                  challenge()
                 }
               >
                 <button
@@ -331,9 +459,22 @@ export function ConnectionsPanel(props: {
             </div>
           </Show>
           <Show when={selected() === 'instagram' && instagramMode() === 'archive'}>
+            <button
+              disabled={busy()}
+              onClick={() =>
+                void perform(
+                  () => openConnectionPage('instagram-export'),
+                  'Не удалось открыть экспорт Instagram. Откройте Центр аккаунтов в настройках Instagram.',
+                )
+              }
+            >
+              Открыть экспорт Instagram
+            </button>
             <p class={styles['connections-panel__note']}>
-              Экспортируйте данные Instagram на устройство и распакуйте архив. Выберите JSON с
-              сообщениями или подготовленный текст. Чужая страница целиком в экспорт не входит.
+              Центр аккаунтов → Ваша информация и разрешения → Экспорт информации → На устройство.
+              Выберите сообщения, нужные даты и формат JSON. Распакуйте архив и импортируйте JSON
+              выбранной переписки или подготовленный текст. Чужая страница целиком в экспорт не
+              входит.
             </p>
             <button
               disabled={busy()}

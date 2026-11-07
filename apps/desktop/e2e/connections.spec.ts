@@ -21,6 +21,22 @@ async function nativeConnections(page: Page) {
       }),
     );
     Reflect.set(window, 'connectionCalls', calls);
+    Reflect.set(
+      window,
+      'setConnectionState',
+      (provider: string, state: Record<string, unknown>) => {
+        states[provider] = { ...states[provider], ...state };
+      },
+    );
+    const qrCode = (version = 'first') =>
+      `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><title>${version}</title><rect width="100" height="100" fill="white"/><rect x="10" y="10" width="30" height="30"/></svg>`)}`;
+    Reflect.set(window, 'rotateTelegramQr', () => {
+      states['telegram'] = {
+        ...states['telegram'],
+        status: 'qr-required',
+        'qr-code': qrCode('rotated'),
+      };
+    });
     Reflect.set(window, '__TAURI_INTERNALS__', {
       transformCallback: (callback: (event: unknown) => void) => {
         callbacks.set(++callbackId, callback);
@@ -32,8 +48,39 @@ async function nativeConnections(page: Page) {
           eventHandlers.set(String(args['event']), Number(args['handler']));
           return args['handler'];
         }
-        if (command === 'connection_statuses') return Object.values(states);
+        if (command === 'connection_statuses') {
+          if (Reflect.get(window, 'rejectNextConnectionPoll')) {
+            Reflect.set(window, 'rejectNextConnectionPoll', false);
+            throw new Error('test-transient-status-error');
+          }
+          Reflect.set(
+            window,
+            'connectionPollCount',
+            Number(Reflect.get(window, 'connectionPollCount') ?? 0) + 1,
+          );
+          const snapshot = structuredClone(Object.values(states));
+          if (Reflect.get(window, 'holdNextConnectionPoll')) {
+            Reflect.set(window, 'holdNextConnectionPoll', false);
+            return new Promise((resolve) =>
+              Reflect.set(window, 'releaseConnectionPoll', () => resolve(snapshot)),
+            );
+          }
+          return snapshot;
+        }
         calls.push({ command, args });
+        if (command === 'open_connection_page') return;
+        if (command === 'begin_connection' || command === 'disconnect_connection') {
+          if (Reflect.get(window, 'rejectNextConnectionAction')) {
+            Reflect.set(window, 'rejectNextConnectionAction', false);
+            throw new Error('test-native-credential-error');
+          }
+          if (Reflect.get(window, 'holdNextConnectionAction')) {
+            Reflect.set(window, 'holdNextConnectionAction', false);
+            await new Promise<void>((resolve) =>
+              Reflect.set(window, 'releaseConnectionAction', resolve),
+            );
+          }
+        }
         const request = args['request'] as Record<string, unknown> | undefined;
         const provider = String(request?.['provider'] ?? args['provider']);
         if (command === 'create_source_grant')
@@ -57,7 +104,15 @@ async function nativeConnections(page: Page) {
         if (command === 'begin_connection') {
           states[provider] = {
             ...states[provider],
-            status: provider === 'telegram' ? 'phone-required' : 'pending',
+            status:
+              provider === 'telegram'
+                ? args['telegramMethod'] === 'phone'
+                  ? 'phone-required'
+                  : 'qr-required'
+                : 'pending',
+            ...(provider === 'telegram'
+              ? { 'qr-code': args['telegramMethod'] === 'phone' ? undefined : qrCode() }
+              : {}),
             ...(provider === 'github' ? { 'user-code': 'TEST-CODE', 'poll-after-ms': 60000 } : {}),
           };
         }
@@ -198,7 +253,7 @@ test('Telegram advances native challenges and clears secret inputs', async ({ pa
   await page.getByLabel('API ID Telegram', { exact: true }).fill('12345');
   await page.getByLabel('API hash Telegram', { exact: true }).fill('test-api-hash');
   await page.getByRole('button', { name: 'Сохранить настройки Telegram' }).click();
-  await page.getByRole('button', { name: 'Подключить Telegram', exact: true }).click();
+  await page.getByRole('button', { name: 'Войти по номеру телефона', exact: true }).click();
   await page.getByLabel('Номер телефона Telegram', { exact: true }).fill('+79990000000');
   await page.getByRole('button', { name: 'Продолжить', exact: true }).click();
   await page.getByLabel('Код Telegram', { exact: true }).fill('12345');
@@ -273,7 +328,12 @@ for (const provider of ['VK', 'GitHub']) {
     await page.getByRole('tab', { name: provider, exact: true }).click();
     await page.getByLabel(`Client ID ${provider}`, { exact: true }).fill('test-client');
     await page.getByRole('button', { name: `Сохранить настройки ${provider}` }).click();
-    await page.getByRole('button', { name: `Подключить ${provider}`, exact: true }).click();
+    await page
+      .getByRole('button', {
+        name: provider === 'VK' ? 'Войти в VK через браузер' : 'Подключить GitHub',
+        exact: true,
+      })
+      .click();
     await expect(page.getByRole('status')).toContainText('Ожидаем подтверждения');
     if (provider === 'GitHub')
       await expect(page.getByText('TEST-CODE', { exact: true })).toBeVisible();
@@ -288,6 +348,13 @@ test('Instagram imports real file metadata separately from professional API conn
   await nativeConnections(page);
   await openConnections(page);
   await page.getByRole('tab', { name: 'Instagram', exact: true }).click();
+  await page.getByRole('button', { name: 'Открыть экспорт Instagram', exact: true }).click();
+  expect(await page.evaluate(() => Reflect.get(window, 'connectionCalls').at(-1))).toEqual({
+    command: 'open_connection_page',
+    args: { page: 'instagram-export' },
+  });
+  await expect(page.getByText(/Центр аккаунтов → Ваша информация и разрешения/)).toBeVisible();
+  await expect(page.getByRole('status')).not.toContainText('Подключено');
   await page.getByRole('button', { name: 'Импортировать JSON или текст', exact: true }).click();
   await expect(page.getByText('messages.json · 4 объекта', { exact: true })).toBeVisible();
   await expect(page.getByRole('status')).not.toContainText('Подключено');
@@ -303,4 +370,197 @@ test('Instagram imports real file metadata separately from professional API conn
   expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain(
     'test-token',
   );
+});
+
+async function startTelegramQr(page: Page) {
+  await nativeConnections(page);
+  await openConnections(page);
+  await page.getByLabel('API ID Telegram', { exact: true }).fill('12345');
+  await page.getByLabel('API hash Telegram', { exact: true }).fill('test-api-hash');
+  await page.getByRole('button', { name: 'Сохранить настройки Telegram' }).click();
+  await page.getByRole('button', { name: 'Войти по QR-коду', exact: true }).click();
+  await expect(
+    page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true }),
+  ).toBeVisible();
+}
+
+test('VK browser entry and reopening are explicit and keep pending confirmation', async ({
+  page,
+}) => {
+  await nativeConnections(page);
+  await openConnections(page);
+  await page.getByRole('tab', { name: 'VK', exact: true }).click();
+  await expect(page.getByLabel('Client ID VK', { exact: true })).toHaveValue('54881156');
+  await page.getByLabel('Client ID VK', { exact: true }).fill('test-client');
+  await page.getByRole('button', { name: 'Сохранить настройки VK' }).click();
+  expect(
+    await page.evaluate(() =>
+      Reflect.get(window, 'connectionCalls').filter(
+        (call: { command: string }) => call.command === 'begin_connection',
+      ),
+    ),
+  ).toHaveLength(0);
+  await page.getByRole('button', { name: 'Войти в VK через браузер', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Ожидаем подтверждения');
+  await page.getByRole('button', { name: 'Открыть браузер ещё раз', exact: true }).click();
+  expect(await page.evaluate(() => Reflect.get(window, 'connectionCalls').at(-1))).toEqual({
+    command: 'open_connection_page',
+    args: { page: 'vk-auth' },
+  });
+  await expect(page.getByRole('status')).toContainText('Ожидаем подтверждения');
+  await page.getByRole('button', { name: 'Отменить подключение', exact: true }).click();
+  await page.getByRole('button', { name: 'Настроить VK', exact: true }).click();
+  await expect(page.getByLabel('Client ID VK', { exact: true })).toHaveValue('test-client');
+});
+
+test('Telegram QR rotates in place and fits the native window', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  await startTelegramQr(page);
+  const qr = page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true });
+  const first = await qr.getAttribute('src');
+  await page.evaluate(() => Reflect.get(window, 'rotateTelegramQr')());
+  await expect(qr).not.toHaveAttribute('src', first!);
+  await expect(page.getByText('QR-код обновляется автоматически.', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Завершите вход в открывшемся браузере/)).toHaveCount(0);
+  const box = await qr.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThanOrEqual(160);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(640);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(600);
+  const cancel = page.getByRole('button', { name: 'Отменить подключение', exact: true });
+  const dialog = await page.getByRole('dialog', { name: 'Настройки PROTEUS' }).boundingBox();
+  expect(dialog!.y + dialog!.height).toBeLessThanOrEqual(600);
+  await cancel.focus();
+  await expect(cancel).toBeFocused();
+  await page.screenshot({ path: testInfo.outputPath('telegram-qr-640.png') });
+  expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain(
+    'data:image',
+  );
+  await page.keyboard.press('Enter');
+  await expect(qr).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Не подключено');
+});
+
+test('Telegram QR transitions to password without keeping the QR image', async ({ page }) => {
+  await startTelegramQr(page);
+  await page.evaluate(() =>
+    Reflect.get(window, 'setConnectionState')('telegram', { status: 'password-required' }),
+  );
+  await expect(page.getByLabel('Пароль Telegram', { exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByLabel('Пароль Telegram', { exact: true }).fill('test-2fa-password');
+  await page.getByRole('button', { name: 'Продолжить', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Подключено');
+  await expect(
+    page.getByRole('button', { name: 'Войти по номеру телефона', exact: true }),
+  ).toHaveCount(0);
+});
+
+test('Telegram QR can switch to the native phone flow', async ({ page }) => {
+  await startTelegramQr(page);
+  await page.evaluate(() => Reflect.set(window, 'holdNextConnectionAction', true));
+  await page
+    .getByRole('button', { name: 'Отменить вход по QR и войти по номеру', exact: true })
+    .click();
+  await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
+    0,
+  );
+  await page.evaluate(() => Reflect.get(window, 'releaseConnectionAction')());
+  await expect(page.getByLabel('Номер телефона Telegram', { exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
+    0,
+  );
+  expect(await page.evaluate(() => Reflect.get(window, 'connectionCalls').at(-1))).toEqual({
+    command: 'begin_connection',
+    args: { provider: 'telegram', telegramMethod: 'phone' },
+  });
+});
+
+test('Telegram polling stays serial and an old poll cannot restore a cancelled QR', async ({
+  page,
+}) => {
+  await startTelegramQr(page);
+  await page.evaluate(() => Reflect.set(window, 'holdNextConnectionPoll', true));
+  await expect
+    .poll(() => page.evaluate(() => typeof Reflect.get(window, 'releaseConnectionPoll')))
+    .toBe('function');
+  const count = await page.evaluate(() => Reflect.get(window, 'connectionPollCount'));
+  await page.waitForTimeout(3200);
+  expect(await page.evaluate(() => Reflect.get(window, 'connectionPollCount'))).toBe(count);
+  await page.getByRole('button', { name: 'Отменить подключение', exact: true }).click();
+  await page.evaluate(() => Reflect.get(window, 'releaseConnectionPoll')());
+  await expect(page.getByRole('status')).toContainText('Не подключено');
+  await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
+    0,
+  );
+});
+
+test('Telegram QR recovers after a transient status poll failure', async ({ page }) => {
+  await startTelegramQr(page);
+  await page.evaluate(() => Reflect.set(window, 'rejectNextConnectionPoll', true));
+  await expect(page.getByRole('alert')).toContainText('Не удалось получить состояние подключений');
+  await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('Telegram action errors and panel closure discard the displayed QR', async ({ page }) => {
+  await startTelegramQr(page);
+  await page.evaluate(() => Reflect.set(window, 'rejectNextConnectionAction', true));
+  await page
+    .getByRole('button', { name: 'Отменить вход по QR и войти по номеру', exact: true })
+    .click();
+  await expect(page.getByRole('alert')).toContainText('Не удалось выполнить подключение');
+  await expect(page.getByRole('alert')).not.toContainText('test-native-credential-error');
+  await page.waitForTimeout(1700);
+  await expect(page.getByRole('alert')).toContainText('Не удалось выполнить подключение');
+  await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
+    0,
+  );
+  await page.evaluate(() => Reflect.set(window, 'holdNextConnectionAction', true));
+  await page
+    .getByRole('button', { name: 'Отменить вход по QR и войти по номеру', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Закрыть настройки', exact: true }).click();
+  await page.evaluate(() => Reflect.get(window, 'releaseConnectionAction')());
+  await expect(page.getByRole('dialog', { name: 'Настройки PROTEUS' })).toHaveCount(0);
+  await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
+    0,
+  );
+});
+
+test('Telegram QR disappears on provider switch and panel close', async ({ page }) => {
+  await startTelegramQr(page);
+  await page.getByRole('tab', { name: 'VK', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByRole('button', { name: 'Закрыть настройки', exact: true }).click();
+  await expect(page.locator('img[src^="data:image/svg+xml;base64,"]')).toHaveCount(0);
+});
+
+test('Telegram rejects nonlocal or oversized QR images', async ({ page }) => {
+  await startTelegramQr(page);
+  for (const value of [
+    'https://example.invalid/secret-qr',
+    `data:image/svg+xml;base64,${'A'.repeat(131073)}`,
+  ]) {
+    await page.evaluate(() => Reflect.get(window, 'rotateTelegramQr')());
+    await expect(
+      page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true }),
+    ).toBeVisible();
+    await page.evaluate(
+      (qr) => Reflect.get(window, 'setConnectionState')('telegram', { 'qr-code': qr }),
+      value,
+    );
+    await expect(
+      page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true }),
+    ).toHaveCount(0);
+  }
 });

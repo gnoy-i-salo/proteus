@@ -83,6 +83,39 @@
     letter-spacing: 2px;
   }
 
+  &__qr {
+    display: grid;
+    grid-template-columns: 176px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+
+    img {
+      display: block;
+      width: 176px;
+      height: 176px;
+      background: #fff;
+      image-rendering: pixelated;
+    }
+
+    p {
+      font-size: 11px;
+    }
+
+    button {
+      font-size: 11px;
+      line-height: 1.4;
+    }
+  }
+
+  &__qr-placeholder {
+    display: grid;
+    min-height: 176px;
+    align-content: center;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
   &__actions {
     margin-top: 12px;
   }

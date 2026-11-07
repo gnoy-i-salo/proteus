@@ -9,6 +9,8 @@ use url::Url;
 pub(crate) const VK_REDIRECT: &str = "https://gnoy-i-salo.github.io/proteus/auth/";
 pub(crate) const VK_TOKEN: &str = "https://id.vk.ru/oauth2/auth";
 pub(crate) const GH_TOKEN: &str = "https://github.com/login/oauth/access_token";
+pub(crate) const INSTAGRAM_EXPORT: &str =
+    "https://accountscenter.instagram.com/info_and_permissions/dyi/";
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -150,15 +152,7 @@ pub(crate) fn claim_pending(
 }
 
 pub(crate) fn open_browser(url: &Url) -> Result<(), String> {
-    if url.scheme() != "https"
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.port().is_some()
-        || !matches!(
-            (url.host_str(), url.path()),
-            (Some("github.com"), "/login/device") | (Some("id.vk.ru"), "/authorize")
-        )
-    {
+    if !allowed_browser_url(url) {
         return Err("Адрес авторизации не разрешён.".into());
     }
     #[cfg(target_os = "macos")]
@@ -179,6 +173,37 @@ pub(crate) fn open_browser(url: &Url) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|_| "Не удалось открыть системный браузер.".into())
+}
+pub(crate) fn reopen_vk_url(
+    store: &dyn SecretStore,
+    client_id: &str,
+    now: i64,
+) -> Result<Url, String> {
+    let pending: VkPending = load_secret(store, "vk-pending")?
+        .ok_or("Вход VK не ожидается. Начните подключение заново.")?;
+    if pending.client_id != client_id || pending.expires_at <= now || pending.expires_at - now > 600
+    {
+        return Err("Попытка входа VK истекла. Начните подключение заново.".into());
+    }
+    Ok(pending.authorization_url())
+}
+fn allowed_browser_url(url: &Url) -> bool {
+    if url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.fragment().is_some()
+    {
+        return false;
+    }
+    match (url.host_str(), url.path()) {
+        (Some("id.vk.ru"), "/authorize") => true,
+        (Some("github.com"), "/login/device")
+        | (Some("accountscenter.instagram.com"), "/info_and_permissions/dyi/") => {
+            url.query().is_none()
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -206,6 +231,32 @@ mod tests {
         ] {
             assert!(parse_callback(&value).is_err());
         }
+    }
+    #[test]
+    fn browser_reopen_preserves_live_vk_transaction_and_expired_attempt_requires_restart() {
+        let store = super::super::storage::MemorySecrets::default();
+        let pending = VkPending::new("123".into(), 100).unwrap();
+        super::super::storage::save_secret(&store, "vk-pending", &pending).unwrap();
+        let before = store.get("vk-pending").unwrap();
+        assert_eq!(
+            reopen_vk_url(&store, "123", 101).unwrap(),
+            pending.authorization_url()
+        );
+        assert_eq!(before, store.get("vk-pending").unwrap());
+        assert!(reopen_vk_url(&store, "123", 700).is_err());
+        assert!(reopen_vk_url(&store, "other-client", 101).is_err());
+        assert_eq!(before, store.get("vk-pending").unwrap());
+    }
+    #[test]
+    fn browser_opener_admits_only_fixed_authentication_and_export_pages() {
+        for url in [
+            INSTAGRAM_EXPORT,
+            "https://github.com/login/device",
+            "https://id.vk.ru/authorize?client_id=123&state=state",
+        ] {
+            assert!(allowed_browser_url(&Url::parse(url).unwrap()));
+        }
+        for url in ["https://accountscenter.instagram.com.evil/info_and_permissions/dyi/","https://accountscenter.instagram.com/info_and_permissions/dyi/?next=https://evil.invalid","https://accountscenter.instagram.com/info_and_permissions/dyi/#fragment","http://accountscenter.instagram.com/info_and_permissions/dyi/","https://github.com/login/device?next=evil","https://user@id.vk.ru/authorize","https://id.vk.ru:8443/authorize","https://id.vk.ru/other"] {assert!(!allowed_browser_url(&Url::parse(url).unwrap()));}
     }
     #[test]
     fn pkce_is_random_and_only_expected_unexpired_state_completes() {

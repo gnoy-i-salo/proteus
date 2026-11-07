@@ -13,6 +13,7 @@ export const stateLabels: Record<ConnectionState, string> = {
   unconfigured: 'Требуется настройка',
   disconnected: 'Не подключено',
   pending: 'Ожидаем подтверждения',
+  'qr-required': 'Отсканируйте QR-код в Telegram',
   'phone-required': 'Введите номер телефона',
   'code-required': 'Введите код Telegram',
   'password-required': 'Введите пароль Telegram',

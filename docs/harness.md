@@ -48,6 +48,10 @@ ESLint использует `recommendedTypeChecked` и `projectService` для 
 
 Проектный навык находится в `.agents/skills/proteus-code-quality/SKILL.md`, применяется без глобальной установки и содержит примеры выбора владельца, сохранения реактивности и проверки совместимости. Форматирование: `pnpm exec prettier --write <явные-пути>` для затронутых JS/TS/SCSS/JSON/Markdown и `cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml` для Rust. Не запускать массовое форматирование чужих изменений; `pnpm format` форматирует весь репозиторий.
 
+EditorConfig задаёт UTF-8, LF, final newline и 2 пробела для TS/SCSS/JSON; Rust использует 4 пробела и стандартный rustfmt. В Markdown trailing spaces сохраняются, потому что два пробела задают перенос строки. Prettier сохраняет printWidth 100 и текущие singleQuote/trailingComma правила. Для format-on-save выбирать Prettier в JS/TS/SCSS/JSON/Markdown и rustfmt через rust-analyzer в Rust; не запускать второй formatter поверх тех же файлов. Синтетические fixtures проверяют идемпотентность и сохранение Unicode, CRLF и значений payload.
+
+Clippy сохраняет `-D warnings`; `[lints.clippy]` в Cargo.toml дополнительно запрещает `dbg_macro`, `todo`, `unimplemented`. Это защищает от оставленного debug output и незавершённых panic-заглушек, без включения всего pedantic. Нативная проверка сначала запускает три отрицательных fixture и чистый пример в отдельном временном crate/target с тем же Cargo lint profile; зависимости не скачиваются. Затем выполняются прежние rustfmt/clippy/tests. Профиль применяется только к собственному crate согласно [Cargo manifest lints](https://doc.rust-lang.org/cargo/reference/manifest.html#the-lints-section).
+
 ## Hooks
 
 Husky устанавливается через `pnpm install`:

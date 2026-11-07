@@ -34,7 +34,7 @@
     "check:changed": "node scripts/check.mjs --changed",
     "check:staged": "node scripts/check.mjs --staged",
     "check:package": "node scripts/check.mjs --package",
-    "check:rust": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check && cargo clippy --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "check:rust": "node scripts/check-rust-lints.mjs && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check && cargo clippy --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "commitlint": "commitlint",
     "beads:init": "bd init --prefix proteus --skip-hooks --skip-agents --non-interactive --init-if-missing",
     "beads:ready": "bd ready --json",

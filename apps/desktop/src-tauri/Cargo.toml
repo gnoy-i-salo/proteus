@@ -46,3 +46,8 @@ lto = true
 opt-level = "s"
 strip = true
 panic = "abort"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"

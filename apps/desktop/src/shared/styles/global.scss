@@ -8,9 +8,13 @@
   --text: #f2edff;
   --muted: #c0bad6;
   --pixel-font: 'Press Start 2P', monospace;
+  --reading: 14px;
+  --caption: 12px;
+  --control: 32px;
 
   color-scheme: dark;
-  font-family: 'Courier New', monospace;
+  font-family: system-ui, sans-serif;
+  font-size: var(--reading);
   font-synthesis: none;
   text-rendering: optimizelegibility;
 }
@@ -41,19 +45,20 @@ textarea {
 
 input,
 select {
-  height: 32px;
+  height: var(--control);
   padding: 5px 8px;
-  font-size: 12px;
+  font-size: var(--reading);
 }
 
 textarea {
-  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  font-size: var(--reading);
 }
 
 button {
   cursor: pointer;
   padding: 7px 12px;
-  min-height: 32px;
+  min-height: var(--control);
   box-shadow: 3px 3px #17162c;
 }
 

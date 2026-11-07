@@ -30,3 +30,20 @@ export function paginateInput(text: string, columns: number, rows: number): stri
   if (page || !pages.length) pages.push(page);
   return pages;
 }
+
+export function locateTextOffset(
+  pages: readonly string[],
+  offset: number,
+): {
+  page: number;
+  offset: number;
+} {
+  let remaining = Math.max(0, offset);
+  for (let page = 0; page < pages.length; page++) {
+    const length = pages[page]?.length ?? 0;
+    if (remaining < length || page === pages.length - 1)
+      return { page, offset: Math.min(length, remaining) };
+    remaining -= length;
+  }
+  return { page: 0, offset: 0 };
+}

@@ -43,7 +43,7 @@ import {
 } from '../../../shared/lib/connections';
 import { cliProviders, cliStatus, saveExperiment } from '../../../shared/lib/cli';
 import type { CliStatus } from '../../../shared/lib/cli';
-import { paginateText, paginateInput } from '../../../shared/lib/pagination';
+import { paginateText, paginateInput, locateTextOffset } from '../../../shared/lib/pagination';
 import { importPreset, exportPreset, listenPresets } from '../../../shared/lib/presets';
 import { isDesktop } from '../../../shared/lib/window-controls';
 import {
@@ -72,20 +72,37 @@ function PagedField(props: {
 }) {
   const [page, setPage] = createSignal(0);
   let editor: HTMLTextAreaElement | undefined;
-  const reflow = (value: string, replaceAll = false) => {
+  const reflow = (value: string, replaceAll = false, preservePosition = false) => {
     if (!editor) return;
+    const css = getComputedStyle(editor);
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (context) context.font = css.font;
+    const characterWidth = context?.measureText('M').width || parseFloat(css.fontSize) * 0.61;
+    const horizontalPadding = parseFloat(css.paddingLeft) + parseFloat(css.paddingRight);
+    const verticalPadding = parseFloat(css.paddingTop) + parseFloat(css.paddingBottom);
     const chunks = paginateInput(
       value,
-      Math.max(10, Math.floor((editor.clientWidth - 20) / 8)),
-      Math.max(1, Math.floor((editor.clientHeight - 18) / 18)),
+      Math.max(1, Math.floor((editor.clientWidth - horizontalPadding) / characterWidth)),
+      Math.max(1, Math.floor((editor.clientHeight - verticalPadding) / parseFloat(css.lineHeight))),
     );
     const index = replaceAll ? 0 : page();
+    const focused = document.activeElement === editor;
+    const oldOffset = props.pages.slice(0, page()).join('').length;
+    const selectionStart = oldOffset + (focused ? editor.selectionStart : 0);
+    const selectionEnd = oldOffset + (focused ? editor.selectionEnd : 0);
+    const location = locateTextOffset(chunks, selectionStart);
     props.onChange(
       replaceAll
         ? chunks
         : [...props.pages.slice(0, index), ...chunks, ...props.pages.slice(index + 1)],
     );
-    setPage(replaceAll ? 0 : index + chunks.length - 1);
+    setPage(preservePosition ? location.page : replaceAll ? 0 : index + chunks.length - 1);
+    if (preservePosition && focused) {
+      queueMicrotask(() => {
+        editor?.setSelectionRange(location.offset, location.offset + selectionEnd - selectionStart);
+      });
+    }
   };
   createEffect(
     on(
@@ -100,7 +117,7 @@ function PagedField(props: {
     let dimensions = `${editor?.clientWidth}:${editor?.clientHeight}`;
     const observer = new ResizeObserver(() => {
       const next = `${editor?.clientWidth}:${editor?.clientHeight}`;
-      if (next !== dimensions) reflow(props.pages.join(''), true);
+      if (next !== dimensions) reflow(props.pages.join(''), true, true);
       dimensions = next;
     });
     if (editor) observer.observe(editor);

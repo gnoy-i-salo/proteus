@@ -274,3 +274,6 @@ mod restore_workflow_tests;
 
 #[path = "ingestion-publication-tests.rs"]
 mod publication_tests;
+
+#[path = "ingestion-reselection-tests.rs"]
+mod reselection_tests;

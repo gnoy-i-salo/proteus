@@ -40,3 +40,15 @@ pub(super) fn upgrade_search(connection: &mut Connection) -> Result<(), String> 
         .map_err(sql_error)?;
     tx.commit().map_err(sql_error)
 }
+
+/// Prepared data is additive; preserve all original and FTS/job bytes.
+pub(super) fn upgrade_preparations(connection: &mut Connection) -> Result<(), String> {
+    let tx = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sql_error)?;
+    tx.execute_batch(include_str!("corpus-preparation-schema.sql"))
+        .map_err(sql_error)?;
+    tx.pragma_update(None, "user_version", 5)
+        .map_err(sql_error)?;
+    tx.commit().map_err(sql_error)
+}

@@ -10,6 +10,7 @@
 //! by the native preparation workflow, not by a frontend-supplied assignment.
 #[path = "corpus-episode-chunks.rs"]
 mod chunks;
+pub use chunks::chunk_policy_fingerprint;
 #[path = "corpus-episode-types.rs"]
 mod types;
 use super::types::digest;
@@ -245,6 +246,7 @@ pub fn prepare<'a>(
     output.sort_by(|a, b| a.0.id.cmp(&b.0.id));
     let (episodes, members) = output.into_iter().unzip();
     Ok(PreparedEpisodes {
+        split_version,
         documents,
         episodes,
         members,

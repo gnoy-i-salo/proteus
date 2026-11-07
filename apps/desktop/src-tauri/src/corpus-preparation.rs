@@ -1,0 +1,202 @@
+//! Immutable prepared snapshots in the canonical encrypted database. This layer
+//! is not an authorization service; native callers check grants on every access.
+#[path = "corpus-preparation-read.rs"]
+mod read;
+use super::{
+    episodes::*,
+    record_store::read_revision,
+    snapshot_store::{fork_snapshot, publication_snapshot_id, read_snapshot},
+    sql_error,
+    types::digest,
+    CorpusDatabase, Snapshot, INVALID,
+};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use serde::{de::DeserializeOwned, Serialize};
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreparedSnapshot {
+    pub snapshot: Snapshot,
+    pub source_snapshot_id: String,
+    pub split_version: String,
+    pub tokenizer_version: String,
+    pub chunking_version: String,
+    pub episode_ids: Vec<String>,
+    pub chunk_count: usize,
+}
+pub struct PreparationRequest<'a> {
+    pub source_snapshot_id: &'a str,
+    pub publication_id: &'a str,
+    pub documents: &'a [EpisodeDocument],
+    pub split: &'a EpisodePolicy,
+    pub tokenizer: &'a dyn EpisodeTokenizer,
+    pub chunks: &'a ChunkPolicy,
+}
+#[derive(Clone)]
+struct Row {
+    id: String,
+    parent: String,
+    json: String,
+    hash: String,
+}
+fn row(id: &str, parent: &str, value: &impl Serialize) -> Result<Row, String> {
+    let json = serde_json::to_string(value).map_err(|_| INVALID)?;
+    let hash = digest(&json);
+    Ok(Row {
+        id: id.into(),
+        parent: parent.into(),
+        json,
+        hash,
+    })
+}
+fn decode<T: DeserializeOwned>(json: &str, hash: &str) -> Result<T, String> {
+    if digest(json) != hash {
+        return Err(INVALID.into());
+    }
+    serde_json::from_str(json).map_err(|_| INVALID.into())
+}
+fn manifest_hash(
+    source: &str,
+    split: &str,
+    tokenizer: &str,
+    chunking: &str,
+    episodes: &[(String, String)],
+    chunks: &[(String, String)],
+) -> Result<String, String> {
+    Ok(digest(
+        serde_json::to_vec(&(source, split, tokenizer, chunking, episodes, chunks))
+            .map_err(|_| INVALID)?,
+    ))
+}
+impl CorpusDatabase {
+    pub fn publish_prepared(
+        &mut self,
+        request: &PreparationRequest<'_>,
+    ) -> Result<PreparedSnapshot, String> {
+        if request.publication_id.is_empty()
+            || request.publication_id.len() > 256
+            || request.publication_id.chars().any(char::is_control)
+        {
+            return Err(INVALID.into());
+        }
+        let source = read_snapshot(&self.connection, request.source_snapshot_id)?;
+        validate_originals(&self.connection, &source, request.documents)?;
+        let id = publication_snapshot_id(&source.corpus_id, request.publication_id)?;
+        let prepared = super::episodes::prepare(&id, request.documents, request.split)?;
+        let chunks = prepared.chunks(request.tokenizer, request.chunks)?;
+        let split = prepared.split_version();
+        let chunking = chunk_policy_fingerprint(request.tokenizer, request.chunks)?;
+        let tokenizer = request.tokenizer.version();
+        let episodes = prepared
+            .episodes()
+            .iter()
+            .map(|e| row(&e.id, "", e))
+            .collect::<Result<Vec<_>, _>>()?;
+        let chunks = chunks
+            .iter()
+            .map(|c| row(&c.id, &c.episode_id, c))
+            .collect::<Result<Vec<_>, _>>()?;
+        let hash = manifest_hash(
+            &source.id,
+            split,
+            tokenizer,
+            &chunking,
+            &digests(&episodes),
+            &digests(&chunks),
+        )?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(sql_error)?;
+        // A revocation while tokenizing cannot restore any old prepared material.
+        if read_snapshot(&tx, &source.id)? != source {
+            return Err(INVALID.into());
+        }
+        let existing:Option<String>=tx.query_row("SELECT snapshot_id FROM publication_receipts WHERE corpus_id=?1 AND publication_id=?2",params![source.corpus_id,request.publication_id],|r|r.get(0)).optional().map_err(sql_error)?;
+        if let Some(existing) = existing {
+            let stored: Option<String> = tx
+                .query_row(
+                    "SELECT canonical_sha256 FROM corpus_preparations WHERE snapshot_id=?1",
+                    [&existing],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(sql_error)?;
+            if existing != id || stored.as_deref() != Some(hash.as_str()) {
+                return Err("Публикация уже закреплена за другим составом подготовки.".into());
+            }
+            let result = read::snapshot(&tx, &existing)?;
+            tx.commit().map_err(sql_error)?;
+            return Ok(result);
+        }
+        let snapshot = fork_snapshot(&tx, &source, request.publication_id)?;
+        tx.execute("INSERT INTO corpus_preparations(snapshot_id,source_snapshot_id,split_version,tokenizer_version,chunking_version,canonical_sha256) VALUES(?1,?2,?3,?4,?5,?6)",params![snapshot.id,source.id,split,tokenizer,chunking,hash]).map_err(sql_error)?;
+        for (position, row) in episodes.iter().enumerate() {
+            tx.execute("INSERT INTO corpus_episodes(snapshot_id,episode_id,position,data_json,canonical_sha256) VALUES(?1,?2,?3,?4,?5)",params![snapshot.id,row.id,position as i64,row.json,row.hash]).map_err(sql_error)?;
+        }
+        for (position, row) in chunks.iter().enumerate() {
+            tx.execute("INSERT INTO corpus_prepared_chunks(snapshot_id,chunk_id,episode_id,position,data_json,canonical_sha256) VALUES(?1,?2,?3,?4,?5,?6)",params![snapshot.id,row.id,row.parent,position as i64,row.json,row.hash]).map_err(sql_error)?;
+        }
+        let result = read::snapshot(&tx, &snapshot.id)?;
+        tx.commit().map_err(sql_error)?;
+        Ok(result)
+    }
+    pub fn prepared_snapshot(&self, id: &str) -> Result<PreparedSnapshot, String> {
+        read::consistent(&self.connection, |connection| {
+            read::snapshot(connection, id)
+        })
+    }
+    pub fn prepared_episode(&self, id: &str, episode_id: &str) -> Result<PreparedEpisode, String> {
+        read::consistent(&self.connection, |connection| {
+            let snapshot = read::snapshot(connection, id)?;
+            read::episode(connection, &snapshot, episode_id)
+        })
+    }
+    pub fn prepared_chunks(
+        &self,
+        id: &str,
+        episode_id: &str,
+        offset: usize,
+        limit: usize,
+        max_bytes: usize,
+    ) -> Result<Vec<PreparedChunk>, String> {
+        read::consistent(&self.connection, |connection| {
+            read::chunks(connection, id, episode_id, offset, limit, max_bytes)
+        })
+    }
+}
+fn digests(rows: &[Row]) -> Vec<(String, String)> {
+    rows.iter()
+        .map(|r| (r.id.clone(), r.hash.clone()))
+        .collect()
+}
+fn validate_originals(
+    connection: &Connection,
+    snapshot: &Snapshot,
+    documents: &[EpisodeDocument],
+) -> Result<(), String> {
+    let expected: std::collections::BTreeSet<_> = snapshot
+        .documents
+        .iter()
+        .map(|r| (&r.document_id, &r.revision_id))
+        .collect();
+    let actual: std::collections::BTreeSet<_> = documents
+        .iter()
+        .map(|d| (&d.reference.document_id, &d.reference.revision_id))
+        .collect();
+    if expected != actual || documents.len() != expected.len() {
+        return Err("Подготовка должна учитывать все ревизии исходного снимка.".into());
+    }
+    for doc in documents {
+        let original = read_revision(connection, &doc.reference)?;
+        let value: serde_json::Value =
+            serde_json::from_str(&original.document_json).map_err(|_| INVALID)?;
+        if original.source_key != doc.source_key
+            || value.get("text").and_then(serde_json::Value::as_str) != Some(doc.text.as_str())
+        {
+            return Err("Текст подготовки не совпадает с исходной ревизией.".into());
+        }
+    }
+    Ok(())
+}
+#[cfg(test)]
+#[path = "corpus-preparation-tests.rs"]
+mod tests;

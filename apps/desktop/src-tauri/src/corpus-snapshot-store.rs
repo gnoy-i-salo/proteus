@@ -73,6 +73,40 @@ pub(super) fn publish_snapshot(
             }
         }
     }
+    write_snapshot(
+        connection,
+        corpus_id,
+        publication_id,
+        expected,
+        references,
+        None,
+    )
+}
+pub(super) fn fork_snapshot(
+    connection: &Connection,
+    source: &Snapshot,
+    publication_id: &str,
+) -> Result<Snapshot, String> {
+    if publication_id.is_empty() || publication_id.len() > 256 {
+        return Err(INVALID.into());
+    }
+    write_snapshot(
+        connection,
+        &source.corpus_id,
+        publication_id,
+        &source.records,
+        source.documents.clone(),
+        Some(source.id.clone()),
+    )
+}
+fn write_snapshot(
+    connection: &Connection,
+    corpus_id: &str,
+    publication_id: &str,
+    expected: &[RecordGeneration],
+    references: Vec<RevisionReference>,
+    parent_id: Option<String>,
+) -> Result<Snapshot, String> {
     let previous: Option<(String, i64)> = connection
         .query_row(
             "SELECT last_snapshot_id,last_generation FROM corpora WHERE id=?1",
@@ -89,14 +123,11 @@ pub(super) fn publish_snapshot(
         None => 1,
     };
     let snapshot = Snapshot {
-        id: format!(
-            "snapshot:{}",
-            digest(serde_json::to_vec(&(corpus_id, publication_id)).map_err(|_| INVALID)?)
-        ),
+        id: publication_snapshot_id(corpus_id, publication_id)?,
         corpus_id: corpus_id.into(),
         publication_id: publication_id.into(),
         generation,
-        parent_id: previous.map(|(id, _)| id),
+        parent_id: parent_id.or_else(|| previous.map(|(id, _)| id)),
         created_at: chrono::Utc::now().to_rfc3339(),
         records: expected.to_vec(),
         documents: references,
@@ -190,4 +221,14 @@ fn snapshot_hash(snapshot: &Snapshot) -> String {
         ))
         .expect("serializing strings cannot fail"),
     )
+}
+
+pub(super) fn publication_snapshot_id(
+    corpus_id: &str,
+    publication_id: &str,
+) -> Result<String, String> {
+    Ok(format!(
+        "snapshot:{}",
+        digest(serde_json::to_vec(&(corpus_id, publication_id)).map_err(|_| INVALID)?)
+    ))
 }

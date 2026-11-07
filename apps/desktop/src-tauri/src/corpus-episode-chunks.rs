@@ -8,19 +8,7 @@ impl PreparedEpisodes<'_> {
         policy: &ChunkPolicy,
     ) -> Result<Vec<PreparedChunk>, String> {
         let tokenizer_version = tokenizer.version();
-        if !valid_id(tokenizer_version)
-            || !(1..=1_000_000).contains(&policy.max_tokens)
-            || !(4..=4 * 1024 * 1024).contains(&policy.max_bytes)
-        {
-            return Err(INVALID.into());
-        }
-        let chunking_version = format!(
-            "episodeChunks:1:{}",
-            digest(
-                serde_json::to_vec(&(tokenizer_version, policy.max_tokens, policy.max_bytes))
-                    .map_err(|_| INVALID)?
-            )
-        );
+        let chunking_version = chunk_policy_fingerprint(tokenizer, policy)?;
         let mut chunks = Vec::new();
         for (episode, members) in self.episodes.iter().zip(&self.members) {
             if episode.partition != Partition::Reference {
@@ -97,4 +85,24 @@ fn fit(
             end -= 1;
         }
     }
+}
+
+pub fn chunk_policy_fingerprint(
+    tokenizer: &dyn EpisodeTokenizer,
+    policy: &ChunkPolicy,
+) -> Result<String, String> {
+    let tokenizer_version = tokenizer.version();
+    if !valid_id(tokenizer_version)
+        || !(1..=1_000_000).contains(&policy.max_tokens)
+        || !(4..=4 * 1024 * 1024).contains(&policy.max_bytes)
+    {
+        return Err(INVALID.into());
+    }
+    Ok(format!(
+        "episodeChunks:1:{}",
+        digest(
+            serde_json::to_vec(&(tokenizer_version, policy.max_tokens, policy.max_bytes))
+                .map_err(|_| INVALID)?
+        )
+    ))
 }

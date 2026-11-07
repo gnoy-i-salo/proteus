@@ -30,7 +30,7 @@ fn fresh_corpus_installs_encrypted_fts_and_precise_publication_receipts() {
     let directory =
         std::env::temp_dir().join(format!("proteus-search-fresh-{}", rand::random::<u64>()));
     let db = CorpusDatabase::open(&directory.join("corpus.db"), &[31; 32]).unwrap();
-    assert_eq!(version(&db.connection), 4);
+    assert_eq!(version(&db.connection), 5);
     assert_eq!(db.connection.query_row("SELECT count(*) FROM pragma_table_info('search_stages') WHERE name='published_generation'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
     db.connection
         .execute(
@@ -55,7 +55,7 @@ fn fresh_corpus_installs_encrypted_fts_and_precise_publication_receipts() {
         .any(|window| window == "Секретный".as_bytes()));
     assert!(CorpusDatabase::open(&directory.join("corpus.db"), &[32; 32]).is_err());
     let db = CorpusDatabase::open(&directory.join("corpus.db"), &[31; 32]).unwrap();
-    assert_eq!(version(&db.connection), 4);
+    assert_eq!(version(&db.connection), 5);
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();
 }
@@ -90,7 +90,7 @@ fn v3_upgrade_preserves_exact_records_revisions_snapshots_and_job_checkpoints() 
         .unwrap();
     drop(db);
     let db = CorpusDatabase::open(&directory.join("corpus.db"), &[31; 32]).unwrap();
-    assert_eq!(version(&db.connection), 4);
+    assert_eq!(version(&db.connection), 5);
     assert_eq!(db.read("record").unwrap().unwrap(), before);
     assert_eq!(db.snapshot(&snapshot.id).unwrap(), snapshot);
     assert_eq!(
@@ -133,7 +133,7 @@ fn failed_fts_migration_restores_all_ddl_and_version_without_overwriting_conflic
         .unwrap();
     drop(connection);
     let db = CorpusDatabase::open(&directory.join("corpus.db"), &[31; 32]).unwrap();
-    assert_eq!(version(&db.connection), 4);
+    assert_eq!(version(&db.connection), 5);
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();
 }

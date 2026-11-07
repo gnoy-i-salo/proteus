@@ -6,6 +6,8 @@ mod crypto;
 pub mod episodes;
 #[path = "corpus-migrations.rs"]
 mod migrations;
+#[path = "corpus-preparation.rs"]
+pub mod preparation;
 #[path = "source-provenance.rs"]
 mod provenance;
 #[path = "corpus-record-store.rs"]
@@ -65,7 +67,7 @@ impl CorpusDatabase {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .map_err(sql_error)?;
-        if !(0..=4).contains(&version) {
+        if !(0..=5).contains(&version) {
             return Err(INVALID.into());
         }
         if version == 0 {
@@ -79,6 +81,10 @@ impl CorpusDatabase {
             tx.execute_batch(include_str!("corpus-schema.sql"))
                 .map_err(sql_error)?;
             tx.execute_batch(include_str!("corpus-search-schema.sql"))
+                .map_err(sql_error)?;
+            tx.execute_batch(include_str!("corpus-preparation-schema.sql"))
+                .map_err(sql_error)?;
+            tx.pragma_update(None, "user_version", 5)
                 .map_err(sql_error)?;
             tx.commit().map_err(sql_error)?;
         }
@@ -96,6 +102,9 @@ impl CorpusDatabase {
         }
         if (1..=3).contains(&version) {
             migrations::upgrade_search(&mut connection)?;
+        }
+        if (1..=4).contains(&version) {
+            migrations::upgrade_preparations(&mut connection)?;
         }
         Ok(Self { connection })
     }

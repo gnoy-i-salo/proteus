@@ -26,7 +26,7 @@ export async function pickIngestionSource(): Promise<SelectedIngestionInput | nu
     throw invalidSelection();
   return {
     schemaVersion: 1,
-    sourceHandle: validateHandle(record.sourceHandle),
+    sourceHandle: validateIngestionSourceHandle(record.sourceHandle),
     label: record.label,
     inputBytes: record.inputBytes,
   };
@@ -34,7 +34,9 @@ export async function pickIngestionSource(): Promise<SelectedIngestionInput | nu
 
 export async function releaseIngestionSource(sourceHandle: string): Promise<void> {
   requireDesktop();
-  await invoke<void>('release_ingestion_source', { sourceHandle: validateHandle(sourceHandle) });
+  await invoke<void>('release_ingestion_source', {
+    sourceHandle: validateIngestionSourceHandle(sourceHandle),
+  });
 }
 function requireDesktop(): void {
   if (!isDesktop()) throw new Error('Выбор файлов доступен в настольном приложении PROTEUS.');
@@ -42,7 +44,7 @@ function requireDesktop(): void {
 function invalidSelection(): Error {
   return new Error('Неверный ответ выбора источника.');
 }
-function validateHandle(value: unknown): string {
+export function validateIngestionSourceHandle(value: unknown): string {
   if (typeof value !== 'string' || !/^[\w-]{32}$/.test(value)) throw invalidSelection();
   return value;
 }

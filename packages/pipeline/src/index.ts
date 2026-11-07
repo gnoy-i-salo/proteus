@@ -3,6 +3,8 @@ import { validateExperiment } from './validation';
 export { validateExperiment } from './validation';
 export * from './experiment';
 export { exportExperiment } from './export';
+export { decodePersonaPreset, encodePersonaPreset } from './presets/persona-preset-codec';
+export type { StoredPersonaInput, StoredPersonaPreset } from './presets/persona-preset-codec';
 
 export function parsePersonaPreset(data: string): ExperimentInput {
   if (new TextEncoder().encode(data).length > 131072) throw new Error('Пресет превышает 128 КиБ.');

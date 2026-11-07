@@ -2,6 +2,24 @@ use super::*;
 use crate::connections::storage::{random_id, MemorySecrets};
 use serde_json::json;
 #[test]
+fn source_service_cannot_enumerate_or_decode_ingestion_owned_records() {
+    let (store, path) = store();
+    let record = Record::decode_legacy(legacy()).unwrap();
+    store
+        .with_database(path.parent().unwrap(), |database| {
+            let input = database_input(record_id(&path)?, encode(&record)?, None, database)?;
+            database.save_ingestion(&input)?;
+            Ok(())
+        })
+        .unwrap();
+    assert!(store.ids(path.parent().unwrap()).unwrap().is_empty());
+    assert!(store.read::<Record>(&path).is_err());
+    assert!(store.write(&path, &record).is_err());
+    assert!(store.owner(&path).is_err());
+    drop(store);
+    std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}
+#[test]
 fn upgrading_v2_keeps_ciphertext_and_publishes_sql_generation() {
     let (store, path) = store();
     let record = Record::decode_legacy(legacy()).unwrap();

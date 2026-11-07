@@ -2,13 +2,29 @@ use super::{sql_error, types::*, CorpusDatabase, INVALID};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use std::collections::HashSet;
 impl CorpusDatabase {
+    pub fn save_ingestion(&mut self, input: &RecordInput) -> Result<RecordGeneration, String> {
+        self.save_verified(input, None, RecordNamespace::Ingestion)
+    }
+    pub fn ids_in_namespace(&self, namespace: RecordNamespace) -> Result<Vec<String>, String> {
+        let mut query = self
+            .connection
+            .prepare("SELECT id FROM records WHERE namespace=?1 ORDER BY id")
+            .map_err(sql_error)?;
+        let ids = query
+            .query_map([namespace.as_str()], |row| row.get(0))
+            .map_err(sql_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_error)?;
+        Ok(ids)
+    }
     pub fn save(&mut self, input: &RecordInput) -> Result<RecordGeneration, String> {
-        self.save_verified(input, None)
+        self.save_verified(input, None, RecordNamespace::SourceService)
     }
     fn save_verified(
         &mut self,
         input: &RecordInput,
         audit: Option<&MigrationAudit>,
+        namespace: RecordNamespace,
     ) -> Result<RecordGeneration, String> {
         validate_input(input)?;
         if let Some(audit) = audit {
@@ -30,7 +46,8 @@ impl CorpusDatabase {
             .map_err(sql_error)?;
         let previous = read_record(&tx, &input.id)?;
         if previous.as_ref().is_some_and(|record| {
-            record.input.kind == "deleted"
+            record.namespace != namespace
+                || record.input.kind == "deleted"
                 || record.input.kind != input.kind
                 || record.input.provider != input.provider
         }) {
@@ -60,7 +77,7 @@ impl CorpusDatabase {
                 .ok_or(INVALID)?,
             None => 1,
         };
-        tx.execute("INSERT INTO records(id,kind,provider,state_json,canonical_sha256,generation) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(id) DO UPDATE SET state_json=excluded.state_json,canonical_sha256=excluded.canonical_sha256,generation=excluded.generation",params![input.id,input.kind,input.provider,input.state_json,record_hash(input),generation]).map_err(sql_error)?;
+        tx.execute("INSERT INTO records(id,kind,provider,state_json,canonical_sha256,generation,namespace) VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(id) DO UPDATE SET state_json=excluded.state_json,canonical_sha256=excluded.canonical_sha256,generation=excluded.generation",params![input.id,input.kind,input.provider,input.state_json,record_hash(input),generation,namespace.as_str()]).map_err(sql_error)?;
         tx.execute(
             "DELETE FROM record_revisions WHERE record_id=?1",
             [&input.id],
@@ -107,7 +124,7 @@ impl CorpusDatabase {
         input: &RecordInput,
         audit: &MigrationAudit,
     ) -> Result<RecordGeneration, String> {
-        self.save_verified(input, Some(audit))
+        self.save_verified(input, Some(audit), RecordNamespace::SourceService)
     }
     pub fn audit(&self, id: &str) -> Result<Option<MigrationAudit>, String> {
         read_audit(&self.connection, id)
@@ -241,9 +258,9 @@ pub(super) fn read_record(
     connection: &Connection,
     id: &str,
 ) -> Result<Option<StoredRecord>, String> {
-    let row: Option<(String, String, String, String, i64)> = connection
+    let row: Option<(String, String, String, String, i64, String)> = connection
         .query_row(
-            "SELECT kind,provider,state_json,canonical_sha256,generation FROM records WHERE id=?1",
+            "SELECT kind,provider,state_json,canonical_sha256,generation,namespace FROM records WHERE id=?1",
             [id],
             |row| {
                 Ok((
@@ -252,12 +269,13 @@ pub(super) fn read_record(
                     row.get(2)?,
                     row.get(3)?,
                     row.get(4)?,
+                    row.get(5)?,
                 ))
             },
         )
         .optional()
         .map_err(sql_error)?;
-    let Some((kind, provider, state_json, hash, generation)) = row else {
+    let Some((kind, provider, state_json, hash, generation, namespace)) = row else {
         return Ok(None);
     };
     let mut query=connection.prepare("SELECT revisions.document_id,revisions.id FROM record_revisions JOIN revisions ON revisions.id=record_revisions.revision_id WHERE record_id=?1 ORDER BY position").map_err(sql_error)?;
@@ -292,6 +310,7 @@ pub(super) fn read_record(
         return Err(INVALID.into());
     }
     Ok(Some(StoredRecord {
+        namespace: RecordNamespace::parse(&namespace).ok_or(INVALID)?,
         input,
         generation,
         references,

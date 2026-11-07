@@ -37,9 +37,15 @@ pub struct RecordGeneration {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StoredRecord {
+    pub namespace: RecordNamespace,
     pub input: RecordInput,
     pub generation: i64,
     pub references: Vec<RevisionReference>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecordNamespace {
+    SourceService,
+    Ingestion,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Snapshot {
@@ -100,4 +106,20 @@ pub fn revision_hash(input: &RevisionInput) -> String {
         serde_json::to_vec(&(&input.document_json, &input.provenance))
             .expect("serializing provenance cannot fail"),
     )
+}
+
+impl RecordNamespace {
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::SourceService => "sourceService",
+            Self::Ingestion => "ingestion",
+        }
+    }
+    pub(super) fn parse(value: &str) -> Option<Self> {
+        match value {
+            "sourceService" => Some(Self::SourceService),
+            "ingestion" => Some(Self::Ingestion),
+            _ => None,
+        }
+    }
 }

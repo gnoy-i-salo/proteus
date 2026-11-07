@@ -19,3 +19,12 @@ pub(super) fn upgrade_jobs(connection: &mut Connection) -> Result<(), String> {
     tx.execute_batch("ALTER TABLE job_records ADD COLUMN record_generation INTEGER NOT NULL CHECK(record_generation>0); PRAGMA user_version=2;").map_err(sql_error)?;
     tx.commit().map_err(sql_error)
 }
+
+/// Preserve every legacy payload/hash; only its owning codec is made explicit.
+pub(super) fn upgrade_record_namespaces(connection: &mut Connection) -> Result<(), String> {
+    let tx = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sql_error)?;
+    tx.execute_batch("ALTER TABLE records ADD COLUMN namespace TEXT NOT NULL DEFAULT 'sourceService' CHECK(namespace IN ('sourceService','ingestion')); CREATE TRIGGER immutable_record_namespace BEFORE UPDATE OF namespace ON records WHEN NEW.namespace<>OLD.namespace BEGIN SELECT RAISE(ABORT,'immutable record namespace'); END; PRAGMA user_version=3;").map_err(sql_error)?;
+    tx.commit().map_err(sql_error)
+}

@@ -645,17 +645,17 @@ fn review_total_documents_cannot_be_less_than_loaded() {
 #[test]
 fn review_version_one_database_upgrades_atomically_and_preserves_exact_records() {
     let (mut db, dir) = setup();
-    db.connection.execute_batch("DROP TABLE job_records; CREATE TABLE job_records(job_id TEXT NOT NULL REFERENCES jobs(id),record_id TEXT NOT NULL REFERENCES records(id),position INTEGER NOT NULL CHECK(position>=0),PRIMARY KEY(job_id,position),UNIQUE(job_id,record_id)); PRAGMA user_version=1;").unwrap();
     db.save(&record("legacy", "legacy/source", "  exact é\r\n😀"))
         .unwrap();
     let before = db.read("legacy").unwrap().unwrap();
+    db.connection.execute_batch("DROP TRIGGER immutable_record_namespace; ALTER TABLE records DROP COLUMN namespace; DROP TABLE job_records; CREATE TABLE job_records(job_id TEXT NOT NULL REFERENCES jobs(id),record_id TEXT NOT NULL REFERENCES records(id),position INTEGER NOT NULL CHECK(position>=0),PRIMARY KEY(job_id,position),UNIQUE(job_id,record_id)); PRAGMA user_version=1;").unwrap();
     drop(db);
     let mut db = CorpusDatabase::open(&dir.join("corpus.db"), &[31; 32]).unwrap();
     let version: i64 = db
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
     assert_eq!(db.read("legacy").unwrap().unwrap(), before);
     db.create_job(&job_input("upgraded")).unwrap();
     db.start_job("upgraded").unwrap();
@@ -706,7 +706,7 @@ fn review_actual_v1_fixture_migrates_but_unsupported_job_data_is_retained_and_re
                 .connection
                 .pragma_query_value(None, "user_version", |row| row.get(0))
                 .unwrap();
-            assert_eq!(version, 2);
+            assert_eq!(version, 3);
         }
         std::fs::remove_dir_all(dir).unwrap();
     }

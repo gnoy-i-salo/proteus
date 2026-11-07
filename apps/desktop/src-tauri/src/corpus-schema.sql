@@ -1,8 +1,10 @@
 CREATE TABLE records (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('grant','import','deleted')),
     provider TEXT NOT NULL, state_json TEXT NOT NULL, canonical_sha256 TEXT NOT NULL,
-    generation INTEGER NOT NULL CHECK(generation>0)
+    generation INTEGER NOT NULL CHECK(generation>0),
+    namespace TEXT NOT NULL DEFAULT 'sourceService' CHECK(namespace IN ('sourceService','ingestion'))
 );
+CREATE TRIGGER immutable_record_namespace BEFORE UPDATE OF namespace ON records WHEN NEW.namespace<>OLD.namespace BEGIN SELECT RAISE(ABORT,'immutable record namespace'); END;
 CREATE TABLE revisions (
     id TEXT PRIMARY KEY, source_key TEXT NOT NULL, document_id TEXT NOT NULL,
     document_json TEXT NOT NULL, provenance_json TEXT NOT NULL, canonical_sha256 TEXT NOT NULL,
@@ -57,4 +59,4 @@ CREATE TABLE job_records (
     PRIMARY KEY(job_id,position),UNIQUE(job_id,record_id)
 );
 PRAGMA application_id=1347572819;
-PRAGMA user_version=2;
+PRAGMA user_version=3;

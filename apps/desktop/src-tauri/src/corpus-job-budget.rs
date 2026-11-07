@@ -38,6 +38,7 @@ const RECORD_BYTES: &str = r#"
     length(CAST(records.state_json AS BLOB))
     + length(CAST(records.id AS BLOB))
     + length(CAST(records.provider AS BLOB))
+    + length(CAST(records.namespace AS BLOB))
     + COALESCE((
         SELECT sum(
             length(CAST(revisions.document_json AS BLOB))

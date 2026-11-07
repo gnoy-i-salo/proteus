@@ -32,8 +32,8 @@ pub use job_types::{
 use rusqlite::{Connection, TransactionBehavior};
 use std::path::Path;
 pub use types::{
-    record_hash, MigrationAudit, RecordGeneration, RecordInput, RevisionInput, RevisionReference,
-    Snapshot, StoredRecord, StoredRevision,
+    record_hash, MigrationAudit, RecordGeneration, RecordInput, RecordNamespace, RevisionInput,
+    RevisionReference, Snapshot, StoredRecord, StoredRevision,
 };
 const INVALID: &str = "Сохранённый корпус повреждён или имеет неподдерживаемую версию.";
 fn sql_error(_: rusqlite::Error) -> String {
@@ -55,7 +55,7 @@ impl CorpusDatabase {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .map_err(sql_error)?;
-        if !(0..=2).contains(&version) {
+        if !(0..=3).contains(&version) {
             return Err(INVALID.into());
         }
         if version == 0 {
@@ -79,12 +79,18 @@ impl CorpusDatabase {
         if version == 1 {
             migrations::upgrade_jobs(&mut connection)?;
         }
+        if (1..=2).contains(&version) {
+            migrations::upgrade_record_namespaces(&mut connection)?;
+        }
         Ok(Self { connection })
     }
 }
 #[cfg(test)]
 #[path = "corpus-jobs-tests.rs"]
 mod job_tests;
+#[cfg(test)]
+#[path = "corpus-namespace-tests.rs"]
+mod namespace_tests;
 #[cfg(test)]
 #[path = "corpus-database-tests.rs"]
 mod tests;

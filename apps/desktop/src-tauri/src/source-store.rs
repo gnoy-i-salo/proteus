@@ -100,6 +100,9 @@ impl SourceStore {
     ) -> Result<Option<crate::corpus_database::StoredRecord>, String> {
         let id = record_id(path)?;
         if let Some(record) = database.read(id)? {
+            if record.namespace != crate::corpus_database::RecordNamespace::SourceService {
+                return Err(INVALID.into());
+            }
             return Ok(Some(record));
         }
         let Some((canonical, generation, ciphertext_sha256)) = self.legacy_value(path)? else {
@@ -176,7 +179,9 @@ impl SourceStore {
         {
             return Ok(vec![]);
         }
-        self.with_database(directory, |database| database.ids())
+        self.with_database(directory, |database| {
+            database.ids_in_namespace(crate::corpus_database::RecordNamespace::SourceService)
+        })
     }
     pub fn remove(&self, path: &Path) -> Result<(), String> {
         let provider = self.owner(path)?;

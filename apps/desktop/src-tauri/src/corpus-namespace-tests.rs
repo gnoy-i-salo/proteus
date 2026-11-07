@@ -170,3 +170,55 @@ fn sqlite_rejects_reassigning_an_existing_records_codec() {
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+#[test]
+fn legacy_revision_lookup_does_not_inherit_ingestion_provenance() {
+    let (mut db, dir) = setup();
+    let revision = RevisionInput {
+        source_key: "telegram/account/chat/message".into(),
+        document_id: "message".into(),
+        document_json: "{\"text\":\"  exact é\\r\\n\"}".into(),
+        provenance: SourceProvenance::source_service(Acquisition::Archive),
+    };
+    let mut modern = input("modern");
+    modern.documents.push(revision.clone());
+    db.save_ingestion(&modern).unwrap();
+    assert!(db
+        .matching_revision(
+            RecordNamespace::SourceService,
+            &revision.source_key,
+            &revision.document_json
+        )
+        .unwrap()
+        .is_none());
+    let mut legacy = input("legacy");
+    legacy.documents.push(revision.clone());
+    db.save(&legacy).unwrap();
+    assert!(db
+        .matching_revision(
+            RecordNamespace::SourceService,
+            &revision.source_key,
+            &revision.document_json
+        )
+        .unwrap()
+        .is_some());
+    db.remove("legacy").unwrap();
+    assert!(db
+        .matching_revision(
+            RecordNamespace::SourceService,
+            &revision.source_key,
+            &revision.document_json
+        )
+        .unwrap()
+        .is_none());
+    assert!(db
+        .matching_revision(
+            RecordNamespace::Ingestion,
+            &revision.source_key,
+            &revision.document_json
+        )
+        .unwrap()
+        .is_some());
+    assert!(db.read("modern").unwrap().is_some());
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}

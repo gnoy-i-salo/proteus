@@ -246,7 +246,11 @@ fn database_input(
         };
         let provenance = if let Some(generation) = legacy_generation {
             crate::corpus_database::SourceProvenance::legacy(acquisition, generation)?
-        } else if let Some(existing) = database.matching_revision(&source_key, &document_json)? {
+        } else if let Some(existing) = database.matching_revision(
+            crate::corpus_database::RecordNamespace::SourceService,
+            &source_key,
+            &document_json,
+        )? {
             existing.provenance
         } else {
             crate::corpus_database::SourceProvenance::source_service(acquisition)

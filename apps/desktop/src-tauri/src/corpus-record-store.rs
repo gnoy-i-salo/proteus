@@ -149,10 +149,29 @@ impl CorpusDatabase {
     }
     pub fn matching_revision(
         &self,
+        namespace: RecordNamespace,
         source_key: &str,
         document_json: &str,
     ) -> Result<Option<StoredRevision>, String> {
-        let reference=self.connection.query_row("SELECT document_id,id FROM revisions WHERE source_key=?1 AND document_json=?2 ORDER BY rowid DESC LIMIT 1",params![source_key,document_json],|row| Ok(RevisionReference{document_id:row.get(0)?,revision_id:row.get(1)?})).optional().map_err(sql_error)?;
+        let reference = self
+            .connection
+            .query_row(
+                "SELECT document_id,id FROM revisions WHERE source_key=?1 AND document_json=?2
+             AND EXISTS(SELECT 1 FROM record_revision_history
+                JOIN records ON records.id=record_revision_history.record_id
+                WHERE record_revision_history.revision_id=revisions.id
+                    AND records.namespace=?3 AND records.kind<>'deleted')
+             ORDER BY rowid DESC LIMIT 1",
+                params![source_key, document_json, namespace.as_str()],
+                |row| {
+                    Ok(RevisionReference {
+                        document_id: row.get(0)?,
+                        revision_id: row.get(1)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(sql_error)?;
         reference
             .map(|reference| read_revision(&self.connection, &reference))
             .transpose()

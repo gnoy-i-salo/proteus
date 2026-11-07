@@ -104,6 +104,27 @@ impl KimiOutput {
     }
 }
 
+// Answers and CLI-exposed reasoning are parsed separately; diagnostics are never displayed.
+pub(crate) fn answer_event(provider: &str, event: &Value) -> Option<String> {
+    if provider == "codex"
+        && event["type"] == "item.completed"
+        && event["item"]["type"] == "agent_message"
+    {
+        return event["item"]["text"].as_str().map(str::to_owned);
+    }
+    None
+}
+pub(crate) fn parse_event(provider: &str, line: &str) -> Result<Option<Value>, String> {
+    if line.trim().is_empty() {
+        return Ok(None);
+    }
+    match serde_json::from_str::<Value>(line) {
+        Ok(event) if provider != "kimi" || event.is_object() => Ok(Some(event)),
+        _ if provider == "kimi" => Err("Kimi returned invalid JSONL output".into()),
+        _ => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

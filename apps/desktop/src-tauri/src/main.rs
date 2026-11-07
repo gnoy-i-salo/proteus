@@ -6,6 +6,8 @@ mod cli_policy;
 #[path = "cli-protocol.rs"]
 mod cli_protocol;
 mod connections;
+#[path = "experiment-storage.rs"]
+mod experiment_storage;
 mod presets;
 mod sources;
 use std::sync::atomic::Ordering;
@@ -84,7 +86,7 @@ fn main() {
             cli::cli_status,
             cli::run_cli,
             cli::cancel_cli,
-            cli::save_experiment,
+            experiment_storage::save_experiment,
             connections::configure_connection,
             connections::connection_statuses,
             connections::begin_connection,

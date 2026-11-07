@@ -1,0 +1,144 @@
+{
+  "sourceRequest": {
+    "provider": "telegram",
+    "resourceId": "source-id: exact",
+    "authorId": null,
+    "from": null,
+    "to": null,
+    "allowModelProcessing": false,
+    "operations": ["describe", "read"],
+    "budget": {
+      "maxSteps": 4,
+      "maxDocuments": 100,
+      "maxBytes": 4096,
+      "maxDurationMs": 3000
+    }
+  },
+  "sourceGrant": {
+    "provider": "telegram",
+    "resourceId": "source-id: exact",
+    "authorId": null,
+    "from": null,
+    "to": null,
+    "allowModelProcessing": false,
+    "operations": ["describe", "read"],
+    "budget": {
+      "maxSteps": 4,
+      "maxDocuments": 100,
+      "maxBytes": 4096,
+      "maxDurationMs": 3000
+    },
+    "id": "grant-id",
+    "accountId": "account-id",
+    "snapshotId": "snapshot-id",
+    "expiresAt": "2020-01-01T00:00:00Z"
+  },
+  "sourceResult": {
+    "snapshotId": "snapshot-id",
+    "documents": [
+      {
+        "id": "message-id",
+        "provider": "telegram",
+        "resourceId": "source-id: exact",
+        "authorId": null,
+        "authorship": "other",
+        "authorLabel": "Мария — сестра Ивана",
+        "kind": "message",
+        "mode": "dialogue",
+        "text": "  Иван: **да**\r\n  👩🏽‍🔬\t source-url остаётся текстом ",
+        "sourceUrl": "https://example.test/source-url?author-id=unchanged",
+        "createdAt": null,
+        "retrievedAt": "2026-11-07T00:00:00Z",
+        "contentHash": "opaque-hash",
+        "replyTo": "message-previous",
+        "isForwarded": true,
+        "truncated": false,
+        "partition": "holdout"
+      }
+    ],
+    "coverage": {
+      "documents": 1,
+      "totalDocuments": null,
+      "bytes": 123,
+      "complete": false,
+      "truncated": true,
+      "notAnalyzed": 1,
+      "unavailable": ["точный исходный текст\r\n"]
+    },
+    "cursor": null,
+    "limitations": ["факт?\r\n гипотеза"]
+  },
+  "cliRequest": {
+    "id": "run-id",
+    "provider": "codex",
+    "model": "alias",
+    "task": "  task\r\n👩🏽‍🔬",
+    "systemPrompt": "source-context stays text",
+    "effort": "medium",
+    "operation": "source-plan",
+    "sourceContext": false
+  },
+  "cliResult": {
+    "answer": " exact answer\r\n",
+    "trace": {
+      "provider": "codex",
+      "reasoningMs": 3,
+      "wallTimeMs": 3,
+      "activeReasoningMs": null,
+      "requestedModel": "alias",
+      "resolvedModel": null,
+      "requestedEffort": "medium",
+      "appliedEffort": null,
+      "cliVersion": null,
+      "terminalMs": 0,
+      "summary": "Done",
+      "reasoning": [
+        {
+          "id": "reasoning-id",
+          "kind": "summary",
+          "text": " Exact\r\n👩🏽‍🔬 "
+        }
+      ],
+      "reasoningTruncated": false
+    }
+  },
+  "connectionStatus": {
+    "provider": "telegram",
+    "status": "qr-required",
+    "capabilities": ["archive-import", "opaque-value"],
+    "label": "  Мария — сестра Ивана ",
+    "message": " exact\r\n",
+    "clientId": "client-id",
+    "apiId": 123,
+    "userCode": " a-B ",
+    "qrCode": "data:image/svg+xml;base64,synthetic",
+    "pollAfterMs": 1200
+  },
+  "cliEvent": {
+    "id": "run-id",
+    "kind": "reasoning",
+    "elapsedMs": 3,
+    "reasoning": {
+      "id": "reasoning-id",
+      "kind": "summary",
+      "text": " Exact\r\n👩🏽‍🔬 "
+    }
+  },
+  "connectionConfig": {
+    "provider": "telegram",
+    "clientId": null,
+    "apiId": 123,
+    "apiHash": "synthetic-only",
+    "token": null
+  },
+  "importedSource": {
+    "id": "source-id",
+    "label": "Exact\r\n",
+    "documentCount": 0,
+    "warnings": ["source-url"]
+  },
+  "sourceAction": {
+    "action": "read",
+    "documentIds": ["source-url", "имя 👩🏽‍🔬"]
+  }
+}

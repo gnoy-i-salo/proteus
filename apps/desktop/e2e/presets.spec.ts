@@ -8,6 +8,15 @@ const preset = JSON.stringify({
     { label: 'Борис', context: 'Импровизация', 'public-urls': [] },
   ],
 });
+const expectedPreset = {
+  format: 'proteus-personas',
+  version: 2,
+  task: 'Общая задача',
+  people: [
+    { label: 'Анна', context: 'Точный контекст', publicUrls: ['https://example.org/a'] },
+    { label: 'Борис', context: 'Импровизация', publicUrls: [] },
+  ],
+};
 for (const mode of ['import', 'system'] as const) {
   test(`${mode} .proteus populates both people without starting CLI and exports a round trip`, async ({
     page,
@@ -45,7 +54,7 @@ for (const mode of ['import', 'system'] as const) {
     await expect(page.getByLabel('Общая задача', { exact: true })).toHaveValue('Общая задача');
     await page.getByRole('button', { name: 'Экспорт .proteus', exact: true }).click();
     expect(JSON.parse(await page.evaluate(() => Reflect.get(window, 'exportedPreset')))).toEqual(
-      JSON.parse(preset),
+      expectedPreset,
     );
     await expect(page.getByRole('button', { name: 'Начать эксперимент' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -86,5 +95,12 @@ test('long Unicode presets survive import, resize and export without changing th
   const stream = await file.createReadStream();
   const chunks: Buffer[] = [];
   for await (const chunk of stream!) chunks.push(chunk);
-  expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual(data);
+  expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual({
+    ...expectedPreset,
+    task: data.task,
+    people: [
+      { ...expectedPreset.people[0], context: data.people[0].context },
+      expectedPreset.people[1],
+    ],
+  });
 });

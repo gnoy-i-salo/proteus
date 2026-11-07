@@ -1,7 +1,7 @@
-import { decodeLegacySourceDocument } from '@proteus-int/contracts';
+import { decodeLegacySourceDocument, decodeSourceDocument } from '@proteus-int/contracts';
 import type { SourceOperation, SourceProvider, StoredSourceDocument } from '@proteus-int/contracts';
 
-// Preparatory IPC shapes; no consumers switch until the atomic domain migration.
+// Canonical live IPC shapes; legacy conversion is isolated below.
 export interface NativeSourceBudget {
   readonly maxSteps: number;
   readonly maxDocuments: number;
@@ -142,21 +142,33 @@ export function decodeLegacySourceGrantRequest(value: unknown): NativeSourceGran
 }
 
 // Conversion never checks or grants authorization; the native host still owns access decisions.
-export function decodeLegacySourceGrant(value: unknown): NativeSourceGrant {
-  const base = request(value, true, ['id', 'account-id', 'snapshot-id', 'expires-at']);
+function grant(value: unknown, legacy: boolean): NativeSourceGrant {
+  const accountKey = legacy ? 'account-id' : 'accountId';
+  const snapshotKey = legacy ? 'snapshot-id' : 'snapshotId';
+  const expiresKey = legacy ? 'expires-at' : 'expiresAt';
+  const base = request(value, legacy, ['id', accountKey, snapshotKey, expiresKey]);
   const source = value as Record<string, unknown>;
   return {
     ...base,
-    authorId: nullableText(source['author-id']),
+    authorId: nullableText(source[legacy ? 'author-id' : 'authorId']),
     from: nullableText(source.from),
     to: nullableText(source.to),
     id: text(source.id),
-    accountId: text(source['account-id']),
-    snapshotId: text(source['snapshot-id']),
-    expiresAt: text(source['expires-at']),
+    accountId: text(source[accountKey]),
+    snapshotId: text(source[snapshotKey]),
+    expiresAt: text(source[expiresKey]),
   };
 }
 
+export function decodeSourceGrant(value: unknown): NativeSourceGrant {
+  return grant(value, false);
+}
+export function decodeLegacySourceGrant(value: unknown): NativeSourceGrant {
+  return grant(value, true);
+}
+export function encodeSourceGrantRequest(value: unknown): NativeSourceGrantRequest {
+  return request(value, false);
+}
 export function encodeLegacySourceGrantRequest(value: unknown) {
   const source = request(value, false);
   return {
@@ -213,6 +225,9 @@ function action(value: unknown, legacy: boolean): NativeSourceAction {
 export function decodeLegacySourceAction(value: unknown): NativeSourceAction {
   return action(value, true);
 }
+export function encodeSourceAction(value: unknown): NativeSourceAction {
+  return action(value, false);
+}
 export function encodeLegacySourceAction(value: unknown) {
   const source = action(value, false);
   if (source.action === 'read')
@@ -220,37 +235,50 @@ export function encodeLegacySourceAction(value: unknown) {
   return { ...source };
 }
 
-export function decodeLegacySourceCoverage(value: unknown): NativeSourceCoverage {
+function coverage(value: unknown, legacy: boolean): NativeSourceCoverage {
+  const totalKey = legacy ? 'total-documents' : 'totalDocuments';
+  const notAnalyzedKey = legacy ? 'not-analyzed' : 'notAnalyzed';
   const source = fields(value, [
     'documents',
-    'total-documents',
+    totalKey,
     'bytes',
     'complete',
     'truncated',
-    'not-analyzed',
+    notAnalyzedKey,
     'unavailable',
   ]);
   return {
     documents: count(source.documents),
-    totalDocuments: source['total-documents'] === null ? null : count(source['total-documents']),
+    totalDocuments: source[totalKey] === null ? null : count(source[totalKey]),
     bytes: count(source.bytes),
     complete: flag(source.complete),
     truncated: flag(source.truncated),
-    notAnalyzed: count(source['not-analyzed']),
+    notAnalyzed: count(source[notAnalyzedKey]),
     unavailable: array(source.unavailable, text),
   };
 }
 
-export function decodeLegacySourceResult(value: unknown): NativeSourceResult {
-  const source = fields(value, ['snapshot-id', 'documents', 'coverage', 'cursor', 'limitations']);
+export function decodeLegacySourceCoverage(value: unknown): NativeSourceCoverage {
+  return coverage(value, true);
+}
+function result(value: unknown, legacy: boolean): NativeSourceResult {
+  const snapshotKey = legacy ? 'snapshot-id' : 'snapshotId';
+  const source = fields(value, [snapshotKey, 'documents', 'coverage', 'cursor', 'limitations']);
   // Same upper bound as the native plaintext corpus; no serialization is retained or exported.
   if (new TextEncoder().encode(JSON.stringify(source)).length > 32 * 1024 * 1024)
     throw new Error('Ответ источника превышает 32 МиБ.');
   return {
-    snapshotId: text(source['snapshot-id']),
-    documents: array(source.documents, decodeLegacySourceDocument),
-    coverage: decodeLegacySourceCoverage(source.coverage),
+    snapshotId: text(source[snapshotKey]),
+    documents: array(source.documents, legacy ? decodeLegacySourceDocument : decodeSourceDocument),
+    coverage: coverage(source.coverage, legacy),
     cursor: nullableText(source.cursor),
     limitations: array(source.limitations, text),
   };
+}
+
+export function decodeLegacySourceResult(value: unknown): NativeSourceResult {
+  return result(value, true);
+}
+export function decodeSourceResult(value: unknown): NativeSourceResult {
+  return result(value, false);
 }

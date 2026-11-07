@@ -27,7 +27,7 @@ describe('failed native calls retain public traces', () => {
         payload: {
           id: args.request.id,
           kind: 'reasoning',
-          'elapsed-ms': 30,
+          elapsedMs: 30,
           reasoning: { id: 'r', kind: 'thinking', text: 'я'.repeat(30000) },
         },
       });
@@ -61,7 +61,7 @@ describe('failed native calls retain public traces', () => {
           payload: {
             id,
             kind: 'reasoning',
-            'elapsed-ms': elapsed,
+            elapsedMs: elapsed,
             reasoning: { id: 'r', kind: 'summary', text },
           },
         });
@@ -69,7 +69,7 @@ describe('failed native calls retain public traces', () => {
         payload: {
           id: 'unrelated-run',
           kind: 'reasoning',
-          'elapsed-ms': 900,
+          elapsedMs: 900,
           reasoning: { id: 'foreign', kind: 'summary', text: 'Must be ignored' },
         },
       });
@@ -116,9 +116,9 @@ describe('failed native calls retain public traces', () => {
         answer: 'Not accepted after cancellation',
         trace: {
           provider: 'kimi',
-          'wall-time-ms': 250,
-          'reasoning-ms': 250,
-          'terminal-ms': 0,
+          wallTimeMs: 250,
+          reasoningMs: 250,
+          terminalMs: 0,
           summary: 'Returned',
           reasoning: [{ id: 'thinking', kind: 'thinking', text: 'Public thought' }],
         },
@@ -152,7 +152,7 @@ it('rejects malformed matching-run events without throwing from the subscription
         payload: {
           id: args.request.id,
           kind: 'reasoning',
-          'elapsed-ms': 1,
+          elapsedMs: 1,
           reasoning: { id: 'r', kind: 'answer', text: 'Must not be promoted to reasoning' },
         },
       });
@@ -161,7 +161,7 @@ it('rejects malformed matching-run events without throwing from the subscription
     }
     return {
       answer: 'Answer',
-      trace: { provider: 'codex', 'reasoning-ms': 1, 'terminal-ms': 0, summary: 'Done' },
+      trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'Done' },
     };
   });
   const seen: CliEvent[] = [];
@@ -178,15 +178,15 @@ it('rejects malformed matching-run events without throwing from the subscription
   expect(native.unlisten).toHaveBeenCalledOnce();
 });
 
-it('encodes the canonical request to legacy native keys and decodes the returned trace', async () => {
+it('uses canonical native request keys and decodes the returned trace', async () => {
   native.invoke.mockResolvedValue({
     answer: 'Exact answer  \r\n👩🏽‍🔬',
     trace: {
       provider: 'kimi',
-      'reasoning-ms': 5,
-      'terminal-ms': 0,
+      reasoningMs: 5,
+      terminalMs: 0,
       summary: 'Done',
-      'resolved-model': null,
+      resolvedModel: null,
     },
   });
   const result = await cliProviders(() => {}).kimi.run({
@@ -196,9 +196,9 @@ it('encodes the canonical request to legacy native keys and decodes the returned
     sourceContext: true,
   });
   expect(native.invoke).toHaveBeenCalledWith('run_cli', {
-    request: expect.objectContaining({ 'system-prompt': 'PERSON', 'source-context': true }),
+    request: expect.objectContaining({ systemPrompt: 'PERSON', sourceContext: true }),
   });
-  expect(native.invoke.mock.calls[0]?.[1].request).not.toHaveProperty('systemPrompt');
+  expect(native.invoke.mock.calls[0]?.[1].request).not.toHaveProperty('system-prompt');
   expect(result.trace).toMatchObject({ reasoningMs: 5, resolvedModel: null });
   expect(result.answer).toBe('Exact answer  \r\n👩🏽‍🔬');
 });

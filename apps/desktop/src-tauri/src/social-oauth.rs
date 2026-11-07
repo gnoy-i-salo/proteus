@@ -13,7 +13,7 @@ pub(crate) const INSTAGRAM_EXPORT: &str =
     "https://accountscenter.instagram.com/info_and_permissions/dyi/";
 
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct VkPending {
     pub state: String,
     pub verifier: String,

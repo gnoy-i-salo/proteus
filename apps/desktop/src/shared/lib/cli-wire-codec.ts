@@ -5,7 +5,7 @@ import type {
   ReasoningBlock,
 } from '@proteus-int/contracts';
 
-// Prepared beside the legacy adapter until all TypeScript consumers switch together.
+// The live native boundary is canonical; legacy decoders remain explicit compatibility readers.
 export interface CliWireTrace {
   readonly provider: ProviderId;
   /** Compatibility duration: wall time, never measured active reasoning. */
@@ -116,50 +116,73 @@ function reasoningBlocks(value: unknown): readonly ReasoningBlock[] {
   return blocks;
 }
 
-export function decodeLegacyCliTrace(value: unknown): CliWireTrace {
+function trace(value: unknown, legacy: boolean): CliWireTrace {
+  const keys = {
+    reasoningMs: legacy ? 'reasoning-ms' : 'reasoningMs',
+    wallTimeMs: legacy ? 'wall-time-ms' : 'wallTimeMs',
+    activeReasoningMs: legacy ? 'active-reasoning-ms' : 'activeReasoningMs',
+    requestedModel: legacy ? 'requested-model' : 'requestedModel',
+    resolvedModel: legacy ? 'resolved-model' : 'resolvedModel',
+    requestedEffort: legacy ? 'requested-effort' : 'requestedEffort',
+    appliedEffort: legacy ? 'applied-effort' : 'appliedEffort',
+    cliVersion: legacy ? 'cli-version' : 'cliVersion',
+    terminalMs: legacy ? 'terminal-ms' : 'terminalMs',
+    reasoningTruncated: legacy ? 'reasoning-truncated' : 'reasoningTruncated',
+  };
   const source = fields(value, [
     'provider',
-    'reasoning-ms',
-    'wall-time-ms',
-    'active-reasoning-ms',
-    'requested-model',
-    'resolved-model',
-    'requested-effort',
-    'applied-effort',
-    'cli-version',
-    'terminal-ms',
+    keys.reasoningMs,
+    keys.wallTimeMs,
+    keys.activeReasoningMs,
+    keys.requestedModel,
+    keys.resolvedModel,
+    keys.requestedEffort,
+    keys.appliedEffort,
+    keys.cliVersion,
+    keys.terminalMs,
     'summary',
     'reasoning',
-    'reasoning-truncated',
+    keys.reasoningTruncated,
   ]);
   return {
     provider: choice(source['provider'], ['codex', 'kimi'] as const),
-    reasoningMs: duration(source['reasoning-ms']),
-    terminalMs: duration(source['terminal-ms']),
+    reasoningMs: duration(source[keys.reasoningMs]),
+    terminalMs: duration(source[keys.terminalMs]),
     summary: text(source['summary']),
-    ...('wall-time-ms' in source ? { wallTimeMs: duration(source['wall-time-ms']) } : {}),
-    ...('active-reasoning-ms' in source
-      ? { activeReasoningMs: unknownDuration(source['active-reasoning-ms']) }
+    ...(keys.wallTimeMs in source ? { wallTimeMs: duration(source[keys.wallTimeMs]) } : {}),
+    ...(keys.activeReasoningMs in source
+      ? { activeReasoningMs: unknownDuration(source[keys.activeReasoningMs]) }
       : {}),
-    ...('requested-model' in source ? { requestedModel: text(source['requested-model']) } : {}),
-    ...('resolved-model' in source
-      ? { resolvedModel: nullableText(source['resolved-model']) }
+    ...(keys.requestedModel in source ? { requestedModel: text(source[keys.requestedModel]) } : {}),
+    ...(keys.resolvedModel in source
+      ? { resolvedModel: nullableText(source[keys.resolvedModel]) }
       : {}),
-    ...('requested-effort' in source
-      ? { requestedEffort: effort(source['requested-effort']) }
+    ...(keys.requestedEffort in source
+      ? { requestedEffort: effort(source[keys.requestedEffort]) }
       : {}),
-    ...('applied-effort' in source
+    ...(keys.appliedEffort in source
       ? {
           appliedEffort:
-            source['applied-effort'] === null ? null : effort(source['applied-effort']),
+            source[keys.appliedEffort] === null ? null : effort(source[keys.appliedEffort]),
         }
       : {}),
-    ...('cli-version' in source ? { cliVersion: nullableText(source['cli-version']) } : {}),
+    ...(keys.cliVersion in source ? { cliVersion: nullableText(source[keys.cliVersion]) } : {}),
     ...('reasoning' in source ? { reasoning: reasoningBlocks(source['reasoning']) } : {}),
-    ...('reasoning-truncated' in source
-      ? { reasoningTruncated: boolean(source['reasoning-truncated']) }
+    ...(keys.reasoningTruncated in source
+      ? { reasoningTruncated: boolean(source[keys.reasoningTruncated]) }
       : {}),
   };
+}
+
+export function decodeLegacyCliTrace(value: unknown): CliWireTrace {
+  return trace(value, true);
+}
+export function decodeCliTrace(value: unknown): CliWireTrace {
+  return trace(value, false);
+}
+export function decodeCliResult(value: unknown): CliWireResult {
+  const source = fields(value, ['answer', 'trace']);
+  return { answer: text(source['answer']), trace: decodeCliTrace(source['trace']) };
 }
 
 export function decodeLegacyCliResult(value: unknown): CliWireResult {
@@ -167,8 +190,9 @@ export function decodeLegacyCliResult(value: unknown): CliWireResult {
   return { answer: text(source['answer']), trace: decodeLegacyCliTrace(source['trace']) };
 }
 
-export function decodeLegacyCliEvent(value: unknown): CliWireEvent {
-  const source = fields(value, ['id', 'kind', 'elapsed-ms', 'reasoning']);
+function event(value: unknown, legacy: boolean): CliWireEvent {
+  const elapsedKey = legacy ? 'elapsed-ms' : 'elapsedMs';
+  const source = fields(value, ['id', 'kind', elapsedKey, 'reasoning']);
   const kind = choice(source['kind'], [
     'started',
     'reasoning',
@@ -184,12 +208,28 @@ export function decodeLegacyCliEvent(value: unknown): CliWireEvent {
   return {
     id,
     kind,
-    elapsedMs: duration(source['elapsed-ms']),
+    elapsedMs: duration(source[elapsedKey]),
     ...('reasoning' in source ? { reasoning: reasoningBlock(source['reasoning']) } : {}),
   };
 }
 
-export function encodeLegacyCliRequest(value: unknown): LegacyCliRequest {
+export function decodeLegacyCliEvent(value: unknown): CliWireEvent {
+  return event(value, true);
+}
+export function decodeCliEvent(value: unknown): CliWireEvent {
+  return event(value, false);
+}
+export interface CliWireRequest {
+  readonly id: string;
+  readonly provider: ProviderId;
+  readonly model: string;
+  readonly task: string;
+  readonly systemPrompt: string;
+  readonly effort: IntelligenceEffort;
+  readonly operation?: IntelligenceOperation;
+  readonly sourceContext?: boolean;
+}
+export function encodeCliRequest(value: unknown): CliWireRequest {
   const source = fields(value, [
     'id',
     'provider',
@@ -216,7 +256,7 @@ export function encodeLegacyCliRequest(value: unknown): LegacyCliRequest {
     provider: choice(source['provider'], ['codex', 'kimi'] as const),
     model,
     task: text(source['task'], 200_000),
-    'system-prompt': text(source['systemPrompt'], 40_000),
+    systemPrompt: text(source['systemPrompt'], 40_000),
     effort: effort(source['effort']),
     ...('operation' in source
       ? {
@@ -229,6 +269,20 @@ export function encodeLegacyCliRequest(value: unknown): LegacyCliRequest {
           ] as const),
         }
       : {}),
-    ...('sourceContext' in source ? { 'source-context': boolean(source['sourceContext']) } : {}),
+    ...('sourceContext' in source ? { sourceContext: boolean(source['sourceContext']) } : {}),
+  };
+}
+
+export function encodeLegacyCliRequest(value: unknown): LegacyCliRequest {
+  const source = encodeCliRequest(value);
+  return {
+    id: source.id,
+    provider: source.provider,
+    model: source.model,
+    task: source.task,
+    'system-prompt': source.systemPrompt,
+    effort: source.effort,
+    ...('operation' in source ? { operation: source.operation } : {}),
+    ...('sourceContext' in source ? { 'source-context': source.sourceContext } : {}),
   };
 }

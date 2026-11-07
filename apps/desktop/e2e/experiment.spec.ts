@@ -34,7 +34,7 @@ async function nativeFixture(
         async invoke(
           command: string,
           args: {
-            request?: { id: string; task: string; 'system-prompt': string; provider: string };
+            request?: { id: string; task: string; systemPrompt: string; provider: string };
             data?: string;
             event?: string;
           },
@@ -58,7 +58,7 @@ async function nativeFixture(
           if (command !== 'run_cli') return 1;
           const request = args.request;
           if (!request) throw new Error('Missing request');
-          const stage = request['system-prompt'].split('\n')[0] ?? '';
+          const stage = request.systemPrompt.split('\n')[0] ?? '';
           calls.push(stage);
           Reflect.set(window, 'stageCalls', calls);
           if (cancelMode)
@@ -94,7 +94,7 @@ async function nativeFixture(
               payload: {
                 id: request.id,
                 kind: 'reasoning',
-                'elapsed-ms': 100,
+                elapsedMs: 100,
                 reasoning: reasoning[0],
               },
             });
@@ -191,9 +191,9 @@ async function nativeFixture(
             answer: JSON.stringify(data),
             trace: {
               provider: request.provider,
-              'wall-time-ms': actor === 'A' ? 60000 : 180000,
-              'reasoning-ms': actor === 'A' ? 60000 : 180000,
-              'terminal-ms': 0,
+              wallTimeMs: actor === 'A' ? 60000 : 180000,
+              reasoningMs: actor === 'A' ? 60000 : 180000,
+              terminalMs: 0,
               summary: 'Completed',
               reasoning,
             },

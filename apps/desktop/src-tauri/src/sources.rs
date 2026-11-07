@@ -1,8 +1,5 @@
 use crate::connections::Provider;
-use crate::connections::{
-    storage::{random_id, EncryptedStore},
-    Connections,
-};
+use crate::connections::{storage::random_id, Connections};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -17,11 +14,14 @@ use std::{
 use tauri_plugin_dialog::DialogExt;
 #[path = "source-import.rs"]
 mod import;
+#[path = "source-storage-codec.rs"]
+mod storage_codec;
+use storage_codec::SourceStore;
 #[path = "source-readers.rs"]
 mod readers;
 
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceBudget {
     pub max_steps: u32,
     pub max_documents: u32,
@@ -30,7 +30,7 @@ pub struct SourceBudget {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceGrantRequest {
     pub provider: Provider,
     pub resource_id: String,
@@ -42,7 +42,7 @@ pub struct SourceGrantRequest {
     pub budget: SourceBudget,
 }
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct SourceGrant {
     #[serde(flatten)]
     pub request: SourceGrantRequest,
@@ -51,6 +51,7 @@ pub struct SourceGrant {
     pub snapshot_id: String,
     pub expires_at: String,
 }
+#[cfg_attr(test, derive(Serialize))]
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum SourceAction {
@@ -65,7 +66,7 @@ pub enum SourceAction {
         limit: usize,
     },
     Read {
-        #[serde(rename = "document-ids")]
+        #[serde(rename = "documentIds")]
         document_ids: Vec<String>,
     },
 }
@@ -81,7 +82,7 @@ impl SourceAction {
     }
 }
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceDocument {
     pub id: String,
     pub provider: Provider,
@@ -102,7 +103,7 @@ pub struct SourceDocument {
     pub partition: String,
 }
 #[derive(Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceCoverage {
     pub documents: u64,
     pub total_documents: Option<u64>,
@@ -112,8 +113,9 @@ pub struct SourceCoverage {
     pub not_analyzed: u64,
     pub unavailable: Vec<String>,
 }
+#[cfg_attr(test, derive(Deserialize))]
 #[derive(Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct SourceResult {
     pub snapshot_id: String,
     pub documents: Vec<SourceDocument>,
@@ -121,8 +123,9 @@ pub struct SourceResult {
     pub cursor: Option<String>,
     pub limitations: Vec<String>,
 }
+#[cfg_attr(test, derive(Deserialize))]
 #[derive(Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct ImportedSource {
     pub id: String,
     pub label: String,
@@ -291,6 +294,7 @@ fn valid_id(value: &str) -> bool {
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Checkpoint {
     phase: String,
     offset: u64,
@@ -322,8 +326,8 @@ pub(crate) struct Page {
     pub truncated: bool,
 }
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Record {
-    version: u8,
     grant: SourceGrant,
     documents: Vec<SourceDocument>,
     coverage: SourceCoverage,
@@ -335,6 +339,7 @@ struct Record {
     limitations: Vec<String>,
 }
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ImportedRecord {
     provider: Provider,
     documents: Vec<SourceDocument>,
@@ -343,7 +348,7 @@ struct ImportedRecord {
 struct SourceInner {
     directory: PathBuf,
     connections: Connections,
-    store: EncryptedStore,
+    store: SourceStore,
     gate: Mutex<()>,
     cancellations: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
@@ -359,7 +364,7 @@ impl Sources {
     }
     pub fn new(directory: PathBuf, connections: Connections) -> Self {
         Self(Arc::new(SourceInner {
-            store: EncryptedStore::new(connections.secrets()),
+            store: SourceStore::new(connections.secrets()),
             directory,
             connections,
             gate: Mutex::new(()),
@@ -427,7 +432,6 @@ impl Sources {
                 .push("Материал без подтверждённого времени исключён выбранным периодом.".into());
         }
         let record = Record {
-            version: 1,
             grant: grant.clone(),
             documents: vec![],
             coverage: SourceCoverage::default(),
@@ -462,7 +466,7 @@ impl Sources {
             .map_err(|_| "Ошибка состояния корпуса.")?;
         let mut record: Record = self.0.store.read(&path)?;
         let now = Utc::now().timestamp_millis();
-        if record.version != 1 || record.grant.id != id {
+        if record.grant.id != id {
             return Err("Корпус не соответствует разрешению.".into());
         }
         if record.cancelled || flag.load(Ordering::SeqCst) {
@@ -708,10 +712,7 @@ impl Sources {
             .map_err(|_| "Ошибка состояния корпуса.")?;
         let mut record: Record = self.0.store.read(&path)?;
         let now = Utc::now().timestamp_millis();
-        if record.version != 1
-            || record.grant.id != id
-            || !record.grant.request.allow_model_processing
-        {
+        if record.grant.id != id || !record.grant.request.allow_model_processing {
             return Err("Разрешение корпуса недействительно.".into());
         }
         if record.cancelled || self.flag(id)?.load(Ordering::SeqCst) {
@@ -746,44 +747,45 @@ impl Sources {
             .gate
             .lock()
             .map_err(|_| "Ошибка состояния корпуса.")?;
-        let mut selected = Vec::new();
-        if !self.0.directory.exists() {
-            return Ok(());
-        }
-        for entry in std::fs::read_dir(&self.0.directory)
-            .map_err(|_| "Не удалось открыть каталог корпуса.")?
-        {
-            let entry = entry.map_err(|_| "Не удалось прочитать каталог корпуса.")?;
-            let path = entry.path();
-            if path.extension().and_then(|v| v.to_str()) != Some("enc") {
-                continue;
-            }
-            let Some(id) = path
-                .file_stem()
-                .and_then(|v| v.to_str())
-                .filter(|v| valid_id(v))
-            else {
-                continue;
+        let mut ids = HashSet::new();
+        for directory in [&self.0.directory, &self.0.directory.join("v2")] {
+            let entries = match std::fs::read_dir(directory) {
+                Ok(entries) => entries,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(_) => return Err("Не удалось открыть каталог корпуса.".into()),
             };
-            if !entry
-                .file_type()
-                .map_err(|_| "Не удалось проверить файл корпуса.")?
-                .is_file()
-            {
-                continue;
+            for entry in entries {
+                let entry = entry.map_err(|_| "Не удалось прочитать каталог корпуса.")?;
+                let path = entry.path();
+                if path.extension().and_then(|v| v.to_str()) != Some("enc") {
+                    continue;
+                }
+                let Some(id) = path
+                    .file_stem()
+                    .and_then(|v| v.to_str())
+                    .filter(|v| valid_id(v))
+                else {
+                    continue;
+                };
+                if !entry
+                    .file_type()
+                    .map_err(|_| "Не удалось проверить файл корпуса.")?
+                    .is_file()
+                {
+                    continue;
+                }
+                ids.insert(id.to_string());
             }
-            let value: serde_json::Value = self.0.store.read(&self.path(id)?)?;
-            let owner = value
-                .get("provider")
-                .or_else(|| value.pointer("/grant/provider"))
-                .and_then(serde_json::Value::as_str);
-            if owner == Some(provider.key()) {
-                self.flag(id)?.store(true, Ordering::SeqCst);
-                selected.push(id.to_string());
+        }
+        let mut selected = Vec::new();
+        for id in ids {
+            if self.0.store.owner(&self.path(&id)?)? == provider {
+                self.flag(&id)?.store(true, Ordering::SeqCst);
+                selected.push(id);
             }
         }
         for id in selected {
-            remove_file(&self.path(&id)?)?;
+            self.0.store.remove(&self.path(&id)?)?;
         }
         Ok(())
     }
@@ -795,11 +797,13 @@ impl Sources {
             .gate
             .lock()
             .map_err(|_| "Ошибка состояния корпуса.")?;
-        let record: Record = self.0.store.read(&path)?;
-        if record.grant.id != id {
-            return Err("Корпус не соответствует разрешению.".into());
+        if !self.0.store.is_deleted(&path)? {
+            let record: Record = self.0.store.read(&path)?;
+            if record.grant.id != id {
+                return Err("Корпус не соответствует разрешению.".into());
+            }
         }
-        remove_file(&path)
+        self.0.store.remove(&path)
     }
     fn import(&self, provider: Provider, path: &Path) -> Result<ImportedSource, String> {
         let metadata = std::fs::metadata(path).map_err(|_| "Не удалось открыть выбранный файл.")?;
@@ -868,7 +872,9 @@ impl Sources {
 }
 fn remove_file(path: &Path) -> Result<(), String> {
     match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
+        Ok(()) => crate::connections::storage::sync_directory(
+            path.parent().ok_or("Неверный путь корпуса.")?,
+        ),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(_) => Err("Не удалось удалить выбранный корпус.".into()),
     }
@@ -1222,6 +1228,19 @@ mod tests {
         std::fs::remove_dir_all(directory).unwrap();
     }
     #[test]
+    fn interrupted_selected_delete_can_be_retried_without_reactivating_old_data() {
+        let (sources, directory) = local();
+        let grant = local_grant(&sources, Provider::Telegram, 10);
+        let legacy = sources.path(&grant.id).unwrap();
+        std::fs::create_dir(&legacy).unwrap();
+        assert!(sources.delete(&grant.id).is_err());
+        assert!(sources.execute(&grant.id, SourceAction::Coverage).is_err());
+        std::fs::remove_dir(&legacy).unwrap();
+        assert!(sources.delete(&grant.id).is_ok());
+        assert!(!storage_codec::current_path(&legacy).unwrap().exists());
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+    #[test]
     fn deletion_only_removes_selected_provider_owned_ciphertext() {
         let (sources, directory) = local();
         let tg = local_grant(&sources, Provider::Telegram, 10);
@@ -1233,7 +1252,9 @@ mod tests {
             .path(tg.request.resource_id.trim_start_matches("import:"))
             .unwrap()
             .exists());
-        assert!(sources.path(&ig.id).unwrap().exists());
+        assert!(storage_codec::current_path(&sources.path(&ig.id).unwrap())
+            .unwrap()
+            .exists());
         assert!(directory.join("unrelated.txt").exists());
         assert!(sources.delete("../../other").is_err());
         sources.delete(&ig.id).unwrap();
@@ -1301,5 +1322,101 @@ mod tests {
             ..RawItem::default()
         };
         assert!(in_scope(&selected, &item));
+    }
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn source_read_accepts_canonical_document_ids() {
+        let action =
+            serde_json::from_value::<SourceAction>(json!({"action":"read","documentIds":["d:1"]}));
+        assert!(
+            matches!(action, Ok(SourceAction::Read { document_ids }) if document_ids == ["d:1"])
+        );
+    }
+    #[test]
+    fn source_read_rejects_legacy_wire() {
+        assert!(serde_json::from_value::<SourceAction>(
+            json!({"action":"read","document-ids":["d:1"]})
+        )
+        .is_err());
+    }
+    #[test]
+    fn source_budget_emits_exact_canonical_keys() {
+        let value = serde_json::to_value(SourceBudget {
+            max_steps: 1,
+            max_documents: 2,
+            max_bytes: 1024,
+            max_duration_ms: 1000,
+        })
+        .unwrap();
+        assert_eq!(
+            value,
+            json!({"maxSteps":1,"maxDocuments":2,"maxBytes":1024,"maxDurationMs":1000})
+        );
+    }
+    #[test]
+    fn source_document_keeps_null_presence_and_exact_text() {
+        let text = "\r\n  Чужой: é 😀\t";
+        let value = serde_json::to_value(SourceDocument {
+            id: "d1".into(),
+            provider: Provider::Telegram,
+            resource_id: "chat:1".into(),
+            author_id: None,
+            author_label: None,
+            authorship: "unknown".into(),
+            kind: "message".into(),
+            mode: "dialogue".into(),
+            text: text.into(),
+            source_url: None,
+            created_at: None,
+            retrieved_at: None,
+            content_hash: "h".into(),
+            reply_to: None,
+            is_forwarded: true,
+            truncated: false,
+            partition: "training".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            value,
+            json!({"id":"d1","provider":"telegram","resourceId":"chat:1","authorId":null,"authorLabel":null,
+            "authorship":"unknown","kind":"message","mode":"dialogue","text":text,"sourceUrl":null,"createdAt":null,"retrievedAt":null,
+            "contentHash":"h","replyTo":null,"isForwarded":true,"truncated":false,"partition":"training"})
+        );
+    }
+    #[test]
+    fn matches_shared_frontend_wire_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../src/shared/lib/fixtures/native-wire.json"
+        ))
+        .unwrap();
+        let value: SourceGrantRequest =
+            serde_json::from_value(fixture["sourceRequest"].clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(value).unwrap(),
+            fixture["sourceRequest"]
+        );
+        let value: SourceGrant = serde_json::from_value(fixture["sourceGrant"].clone()).unwrap();
+        assert_eq!(serde_json::to_value(value).unwrap(), fixture["sourceGrant"]);
+        let value: SourceResult = serde_json::from_value(fixture["sourceResult"].clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(value).unwrap(),
+            fixture["sourceResult"]
+        );
+        let value: SourceAction = serde_json::from_value(fixture["sourceAction"].clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(value).unwrap(),
+            fixture["sourceAction"]
+        );
+        let value: ImportedSource =
+            serde_json::from_value(fixture["importedSource"].clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(value).unwrap(),
+            fixture["importedSource"]
+        );
     }
 }

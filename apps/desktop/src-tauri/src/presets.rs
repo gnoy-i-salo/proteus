@@ -18,25 +18,42 @@ fn validate_preset(data: &str) -> Result<(), String> {
     }
     let value: serde_json::Value =
         serde_json::from_str(data).map_err(|_| "Неверный JSON пресета.")?;
-    if value["format"] != "proteus-personas" || value["version"] != 1 {
-        return Err("Неподдерживаемый формат или версия .proteus.".into());
+    let preset = value.as_object().ok_or("Неверный объект пресета.")?;
+    if preset
+        .keys()
+        .any(|key| !["format", "version", "task", "people"].contains(&key.as_str()))
+    {
+        return Err("Неизвестные или смешанные поля пресета.".into());
     }
+    let urls_key = match (value["format"].as_str(), value["version"].as_u64()) {
+        (Some("proteus-personas"), Some(1)) => "public-urls",
+        (Some("proteus-personas"), Some(2)) => "publicUrls",
+        _ => return Err("Неподдерживаемый формат или версия .proteus.".into()),
+    };
     let task = value["task"].as_str().ok_or("Неверная задача в пресете.")?;
     let people = value["people"].as_array().ok_or("Нет персон в пресете.")?;
-    if task.chars().count() > 4000 || people.len() != 2 {
+    // Frontend String.length budgets count UTF-16 code units, not Rust scalars.
+    if task.encode_utf16().count() > 4000 || people.len() != 2 {
         return Err("Неверный размер пресета.".into());
     }
     for person in people {
+        let fields = person.as_object().ok_or("Неверная персона в пресете.")?;
+        if fields
+            .keys()
+            .any(|key| !["label", "context", urls_key].contains(&key.as_str()))
+        {
+            return Err("Неизвестные или смешанные поля персоны.".into());
+        }
         let label = person["label"].as_str().ok_or("Неверное имя персоны.")?;
         let context = person["context"]
             .as_str()
             .ok_or("Неверный контекст персоны.")?;
-        let urls = person["public-urls"]
+        let urls = person[urls_key]
             .as_array()
             .ok_or("Неверные ссылки персоны.")?;
         if label.trim().is_empty()
-            || label.chars().count() > 80
-            || context.chars().count() > 4000
+            || label.encode_utf16().count() > 80
+            || context.encode_utf16().count() > 4000
             || urls.len() > 5
             || (context.trim().is_empty() && urls.is_empty())
             || urls.iter().any(|url| !url.is_string())
@@ -228,5 +245,50 @@ mod tests {
         fs::write(&path, "x".repeat(MAX_BYTES as usize + 1)).unwrap();
         assert!(read_preset(&path).is_err());
         fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+    use serde_json::json;
+    use serde_json::Value;
+    fn preset(version: u8) -> Value {
+        let mut person = json!({"label":"  Имя 😀  ","context":"\r\nЦитата é \t","publicUrls":[]});
+        if version == 1 {
+            let urls = person
+                .as_object_mut()
+                .unwrap()
+                .remove("publicUrls")
+                .unwrap();
+            person["public-urls"] = urls;
+        }
+        json!({"format":"proteus-personas","version":version,"task":"  задача\r\n","people":[person.clone(),person]})
+    }
+    #[test]
+    fn accepts_canonical_preset_v2_and_exact_unicode() {
+        assert!(validate_preset(&preset(2).to_string()).is_ok());
+    }
+    #[test]
+    fn keeps_legacy_preset_v1_readable() {
+        assert!(validate_preset(&preset(1).to_string()).is_ok());
+    }
+    #[test]
+    fn rejects_preset_mixed_aliases_even_when_identical() {
+        let mut value = preset(1);
+        value["people"][0]["publicUrls"] = json!([]);
+        assert!(validate_preset(&value.to_string()).is_err());
+    }
+    #[test]
+    fn rejects_unknown_preset_fields() {
+        let mut value = preset(1);
+        value["people"][0]["grants"] = json!([]);
+        assert!(validate_preset(&value.to_string()).is_err());
+    }
+    #[test]
+    fn preset_label_budget_matches_frontend_utf16() {
+        let mut value = preset(1);
+        value["people"][0]["label"] = json!("😀".repeat(41));
+        assert!(validate_preset(&value.to_string()).is_err());
     }
 }

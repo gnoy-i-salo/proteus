@@ -30,7 +30,7 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return found;
 }
 
-function decodeCanonical(value: unknown): StoredSourceDocument {
+export function decodeSourceDocument(value: unknown): SourceDocument {
   const source = fields(value, [
     'id',
     'provider',
@@ -92,7 +92,7 @@ export function decodeLegacySourceDocument(value: unknown): StoredSourceDocument
     'truncated',
     'partition',
   ]);
-  return decodeCanonical({
+  return decodeSourceDocument({
     id: source['id'],
     provider: source['provider'],
     resourceId: source['resource-id'],
@@ -119,7 +119,7 @@ export function decodeStoredSourceDocument(data: string): StoredSourceDocument {
   const envelope = fields(JSON.parse(data), ['format', 'version', 'document']);
   if (envelope['format'] !== 'proteus-source-document' || envelope['version'] !== 2)
     throw new Error('Неподдерживаемая версия документа источника.');
-  return decodeCanonical(envelope['document']);
+  return decodeSourceDocument(envelope['document']);
 }
 
 export function encodeStoredSourceDocument(document: StoredSourceDocument): string {

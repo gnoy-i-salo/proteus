@@ -56,6 +56,7 @@ export type {
 } from './sources';
 export type { StoredSourceDocument } from './source-document-codec';
 export {
+  decodeSourceDocument,
   decodeLegacySourceDocument,
   decodeStoredSourceDocument,
   encodeStoredSourceDocument,

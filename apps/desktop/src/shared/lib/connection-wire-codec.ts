@@ -76,17 +76,22 @@ function qrCode(value: unknown): string {
   return code;
 }
 
-export function decodeLegacyConnectionStatus(value: unknown): NativeConnectionStatus {
+function status(value: unknown, legacy: boolean): NativeConnectionStatus {
+  const clientKey = legacy ? 'client-id' : 'clientId';
+  const apiKey = legacy ? 'api-id' : 'apiId';
+  const userKey = legacy ? 'user-code' : 'userCode';
+  const qrKey = legacy ? 'qr-code' : 'qrCode';
+  const pollKey = legacy ? 'poll-after-ms' : 'pollAfterMs';
   const source = fields(value, [
     'provider',
     'status',
     'label',
     'message',
-    'client-id',
-    'api-id',
-    'user-code',
-    'qr-code',
-    'poll-after-ms',
+    clientKey,
+    apiKey,
+    userKey,
+    qrKey,
+    pollKey,
     'capabilities',
   ]);
   return {
@@ -107,15 +112,20 @@ export function decodeLegacyConnectionStatus(value: unknown): NativeConnectionSt
     ] as const),
     ...(Object.hasOwn(source, 'label') ? { label: text(source.label) } : {}),
     ...(Object.hasOwn(source, 'message') ? { message: text(source.message) } : {}),
-    ...(Object.hasOwn(source, 'client-id') ? { clientId: text(source['client-id']) } : {}),
-    ...(Object.hasOwn(source, 'api-id') ? { apiId: apiId(source['api-id']) } : {}),
-    ...(Object.hasOwn(source, 'user-code') ? { userCode: text(source['user-code']) } : {}),
-    ...(Object.hasOwn(source, 'qr-code') ? { qrCode: qrCode(source['qr-code']) } : {}),
-    ...(Object.hasOwn(source, 'poll-after-ms')
-      ? { pollAfterMs: integer(source['poll-after-ms']) }
-      : {}),
+    ...(Object.hasOwn(source, clientKey) ? { clientId: text(source[clientKey]) } : {}),
+    ...(Object.hasOwn(source, apiKey) ? { apiId: apiId(source[apiKey]) } : {}),
+    ...(Object.hasOwn(source, userKey) ? { userCode: text(source[userKey]) } : {}),
+    ...(Object.hasOwn(source, qrKey) ? { qrCode: qrCode(source[qrKey]) } : {}),
+    ...(Object.hasOwn(source, pollKey) ? { pollAfterMs: integer(source[pollKey]) } : {}),
     capabilities: strings(source.capabilities),
   };
+}
+
+export function decodeLegacyConnectionStatus(value: unknown): NativeConnectionStatus {
+  return status(value, true);
+}
+export function decodeConnectionStatus(value: unknown): NativeConnectionStatus {
+  return status(value, false);
 }
 
 function config(value: unknown, legacy: boolean): NativeConnectionConfig {
@@ -144,6 +154,9 @@ function config(value: unknown, legacy: boolean): NativeConnectionConfig {
 export function decodeLegacyConnectionConfig(value: unknown): NativeConnectionConfig {
   return config(value, true);
 }
+export function encodeConnectionConfig(value: unknown): NativeConnectionConfig {
+  return config(value, false);
+}
 export function encodeLegacyConnectionConfig(value: unknown) {
   const source = config(value, false);
   return {
@@ -154,13 +167,21 @@ export function encodeLegacyConnectionConfig(value: unknown) {
     ...(Object.hasOwn(source, 'token') ? { token: source.token } : {}),
   };
 }
-export function decodeLegacyImportedSource(value: unknown): NativeImportedSource | null {
+function importedSource(value: unknown, legacy: boolean): NativeImportedSource | null {
+  const countKey = legacy ? 'document-count' : 'documentCount';
   if (value === null) return null;
-  const source = fields(value, ['id', 'label', 'document-count', 'warnings']);
+  const source = fields(value, ['id', 'label', countKey, 'warnings']);
   return {
     id: text(source.id),
     label: text(source.label),
-    documentCount: integer(source['document-count']),
+    documentCount: integer(source[countKey]),
     warnings: strings(source.warnings),
   };
+}
+
+export function decodeLegacyImportedSource(value: unknown): NativeImportedSource | null {
+  return importedSource(value, true);
+}
+export function decodeImportedSource(value: unknown): NativeImportedSource | null {
+  return importedSource(value, false);
 }

@@ -14,15 +14,15 @@ import type {
 } from '@proteus-int/contracts';
 import { isDesktop } from './window-controls';
 import {
-  decodeLegacyConnectionStatus,
-  decodeLegacyImportedSource,
-  encodeLegacyConnectionConfig,
+  decodeConnectionStatus,
+  decodeImportedSource,
+  encodeConnectionConfig,
 } from './connection-wire-codec';
 import {
-  decodeLegacySourceGrant,
-  decodeLegacySourceResult,
-  encodeLegacySourceAction,
-  encodeLegacySourceGrantRequest,
+  decodeSourceGrant,
+  decodeSourceResult,
+  encodeSourceAction,
+  encodeSourceGrantRequest,
 } from './source-wire-codec';
 
 function requireDesktop(): void {
@@ -38,14 +38,14 @@ export function connectionStatuses(): Promise<ConnectionStatus[]> {
   requireDesktop();
   return invoke<unknown>('connection_statuses').then((value) => {
     if (!Array.isArray(value)) throw new Error('Неверный список подключений.');
-    return value.map(decodeLegacyConnectionStatus);
+    return value.map(decodeConnectionStatus);
   });
 }
 
 export function configureConnection(request: ConnectionConfig): Promise<ConnectionStatus> {
   requireDesktop();
-  return invoke('configure_connection', { request: encodeLegacyConnectionConfig(request) }).then(
-    decodeLegacyConnectionStatus,
+  return invoke('configure_connection', { request: encodeConnectionConfig(request) }).then(
+    decodeConnectionStatus,
   );
 }
 
@@ -57,7 +57,7 @@ export function beginConnection(
   return invoke('begin_connection', {
     provider,
     ...(telegramMethod ? { telegramMethod } : {}),
-  }).then(decodeLegacyConnectionStatus);
+  }).then(decodeConnectionStatus);
 }
 
 export function openConnectionPage(page: ConnectionPage): Promise<void> {
@@ -71,24 +71,24 @@ export function advanceConnection(
 ): Promise<ConnectionStatus> {
   requireDesktop();
   return invoke('advance_connection', { provider, ...(input === undefined ? {} : { input }) }).then(
-    decodeLegacyConnectionStatus,
+    decodeConnectionStatus,
   );
 }
 
 export function disconnectConnection(provider: SourceProvider): Promise<ConnectionStatus> {
   requireDesktop();
-  return invoke('disconnect_connection', { provider }).then(decodeLegacyConnectionStatus);
+  return invoke('disconnect_connection', { provider }).then(decodeConnectionStatus);
 }
 
 export function importSource(provider: SourceProvider): Promise<ImportedSource | null> {
   requireDesktop();
-  return invoke('import_source', { provider }).then(decodeLegacyImportedSource);
+  return invoke('import_source', { provider }).then(decodeImportedSource);
 }
 
 export function createSourceGrant(request: SourceGrantRequest): Promise<SourceGrant> {
   requireDesktop();
-  return invoke('create_source_grant', { request: encodeLegacySourceGrantRequest(request) }).then(
-    decodeLegacySourceGrant,
+  return invoke('create_source_grant', { request: encodeSourceGrantRequest(request) }).then(
+    decodeSourceGrant,
   );
 }
 
@@ -127,8 +127,8 @@ export const nativeSourcePort: SourcePort = {
     };
     signal?.addEventListener('abort', cancel, { once: true });
     try {
-      const result: SourceResult = decodeLegacySourceResult(
-        await invoke('source_action', { grantId, action: encodeLegacySourceAction(action) }),
+      const result: SourceResult = decodeSourceResult(
+        await invoke('source_action', { grantId, action: encodeSourceAction(action) }),
       );
       signal?.throwIfAborted();
       return result;

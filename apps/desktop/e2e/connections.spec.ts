@@ -34,7 +34,7 @@ async function nativeConnections(page: Page) {
       states['telegram'] = {
         ...states['telegram'],
         status: 'qr-required',
-        'qr-code': qrCode('rotated'),
+        qrCode: qrCode('rotated'),
       };
     });
     Reflect.set(window, '__TAURI_INTERNALS__', {
@@ -87,9 +87,9 @@ async function nativeConnections(page: Page) {
           return {
             ...request,
             id: 'grant-test',
-            'account-id': 'account-test',
-            'snapshot-id': 'snapshot-test',
-            'expires-at': '2099-01-01T00:00:00Z',
+            accountId: 'account-test',
+            snapshotId: 'snapshot-test',
+            expiresAt: '2099-01-01T00:00:00Z',
           };
         if (command === 'configure_connection') {
           if (request?.['token'] === 'bad-test-token') throw new Error('bad-test-token rejected');
@@ -97,24 +97,24 @@ async function nativeConnections(page: Page) {
             provider,
             status: provider === 'instagram' ? 'connected' : 'disconnected',
             capabilities: provider === 'instagram' ? ['profile', 'posts'] : [],
-            ...(request?.['client-id'] ? { 'client-id': request['client-id'] } : {}),
-            ...(request?.['api-id'] ? { 'api-id': request['api-id'] } : {}),
+            ...(request?.clientId ? { clientId: request.clientId } : {}),
+            ...(request?.apiId ? { apiId: request.apiId } : {}),
           };
         }
         if (command === 'begin_connection') {
-          if (provider === 'telegram') delete states[provider]?.['qr-code'];
+          if (provider === 'telegram') delete states[provider]?.qrCode;
           states[provider] = {
             ...states[provider],
             status:
               provider === 'telegram'
-                ? args['telegramMethod'] === 'phone'
+                ? args.telegramMethod === 'phone'
                   ? 'phone-required'
                   : 'qr-required'
                 : 'pending',
-            ...(provider === 'telegram' && args['telegramMethod'] !== 'phone'
-              ? { 'qr-code': qrCode() }
+            ...(provider === 'telegram' && args.telegramMethod !== 'phone'
+              ? { qrCode: qrCode() }
               : {}),
-            ...(provider === 'github' ? { 'user-code': 'TEST-CODE', 'poll-after-ms': 60000 } : {}),
+            ...(provider === 'github' ? { userCode: 'TEST-CODE', pollAfterMs: 60000 } : {}),
           };
         }
         if (command === 'advance_connection') {
@@ -136,7 +136,7 @@ async function nativeConnections(page: Page) {
           return {
             id: 'import:test-archive',
             label: 'messages.json',
-            'document-count': 4,
+            documentCount: 4,
             warnings: [],
           };
         return states[provider] ?? 1;
@@ -188,14 +188,14 @@ test('source selection requires explicit model consent and stays outside saved p
     calls.find((call: { command: string }) => call.command === 'create_source_grant').args.request,
   ).toMatchObject({
     provider: 'telegram',
-    'resource-id': '-1001234567890',
-    'author-id': '12345',
-    'allow-model-processing': true,
+    resourceId: '-1001234567890',
+    authorId: '12345',
+    allowModelProcessing: true,
     budget: {
-      'max-steps': 40,
-      'max-documents': 1000,
-      'max-bytes': 1048576,
-      'max-duration-ms': 300000,
+      maxSteps: 40,
+      maxDocuments: 1000,
+      maxBytes: 1048576,
+      maxDurationMs: 300000,
     },
   });
   expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain(
@@ -557,7 +557,7 @@ test('Telegram rejects nonlocal or oversized QR images', async ({ page }) => {
       page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true }),
     ).toBeVisible();
     await page.evaluate(
-      (qr) => Reflect.get(window, 'setConnectionState')('telegram', { 'qr-code': qr }),
+      (qr) => Reflect.get(window, 'setConnectionState')('telegram', { qrCode: qr }),
       value,
     );
     await expect(

@@ -43,27 +43,54 @@ pub(crate) fn random_id(bytes: usize) -> Result<String, String> {
         .map_err(|_| "Генератор случайных чисел недоступен.".to_string())?;
     Ok(URL_SAFE_NO_PAD.encode(data))
 }
-pub(crate) fn load_secret<T: DeserializeOwned>(
+pub(crate) fn load_secret<T: super::storage_codec::StoredSecret>(
     store: &dyn SecretStore,
     key: &str,
 ) -> Result<Option<T>, String> {
     store
         .get(key)?
-        .map(|value| {
-            serde_json::from_str(&value).map_err(|_| {
-                "Сохранённые данные подключения повреждены. Подключите аккаунт заново.".into()
-            })
-        })
+        .map(|value| super::storage_codec::decode(&value))
         .transpose()
 }
-pub(crate) fn save_secret<T: Serialize>(
+pub(crate) fn save_secret<T: super::storage_codec::StoredSecret>(
     store: &dyn SecretStore,
     key: &str,
     value: &T,
 ) -> Result<(), String> {
-    let value = serde_json::to_string(value)
-        .map_err(|_| "Не удалось подготовить данные подключения.".to_string())?;
+    let value = super::storage_codec::encode(value)?;
     store.set(key, &value)
+}
+
+// Unix directory fsync orders generation publication and revocation metadata.
+// Other platforms retain atomic replacement and process-crash recovery; this
+// does not promise storage-device or power-loss durability on every filesystem.
+pub(crate) fn sync_directory(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    fs::File::open(path)
+        .and_then(|directory| directory.sync_all())
+        .map_err(|_| "Не удалось подтвердить сохранение каталога корпуса.".to_string())?;
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
+}
+fn prepare_directory(parent: &Path) -> Result<(), String> {
+    let mut missing = Vec::new();
+    let mut directory = parent;
+    loop {
+        match fs::symlink_metadata(directory) {
+            Ok(_) => break,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                missing.push(directory);
+                directory = directory.parent().ok_or("Неверный каталог корпуса.")?;
+            }
+            Err(_) => return Err("Не удалось проверить каталог корпуса.".into()),
+        }
+    }
+    fs::create_dir_all(parent).map_err(|_| "Не удалось создать каталог корпуса.")?;
+    for created in missing.into_iter().rev() {
+        sync_directory(created.parent().ok_or("Неверный каталог корпуса.")?)?;
+    }
+    Ok(())
 }
 
 pub(crate) struct EncryptedStore {
@@ -81,8 +108,7 @@ impl EncryptedStore {
         }
         let bytes = self.encrypt(&plain)?;
         let parent = path.parent().ok_or("Неверный путь корпуса.")?;
-        fs::create_dir_all(parent)
-            .map_err(|_| "Не удалось создать каталог корпуса.".to_string())?;
+        prepare_directory(parent)?;
         let temp = parent.join(format!("{}.tmp", random_id(16)?));
         let result = (|| {
             use std::io::Write;
@@ -99,7 +125,16 @@ impl EncryptedStore {
             file.write_all(&bytes)
                 .and_then(|_| file.sync_all())
                 .map_err(|_| "Не удалось записать корпус.".to_string())?;
-            fs::rename(&temp, path).map_err(|_| "Не удалось сохранить корпус.".to_string())
+            // Read back the staged ciphertext before publication. A failed write,
+            // read, decrypt or byte comparison leaves the previous generation intact.
+            let staged = fs::read(&temp).map_err(|_| "Не удалось проверить запись корпуса.")?;
+            if self.decrypt(&staged)? != plain {
+                return Err("Проверка записи корпуса не пройдена.".into());
+            }
+            fs::rename(&temp, path).map_err(|_| "Не удалось сохранить корпус.".to_string())?;
+            // A sync error after rename can leave the valid new generation visible.
+            // Its original legacy file is still retained; retry remains idempotent.
+            sync_directory(parent)
         })();
         if result.is_err() {
             let _ = fs::remove_file(temp);

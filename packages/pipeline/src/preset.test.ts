@@ -13,16 +13,7 @@ const input = {
 } as const;
 it('round trips two persona inputs, Unicode and optional task without settings or results', () => {
   const data = serializePersonaPreset(input);
-  expect(JSON.parse(data)).toEqual({
-    format: 'proteus-personas',
-    version: 1,
-    task: input.task,
-    people: input.people.map((person) => ({
-      label: person.label,
-      context: person.context,
-      'public-urls': person.publicUrls,
-    })),
-  });
+  expect(JSON.parse(data)).toEqual({ format: 'proteus-personas', version: 2, ...input });
   expect(parsePersonaPreset(data)).toEqual(input);
 });
 it.each([
@@ -47,14 +38,23 @@ it.each([
   expect(() => parsePersonaPreset(data)).toThrow();
 });
 
-it('normalizes legacy input into canonical fields while retaining the native v1 writer until IPC switches', () => {
+it('writes the version2 canonical preset while preserving literal identity and legacy reads', () => {
   const input = {
-    task: '  Общая задача\n',
+    task: '  Общая задача\r\n',
     people: [
-      { label: 'Анна', context: '  Борис: привет\n👩🏽‍💻  ', publicUrls: ['https://example.org/a-b'] },
+      {
+        label: 'Анна',
+        context: '  Борис: привет\r\n👩🏽‍💻  ',
+        publicUrls: ['https://example.org/a-b'],
+      },
       { label: 'Борис', context: 'Ответ Анне', publicUrls: [] },
     ] as const,
   };
+  expect(JSON.parse(serializePersonaPreset(input))).toEqual({
+    format: 'proteus-personas',
+    version: 2,
+    ...input,
+  });
   const legacy = {
     format: 'proteus-personas',
     version: 1,
@@ -66,5 +66,4 @@ it('normalizes legacy input into canonical fields while retaining the native v1 
     })),
   };
   expect(parsePersonaPreset(JSON.stringify(legacy))).toEqual(input);
-  expect(JSON.parse(serializePersonaPreset(input))).toEqual(legacy);
 });

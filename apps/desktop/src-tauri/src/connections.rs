@@ -4,6 +4,8 @@ pub(crate) mod http;
 pub(crate) mod oauth;
 #[path = "social-storage.rs"]
 pub(crate) mod storage;
+#[path = "connection-storage-codec.rs"]
+mod storage_codec;
 #[cfg(feature = "telegram")]
 #[path = "telegram.rs"]
 mod telegram;
@@ -52,7 +54,7 @@ impl Provider {
 }
 
 #[derive(Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConnectionConfig {
     pub provider: Option<Provider>,
     pub client_id: Option<String>,
@@ -61,8 +63,9 @@ pub struct ConnectionConfig {
     pub token: Option<String>,
 }
 
+#[cfg_attr(test, derive(Deserialize))]
 #[derive(Clone, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct ConnectionStatus {
     pub provider: Provider,
     pub status: String,
@@ -84,7 +87,7 @@ pub struct ConnectionStatus {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Token {
     pub access: String,
     refresh: Option<String>,
@@ -95,7 +98,7 @@ pub(crate) struct Token {
     label: String,
 }
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct DevicePending {
     client_id: String,
     device_code: String,
@@ -1065,5 +1068,58 @@ mod tests {
             assert!(hub.token(Provider::Github).is_err());
             assert!(hub.secrets().get("github-token").unwrap().is_some());
         }
+    }
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn connection_status_retains_omission_and_status_values() {
+        let value = serde_json::to_value(ConnectionStatus {
+            provider: Provider::Github,
+            status: "pending".into(),
+            label: None,
+            message: None,
+            client_id: None,
+            api_id: None,
+            user_code: None,
+            poll_after_ms: Some(1000),
+            qr_code: None,
+            capabilities: vec![],
+        })
+        .unwrap();
+        assert_eq!(
+            value,
+            json!({"provider":"github","status":"pending","pollAfterMs":1000,"capabilities":[]})
+        );
+    }
+    #[test]
+    fn connection_page_retains_stable_values() {
+        assert!(matches!(
+            serde_json::from_str::<ConnectionPage>("\"vk-auth\""),
+            Ok(ConnectionPage::VkAuth)
+        ));
+        assert!(serde_json::from_str::<ConnectionPage>("\"vkAuth\"").is_err());
+    }
+    #[test]
+    fn matches_shared_frontend_wire_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../src/shared/lib/fixtures/native-wire.json"
+        ))
+        .unwrap();
+        let value: ConnectionConfig =
+            serde_json::from_value(fixture["connectionConfig"].clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(value).unwrap(),
+            fixture["connectionConfig"]
+        );
+        let value: ConnectionStatus =
+            serde_json::from_value(fixture["connectionStatus"].clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(value).unwrap(),
+            fixture["connectionStatus"]
+        );
     }
 }

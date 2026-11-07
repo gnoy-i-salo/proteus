@@ -9,11 +9,7 @@ import type {
 import { IntelligenceRunError } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { isDesktop } from './window-controls';
-import {
-  decodeLegacyCliEvent,
-  decodeLegacyCliResult,
-  encodeLegacyCliRequest,
-} from './cli-wire-codec';
+import { decodeCliEvent, decodeCliResult, encodeCliRequest } from './cli-wire-codec';
 import type { CliWireEvent } from './cli-wire-codec';
 export interface CliStatus {
   provider: ProviderId;
@@ -68,7 +64,7 @@ export function cliProviders(
               };
             }
           }
-          payload = decodeLegacyCliEvent(bounded);
+          payload = decodeCliEvent(bounded);
         } catch (failure) {
           streamFailure = failure;
           void invoke('cancel_cli', { id: runId }).catch(() => undefined);
@@ -107,7 +103,7 @@ export function cliProviders(
       try {
         signal?.throwIfAborted();
         const rawResult = await invoke<unknown>('run_cli', {
-          request: encodeLegacyCliRequest({
+          request: encodeCliRequest({
             ...request,
             id: runId,
             provider: id,
@@ -115,7 +111,7 @@ export function cliProviders(
           }),
         });
         if (streamFailure) throw streamFailure;
-        const result: IntelligenceResult = decodeLegacyCliResult(rawResult);
+        const result: IntelligenceResult = decodeCliResult(rawResult);
         returned = result.trace;
         signal?.throwIfAborted();
         return result;

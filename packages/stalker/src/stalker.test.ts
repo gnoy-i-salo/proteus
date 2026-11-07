@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
-import { anonymizeReport, collectPerson, redactTask } from './index';
+import { collectPerson } from './index';
 
 const input = {
   label: 'Ada Lovelace',
@@ -60,36 +60,13 @@ describe('honest evidence provenance', () => {
       collectPerson(input, provider([{ ...evidence, status: ['supported'] }])),
     ).rejects.toThrow(/status/i);
   });
-  it('keeps opaque references while removing identifiers from evidence and task inputs', async () => {
+  it('preserves names and source locations in evidence without upgrading provenance', async () => {
     const { report } = await collectPerson(input, provider([evidence]));
-    const anonymous = anonymizeReport(report, input);
-    expect(anonymous.evidence[0]).toMatchObject({ id: 'e1', status: 'supported' });
-    expect(JSON.stringify(anonymous)).not.toMatch(/Ada Lovelace|example.org|ada-lovelace/i);
-    expect(
-      redactTask('Ask Ada Lovelace and @ada-lovelace at ada@example.org', [input]),
-    ).not.toMatch(/Ada Lovelace|@ada-lovelace|ada@example.org/i);
-  });
-  it('preserves unrelated task links and handles while scrubbing persona references', () => {
-    const task =
-      'Ask Ada Lovelace at https://example.org/people/ada-lovelace?ref=task. Use https://standards.example/spec and @support-desk.';
-    const clean = redactTask(task, [input]);
-    expect(clean).toContain('https://standards.example/spec');
-    expect(clean).toContain('@support-desk');
-    expect(clean).not.toContain('Ada Lovelace');
-    expect(clean).not.toContain('example.org/people/ada-lovelace');
-  });
-  it('still removes unrelated locations and handles from behavioral evidence', async () => {
-    const { report } = await collectPerson(
-      input,
-      provider([
-        {
-          ...evidence,
-          summary: 'Consults https://standards.example/spec and @support-desk',
-        },
-      ]),
-    );
-    expect(JSON.stringify(anonymizeReport(report, input))).not.toMatch(
-      /standards.example|@support-desk/,
-    );
+    expect(report.evidence[0]).toMatchObject({
+      summary: evidence.summary,
+      'source-url': evidence['source-url'],
+      excerpt: evidence.excerpt,
+      verification: 'model-reported',
+    });
   });
 });

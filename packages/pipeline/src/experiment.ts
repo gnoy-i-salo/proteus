@@ -19,7 +19,6 @@ import {
   analyzeSourceCollections,
   collectPerson,
   collectSource,
-  redactTask,
   validateSourceGrant,
 } from '@proteus-int/stalker';
 import type { SourceCollection, StalkerReport } from '@proteus-int/stalker';
@@ -155,7 +154,7 @@ export async function runExperiment(
   validateExperiment(input, [sourceGrants[0].length > 0, sourceGrants[1].length > 0]);
   const repetitions = options.repetitions ?? 1;
   const order = buildTrialOrder(repetitions);
-  const task = redactTask(input.task, input.people);
+  const task = input.task;
   const total = 8 + repetitions * 5;
   let completed = 0;
   const traces: StageTrace[] = [];
@@ -328,7 +327,7 @@ export async function runExperiment(
     ),
     'format-attempts': 2,
     'stage-timeout-ms': 600000,
-    'prompt-version': 'bsc-v2.2-source-style',
+    'prompt-version': 'bsc-v2.3-source-identity',
     'created-at': new Date().toISOString(),
     'source-snapshots': [
       sourceGrants[0].map((grant) => grant['snapshot-id']),

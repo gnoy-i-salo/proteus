@@ -1,12 +1,13 @@
 export type CommunicationMode = 'dialogue' | 'comment' | 'formal';
 
-/** Short sanitized author samples, distinct from the original local corpus. */
+/** Short verbatim author samples with separate export permission. */
 export interface StyleExemplar {
   readonly id: string;
   readonly 'document-id': string;
   readonly mode: CommunicationMode;
   readonly text: string;
   readonly context: string;
+  /** Legacy replacement spans for older saved profiles; new samples always use an empty array. */
   readonly redactions: readonly { readonly start: number; readonly end: number }[];
   readonly 'export-allowed': boolean;
 }

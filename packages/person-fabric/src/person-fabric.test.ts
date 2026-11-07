@@ -7,7 +7,7 @@ import { adaptPerson, fabricatePerson, neutralProfile } from './index';
 const input = { label: 'Ada', context: 'Checks assumptions', 'public-urls': [] };
 const rule: PersonaRule = {
   id: 'r1',
-  instruction: 'Check assumptions before choosing',
+  instruction: 'Ada asks Boris before choosing; consult @boris at https://example.org/ada',
   'evidence-ids': ['e1'],
   status: 'hypothesis',
   limitations: ['User description only'],
@@ -56,7 +56,7 @@ describe('frozen evidence-linked personas', () => {
     };
     const styleRule = {
       id: 'voice-1',
-      instruction: 'Use short replies',
+      instruction: 'Ada uses short replies to @boris',
       'exemplar-ids': ['sample-1'],
       status: 'observed',
       limitations: ['Small sample'],
@@ -106,7 +106,7 @@ describe('frozen evidence-linked personas', () => {
       ),
     ).rejects.toThrow(/exemplar/u);
   });
-  it('keeps the already sanitized shared task identical for the neutral adaptation', async () => {
+  it('keeps the original shared task identical for the neutral adaptation', async () => {
     const calls: IntelligenceRequest[] = [];
     const task = 'Нейтральный контроль нужен для сравнения. Design a room.';
     await adaptPerson(
@@ -126,7 +126,10 @@ describe('frozen evidence-linked personas', () => {
       provider({ rules: [rule] }, calls),
     );
     expect(JSON.parse(calls[0]!.task)).not.toHaveProperty('task');
-    expect(calls[0]!.task).not.toContain('Ada');
+    expect(JSON.parse(calls[0]!.task)).toMatchObject({
+      person: input,
+      evidence: report.evidence,
+    });
     expect(profile.rules).toEqual([rule]);
     expect(profile['source-status']).toBe('synthetic');
     expect(profile.skills).toEqual([]);
@@ -180,7 +183,8 @@ describe('frozen evidence-linked personas', () => {
     expect(base.skills).toEqual([]);
     expect(adapted.profile.skills).toEqual([skill.instruction]);
     expect(calls.map((call) => call.effort)).toEqual(['medium', 'medium']);
-    expect(calls.map((call) => call.task).join('')).not.toContain('Ada');
+    expect(JSON.parse(calls[0]!.task)['persona-label']).toBe('Ada');
+    expect(JSON.parse(calls[1]!.task)['persona-label']).toBeNull();
     expect(neutral['source-status']).toBe('neutral');
     expect(neutral.rules).toEqual([]);
   });

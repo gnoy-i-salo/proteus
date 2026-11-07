@@ -406,14 +406,15 @@ describe('controlled persona experiment', () => {
     expect(result.traces.every((trace) => trace.attempts.at(-1)?.status === 'accepted')).toBe(true);
   });
 
-  it('shares one sanitized task but keeps profile construction task-free and provenance intact', async () => {
+  it('shares the original task and preserves identity while keeping profile construction task-free', async () => {
     const { calls, adapters } = providers();
     const taskInput = {
       ...input,
       task: 'Ada and Boris design a room using https://standards.example/spec',
     };
     const result = await runExperiment(taskInput, createModelSettings(), adapters);
-    expect(result.protocol.task).not.toMatch(/Ada|Boris/);
+    expect(result.protocol.task).toBe(taskInput.task);
+    expect(result.protocol['prompt-version']).toBe('bsc-v2.3-source-identity');
     expect(result.protocol.task).toContain('https://standards.example/spec');
     for (const call of calls) {
       const data = payload(call);
@@ -421,7 +422,7 @@ describe('controlled persona experiment', () => {
         expect(data).not.toHaveProperty('task');
       else expect(data.task).toBe(result.protocol.task);
       if (call.stage === 'PERSON_FABRIC') {
-        expect(call.request.task).not.toMatch(/Ada|Boris|example.org/);
+        expect(['Ada', 'Boris']).toContain((data.person as { label: string }).label);
         expect(data.evidence).toMatchObject([{ id: 'e1', status: 'hypothesis' }]);
       }
     }

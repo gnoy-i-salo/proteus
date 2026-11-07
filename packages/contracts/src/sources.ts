@@ -39,7 +39,7 @@ export interface SourceDocument {
   readonly 'author-label': string | null;
   readonly kind: 'message' | 'post' | 'comment' | 'code' | 'document';
   readonly mode: 'dialogue' | 'comment' | 'formal';
-  // Preserve exact original text locally. Only sanitized bounded text reaches a model.
+  // Preserve original text and identity; only permitted bounded source context reaches a model.
   readonly text: string;
   readonly 'source-url': string | null;
   readonly 'created-at': string | null;

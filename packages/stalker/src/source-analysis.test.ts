@@ -3,7 +3,7 @@ import type { PersonInput, SourceDocument, SourcePort } from '@proteus-int/contr
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { analyzeSourceCollections as runAnalysis } from './source-analysis';
 import { sourceDocument, sourceGrant, sourceInput, sourceResult } from './source-fixtures';
-import { sanitizeSourceText } from './source-sanitizer';
+import { sourceModelDocument } from './source-model-document';
 import { collectSource, type SourceCollection } from './source-controller';
 
 const analysisPort: SourcePort = {
@@ -134,6 +134,29 @@ describe('source corpus analysis', () => {
     expect(provider.run.mock.calls[0]?.[0]).toHaveProperty('operation', 'corpus-analysis');
     expect(report['source-coverage']?.[0]).toMatchObject({ 'analyzed-documents': 1 });
   });
+  it('keeps names in observations and preceding dialogue context without attributing other speakers', async () => {
+    const original = 'Ada Lovelace: спроси @boris про https://example.org/plan';
+    const parent = {
+      ...sourceDocument('d2', 'Борис: Ada Lovelace, что делать?'),
+      authorship: 'other' as const,
+      'author-id': 'author-boris',
+      'author-label': 'Борис',
+    };
+    const provider = analyzer((value) => {
+      value.character = 'Ada Lovelace обсуждает решение с Борисом';
+      (value.evidence as Record<string, unknown>[])[0]!.summary = original;
+    });
+    const { report } = await analyzeSourceCollections(
+      sourceInput,
+      [collection([{ ...sourceDocument('d1', original), 'reply-to': parent.id }, parent])],
+      provider,
+    );
+    expect(report.character).toBe('Ada Lovelace обсуждает решение с Борисом');
+    expect(report.evidence[0]?.summary).toBe(original);
+    expect(report['style-exemplars']).toEqual([
+      expect.objectContaining({ text: original, context: parent.text, redactions: [] }),
+    ]);
+  });
   it.each(['unknown-reference', 'changed-quote'])(
     'rejects unsupported source assertions: %s',
     async (mode) => {
@@ -147,7 +170,7 @@ describe('source corpus analysis', () => {
       );
     },
   );
-  it('preserves exact sanitized formatting only from owned unforwarded reference examples', async () => {
+  it('preserves original identity and formatting only from owned unforwarded reference examples', async () => {
     const original = '  Ada Lovelace!!\n\nну да)) 🙂  ';
     const documents: SourceDocument[] = [
       sourceDocument('d1', original),
@@ -163,14 +186,14 @@ describe('source corpus analysis', () => {
     );
     expect(report['style-exemplars']).toHaveLength(1);
     expect(report['style-exemplars']?.[0]).toMatchObject({
-      text: '  [person]!!\n\nну да)) 🙂  ',
+      text: original,
       'document-id': 'd1',
       'export-allowed': false,
-      redactions: [{ start: 2, end: 10 }],
+      redactions: [],
     });
-    expect(provider.run.mock.calls.map((call) => call[0].task).join(' ')).not.toMatch(
-      /Ada Lovelace|held out voice|private-chat|author-ada/,
-    );
+    const modelInput = JSON.parse(provider.run.mock.calls[0]![0].task);
+    expect(modelInput.documents[0]).toMatchObject({ text: original, 'author-id': 'author-ada' });
+    expect(JSON.stringify(modelInput)).not.toContain('held out voice');
   });
   it('analyzes all reference chunks and accounts for budget-limited unread documents', async () => {
     const documents = [
@@ -241,15 +264,16 @@ describe('source corpus analysis', () => {
     );
   });
 });
-describe('format-preserving source pseudonyms', () => {
-  it('tracks each replacement in the resulting UTF-16 text without normalizing Unicode or whitespace', () => {
-    const raw = '🙂 Ada Lovelace\n\n@ada, e\u0301  Ada Lovelace';
-    const safe = sanitizeSourceText(raw, sourceInput, sourceGrant, []);
-    expect(safe.text).toBe('🙂 [person]\n\n[person], e\u0301  [person]');
-    expect(safe.replacements.map(({ start, end }) => safe.text.slice(start, end))).toEqual([
-      '[person]',
-      '[person]',
-      '[person]',
-    ]);
+describe('source model context', () => {
+  it('preserves names, URLs, handles and exact Unicode while retaining attribution', () => {
+    const raw = '🙂 Ada Lovelace\n\n@ada, e\u0301  ada@example.org https://example.org/ada';
+    const document = sourceDocument('d1', raw);
+    expect(sourceModelDocument(document)).toMatchObject({
+      text: raw,
+      'author-id': document['author-id'],
+      'author-label': document['author-label'],
+      'source-url': document['source-url'],
+      'created-at': document['created-at'],
+    });
   });
 });

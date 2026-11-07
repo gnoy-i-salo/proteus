@@ -12,7 +12,7 @@ import type {
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
 import { sourceSkill } from './source-skills';
-import { sanitizeSourceText, sourceModelDocument } from './source-sanitizer';
+import { sourceModelDocument } from './source-model-document';
 
 export interface SourceCollection {
   readonly grant: SourceGrant;
@@ -268,7 +268,7 @@ export async function collectSource(
       const observation = last.documents
         .filter((doc) => reference.some((item) => item.id === doc.id))
         .map((doc) => {
-          const safe = sourceModelDocument(doc, input, grant, reference);
+          const safe = sourceModelDocument(doc);
           return {
             ...safe,
             text: safe.text.slice(0, 2000),
@@ -282,12 +282,8 @@ export async function collectSource(
         {
           provider: grant.provider,
           operations: grant.operations,
-          coverage: {
-            ...coverage,
-            unavailable: coverage.unavailable.map(
-              (line) => sanitizeSourceText(line, input, grant, reference).text,
-            ),
-          },
+          person: input,
+          coverage,
           documents: observation,
           'known-document-ids': reference.slice(0, 200).map((doc) => doc.id),
         },

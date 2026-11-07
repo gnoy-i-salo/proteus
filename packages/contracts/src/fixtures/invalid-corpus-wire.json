@@ -1,0 +1,16 @@
+{
+  "schemaAlias": {
+    "schema_version": 1
+  },
+  "parentAlias": {
+    "parent_snapshot_id": null
+  },
+  "revisionAlias": {
+    "documentId": "doc",
+    "revisionId": "rev",
+    "revision_id": "rev"
+  },
+  "coverageAlias": {
+    "loaded_documents": 1
+  }
+}

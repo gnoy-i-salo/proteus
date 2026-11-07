@@ -152,3 +152,4 @@ export {
   decodeIngestionPreview,
   decodeIngestionJob,
 } from './ingestion-codec';
+export { decodeCorpusCoverage, decodeCorpusSnapshot } from './corpus-codec';

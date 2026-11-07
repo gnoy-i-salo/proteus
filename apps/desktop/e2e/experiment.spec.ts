@@ -1,5 +1,17 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
+import type { ExperimentResult } from '@proteus-int/pipeline';
+interface NativeFixtureWindow {
+  readonly stageCalls: readonly string[];
+  readonly savedExperiment: ExperimentResult;
+  openPresetFile(data: string): void;
+}
+interface FixtureModelInput {
+  readonly archetype: string;
+  readonly answers: readonly { label: string; answer: string }[];
+  readonly rubric: { readonly criteria: readonly { id: string }[] };
+}
+
 async function nativeFixture(
   page: Page,
   cancelMode = false,
@@ -26,6 +38,150 @@ async function nativeFixture(
       const calls: string[] = [];
       Reflect.set(window, 'isTauri', true);
       Reflect.set(window, '__TAURI_EVENT_PLUGIN_INTERNALS__', { unregisterListener() {} });
+      const actorFor = (stage: string, input: FixtureModelInput) =>
+        stage === 'PERSON' || stage === 'PERSON_FABRIC_ADAPT'
+          ? input.archetype.includes('Structured planner')
+            ? 'A'
+            : input.archetype.includes('Flexible planner')
+              ? 'B'
+              : 'Контроль'
+          : stage === 'STALKER' || stage === 'PERSON_FABRIC'
+            ? sources === 1
+              ? 'A'
+              : 'B'
+            : 'Общее';
+      const runFixture = async (
+        request: { id: string; task: string; systemPrompt: string; provider: string } | undefined,
+      ) => {
+        if (!request) throw new Error('Missing request');
+        const stage = request.systemPrompt.split('\n')[0] ?? '';
+        calls.push(stage);
+        Reflect.set(window, 'stageCalls', calls);
+        if (cancelMode)
+          return new Promise((_resolve, reject) => {
+            rejectRun = reject;
+          });
+        const input = JSON.parse(request.task) as FixtureModelInput;
+        if (stage === 'PERSON' && options.failSolve) throw new Error('Fixture CLI unavailable');
+        if (stage === 'STALKER') sources++;
+        const actor = actorFor(stage, input);
+        const reasoning = reasoningAvailable
+          ? [
+              {
+                id: 'r1',
+                kind: 'summary',
+                text: `Персона ${actor}: Сравниваю ограничения и варианты.\n`.repeat(60),
+              },
+            ]
+          : [];
+        if (reasoningAvailable)
+          eventCallback?.({
+            payload: {
+              id: request.id,
+              kind: 'reasoning',
+              elapsedMs: 100,
+              reasoning: reasoning[0],
+            },
+          });
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        const rule = (id: string, instruction: string, evidenceIds: string[]) => ({
+          id,
+          instruction,
+          evidenceIds: evidenceIds,
+          status: 'hypothesis',
+          limitations: ['Unverified user context'],
+        });
+        let data: unknown;
+        if (stage === 'BRAIN_ANALYZATOR_RUBRIC')
+          data = {
+            criteria: (options.unknown ? [50, 30, 20] : [1]).map((weight, index) => ({
+              id: `criterion-${index}`,
+              label: `Полнота решения ${index + 1}`,
+              weight,
+              required: false,
+              anchors: {
+                unmet: 'Решения нет',
+                partial: 'Решение частичное',
+                met: 'Решение полное',
+              },
+            })),
+          };
+        else if (stage === 'STALKER')
+          data = {
+            evidence: [
+              {
+                id: 'e1',
+                sourceUrl: '',
+                kind: 'hypothesis',
+                summary: actor === 'A' ? 'Careful planner' : 'Fast improviser',
+                status: 'hypothesis',
+                excerpt: null,
+                limitations: ['Unverified user context'],
+              },
+            ],
+            character: 'Unknown',
+            thinkingStyle: 'Unknown',
+            activity: 'Unknown',
+            behaviorSummary: 'Unknown',
+          };
+        else if (stage === 'PERSON_FABRIC')
+          data = {
+            rules: [rule('r1', actor === 'A' ? 'Structured planner' : 'Flexible planner', ['e1'])],
+          };
+        else if (stage === 'PERSON_FABRIC_ADAPT')
+          data = {
+            skills: [
+              rule('s1', 'Compare options before choosing', actor === 'Контроль' ? [] : ['e1']),
+            ],
+          };
+        else if (stage === 'BRAIN_ANALYZATOR_EVALUATE') {
+          evaluations++;
+          data = {
+            evaluations: input.answers.map((answer: { label: string; answer: string }) => ({
+              label: answer.label,
+              criteria: input.rubric.criteria.map((criterion: { id: string }, index: number) => ({
+                criterionId: criterion.id,
+                status:
+                  options.unknownOnce && answer.answer.startsWith('Ответ A.')
+                    ? evaluations <= 2
+                      ? 'unknown'
+                      : 'partial'
+                    : options.unknown && answer.answer.startsWith('Ответ A.')
+                      ? ['met', 'partial', 'unknown'][index]
+                      : answer.answer.startsWith('Ответ A.')
+                        ? 'met'
+                        : 'partial',
+                reason: 'Проверка содержания по заранее заданному критерию',
+                quote: answer.answer.slice(0, answer.answer.indexOf('.') + 1),
+              })),
+            })),
+          };
+        } else
+          data = {
+            answer: `Ответ ${actor}. Длинный ответ для проверки пагинации. `.repeat(100),
+            ...(options.messageReply
+              ? {
+                  messages: [
+                    `Ответ ${actor}.  Первая строка\n\n  отступ`,
+                    '<b>Второе сообщение</b> 🙂',
+                  ],
+                  styleConflicts: [],
+                }
+              : {}),
+            summary: 'Three-zone plan',
+          };
+        return {
+          answer: JSON.stringify(data),
+          trace: {
+            provider: request.provider,
+            wallTimeMs: actor === 'A' ? 60000 : 180000,
+            reasoningMs: actor === 'A' ? 60000 : 180000,
+            terminalMs: 0,
+            summary: 'Completed',
+            reasoning,
+          },
+        };
+      };
       Reflect.set(window, '__TAURI_INTERNALS__', {
         transformCallback: (callback: (event: unknown) => void) => {
           eventCallback = callback;
@@ -56,148 +212,7 @@ async function nativeFixture(
             return '/test/experiments/fixture';
           }
           if (command !== 'run_cli') return 1;
-          const request = args.request;
-          if (!request) throw new Error('Missing request');
-          const stage = request.systemPrompt.split('\n')[0] ?? '';
-          calls.push(stage);
-          Reflect.set(window, 'stageCalls', calls);
-          if (cancelMode)
-            return new Promise((_resolve, reject) => {
-              rejectRun = reject;
-            });
-          const input = JSON.parse(request.task);
-          if (stage === 'PERSON' && options.failSolve) throw new Error('Fixture CLI unavailable');
-          if (stage === 'STALKER') sources++;
-          const actor =
-            stage === 'PERSON' || stage === 'PERSON_FABRIC_ADAPT'
-              ? input.archetype.includes('Structured planner')
-                ? 'A'
-                : input.archetype.includes('Flexible planner')
-                  ? 'B'
-                  : 'Контроль'
-              : stage === 'STALKER' || stage === 'PERSON_FABRIC'
-                ? sources === 1
-                  ? 'A'
-                  : 'B'
-                : 'Общее';
-          const reasoning = reasoningAvailable
-            ? [
-                {
-                  id: 'r1',
-                  kind: 'summary',
-                  text: `Персона ${actor}: Сравниваю ограничения и варианты.\n`.repeat(60),
-                },
-              ]
-            : [];
-          if (reasoningAvailable)
-            eventCallback?.({
-              payload: {
-                id: request.id,
-                kind: 'reasoning',
-                elapsedMs: 100,
-                reasoning: reasoning[0],
-              },
-            });
-          await new Promise((resolve) => setTimeout(resolve, 180));
-          const rule = (id: string, instruction: string, evidenceIds: string[]) => ({
-            id,
-            instruction,
-            evidenceIds: evidenceIds,
-            status: 'hypothesis',
-            limitations: ['Unverified user context'],
-          });
-          let data: unknown;
-          if (stage === 'BRAIN_ANALYZATOR_RUBRIC')
-            data = {
-              criteria: (options.unknown ? [50, 30, 20] : [1]).map((weight, index) => ({
-                id: `criterion-${index}`,
-                label: `Полнота решения ${index + 1}`,
-                weight,
-                required: false,
-                anchors: {
-                  unmet: 'Решения нет',
-                  partial: 'Решение частичное',
-                  met: 'Решение полное',
-                },
-              })),
-            };
-          else if (stage === 'STALKER')
-            data = {
-              evidence: [
-                {
-                  id: 'e1',
-                  sourceUrl: '',
-                  kind: 'hypothesis',
-                  summary: actor === 'A' ? 'Careful planner' : 'Fast improviser',
-                  status: 'hypothesis',
-                  excerpt: null,
-                  limitations: ['Unverified user context'],
-                },
-              ],
-              character: 'Unknown',
-              thinkingStyle: 'Unknown',
-              activity: 'Unknown',
-              behaviorSummary: 'Unknown',
-            };
-          else if (stage === 'PERSON_FABRIC')
-            data = {
-              rules: [
-                rule('r1', actor === 'A' ? 'Structured planner' : 'Flexible planner', ['e1']),
-              ],
-            };
-          else if (stage === 'PERSON_FABRIC_ADAPT')
-            data = {
-              skills: [
-                rule('s1', 'Compare options before choosing', actor === 'Контроль' ? [] : ['e1']),
-              ],
-            };
-          else if (stage === 'BRAIN_ANALYZATOR_EVALUATE') {
-            evaluations++;
-            data = {
-              evaluations: input.answers.map((answer: { label: string; answer: string }) => ({
-                label: answer.label,
-                criteria: input.rubric.criteria.map((criterion: { id: string }, index: number) => ({
-                  criterionId: criterion.id,
-                  status:
-                    options.unknownOnce && answer.answer.startsWith('Ответ A.')
-                      ? evaluations <= 2
-                        ? 'unknown'
-                        : 'partial'
-                      : options.unknown && answer.answer.startsWith('Ответ A.')
-                        ? ['met', 'partial', 'unknown'][index]
-                        : answer.answer.startsWith('Ответ A.')
-                          ? 'met'
-                          : 'partial',
-                  reason: 'Проверка содержания по заранее заданному критерию',
-                  quote: answer.answer.slice(0, answer.answer.indexOf('.') + 1),
-                })),
-              })),
-            };
-          } else
-            data = {
-              answer: `Ответ ${actor}. Длинный ответ для проверки пагинации. `.repeat(100),
-              ...(options.messageReply
-                ? {
-                    messages: [
-                      `Ответ ${actor}.  Первая строка\n\n  отступ`,
-                      '<b>Второе сообщение</b> 🙂',
-                    ],
-                    styleConflicts: [],
-                  }
-                : {}),
-              summary: 'Three-zone plan',
-            };
-          return {
-            answer: JSON.stringify(data),
-            trace: {
-              provider: request.provider,
-              wallTimeMs: actor === 'A' ? 60000 : 180000,
-              reasoningMs: actor === 'A' ? 60000 : 180000,
-              terminalMs: 0,
-              summary: 'Completed',
-              reasoning,
-            },
-          };
+          return await runFixture(args.request);
         },
       });
     },
@@ -277,7 +292,7 @@ test('rubric review freezes the protocol before sources and answers are requeste
   await nativeFixture(page);
   await fillExperiment(page, false);
   await expect(page.getByRole('button', { name: 'Принять протокол', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => Reflect.get(window, 'stageCalls'))).toEqual([
+  expect(await page.evaluate(() => (window as unknown as NativeFixtureWindow).stageCalls)).toEqual([
     'BRAIN_ANALYZATOR_RUBRIC',
   ]);
   await noOverflow(page);
@@ -291,7 +306,7 @@ test('cancelling protocol review prevents all profile and answer requests', asyn
   await expect(page.getByRole('button', { name: 'Принять протокол', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Остановить', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('остановлен');
-  expect(await page.evaluate(() => Reflect.get(window, 'stageCalls'))).toEqual([
+  expect(await page.evaluate(() => (window as unknown as NativeFixtureWindow).stageCalls)).toEqual([
     'BRAIN_ANALYZATOR_RUBRIC',
   ]);
 });
@@ -301,10 +316,15 @@ test('unknown criteria retain their weight and display a BSC interval', async ({
   await fillExperiment(page);
   await expect(page.getByRole('heading', { name: 'BSC v2 · 65–85' })).toBeVisible();
   expect(
-    await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].score.interval),
+    await page.evaluate(
+      () => (window as unknown as NativeFixtureWindow).savedExperiment.people[0]!.score.interval,
+    ),
   ).toEqual({ lower: 65, upper: 85 });
   expect(
-    await page.evaluate(() => Reflect.get(window, 'savedExperiment').comparison.comparisonEligible),
+    await page.evaluate(
+      () =>
+        (window as unknown as NativeFixtureWindow).savedExperiment.comparison.comparisonEligible,
+    ),
   ).toBe(false);
 });
 
@@ -314,17 +334,24 @@ test('failed solution remains incomplete and unscored instead of receiving zero'
   await nativeFixture(page, false, true, { failSolve: true });
   await fillExperiment(page);
   await expect(page.getByRole('heading', { name: 'BSC v2 · не оценено' })).toBeVisible();
-  expect(await page.evaluate(() => Reflect.get(window, 'savedExperiment').status)).toBe(
-    'incomplete',
-  );
   expect(
-    await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].score.interval),
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).savedExperiment.status),
+  ).toBe('incomplete');
+  expect(
+    await page.evaluate(
+      () => (window as unknown as NativeFixtureWindow).savedExperiment.people[0]!.score.interval,
+    ),
   ).toBeNull();
   expect(
-    await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].score.evaluated),
+    await page.evaluate(
+      () => (window as unknown as NativeFixtureWindow).savedExperiment.people[0]!.score.evaluated,
+    ),
   ).toBe(0);
   expect(
-    await page.evaluate(() => Reflect.get(window, 'savedExperiment').comparison.comparisonEligible),
+    await page.evaluate(
+      () =>
+        (window as unknown as NativeFixtureWindow).savedExperiment.comparison.comparisonEligible,
+    ),
   ).toBe(false);
   await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
   const logs = page.getByRole('region', { name: 'Текст Intelligence traces' });
@@ -338,7 +365,9 @@ test('a collapsed median still displays uncertainty from an unknown trial', asyn
   await nativeFixture(page, false, true, { unknownOnce: true });
   await fillExperiment(page, true, '3');
   await expect(page.getByRole('heading', { name: 'BSC v2 · ≈50' })).toBeVisible({ timeout: 15000 });
-  const score = await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].score);
+  const score = await page.evaluate(
+    () => (window as unknown as NativeFixtureWindow).savedExperiment.people[0]!.score,
+  );
   expect(score.interval).toEqual({ lower: 50, upper: 50 });
   expect(score.point).toBeNull();
   expect(score.comparisonEligible).toBe(false);
@@ -350,16 +379,30 @@ test('three repetitions preserve the frozen profiles and include matched neutral
   await nativeFixture(page);
   await fillExperiment(page, true, '3');
   await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible({ timeout: 15000 });
-  expect(await page.evaluate(() => Reflect.get(window, 'stageCalls').length)).toBe(23);
-  expect(await page.evaluate(() => Reflect.get(window, 'savedExperiment').trials.length)).toBe(9);
   expect(
-    await page.evaluate(() => Reflect.get(window, 'savedExperiment').control.score.evaluated),
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).stageCalls.length),
+  ).toBe(23);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as NativeFixtureWindow).savedExperiment.trials.length,
+    ),
+  ).toBe(9);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as NativeFixtureWindow).savedExperiment.control.score.evaluated,
+    ),
   ).toBe(3);
   expect(
-    await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].baselineDifference),
+    await page.evaluate(
+      () =>
+        (window as unknown as NativeFixtureWindow).savedExperiment.people[0]!.baselineDifference,
+    ),
   ).toEqual({ lower: 50, upper: 50 });
   expect(
-    await page.evaluate(() => Reflect.get(window, 'savedExperiment').comparison.comparisonEligible),
+    await page.evaluate(
+      () =>
+        (window as unknown as NativeFixtureWindow).savedExperiment.comparison.comparisonEligible,
+    ),
   ).toBe(true);
 });
 for (const [width, height] of [
@@ -379,10 +422,12 @@ for (const [width, height] of [
     await page.getByRole('button', { name: 'Ответ', exact: true }).click();
     await noOverflow(page);
     const navigation = page.getByRole('navigation', { name: 'Страницы текста' });
-    await navigation.getByRole('button', { name: '→' }).click();
+    await navigation.getByRole('button', { name: 'Следующая страница текста' }).click();
     await noOverflow(page);
     await expect(navigation).toContainText('2 /');
-    expect(await page.evaluate(() => Reflect.get(window, 'stageCalls'))).toEqual([
+    expect(
+      await page.evaluate(() => (window as unknown as NativeFixtureWindow).stageCalls),
+    ).toEqual([
       'BRAIN_ANALYZATOR_RUBRIC',
       'STALKER',
       'PERSON_FABRIC',
@@ -397,7 +442,11 @@ for (const [width, height] of [
       'BRAIN_ANALYZATOR_EVALUATE',
       'BRAIN_ANALYZATOR_EVALUATE',
     ]);
-    expect(await page.evaluate(() => Reflect.get(window, 'savedExperiment').people.length)).toBe(2);
+    expect(
+      await page.evaluate(
+        () => (window as unknown as NativeFixtureWindow).savedExperiment.people.length,
+      ),
+    ).toBe(2);
     await page.getByRole('button', { name: /Person A/ }).click();
     await page.getByRole('button', { name: 'Архетип', exact: true }).click();
     await expect(page.getByText('Structured planner', { exact: false })).toBeVisible();
@@ -410,7 +459,9 @@ test('cancellation stops native execution and allows a new experiment', async ({
   await expect(page.getByRole('alert')).toContainText('остановлен');
   await page.getByRole('button', { name: '← Новый запуск' }).click();
   await expect(page.getByRole('button', { name: 'Начать эксперимент' })).toBeVisible();
-  expect(await page.evaluate(() => Reflect.get(window, 'stageCalls').length)).toBe(1);
+  expect(
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).stageCalls.length),
+  ).toBe(1);
 });
 test('pasted paragraphs are paginated without a hidden scroll area', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 600 });
@@ -439,7 +490,7 @@ for (const [width, height] of [
     await noOverflow(page);
     await page.screenshot({ path: test.info().outputPath('inline-traces.png') });
     const navigation = dialog.getByRole('navigation', { name: 'Страницы текста' });
-    await navigation.getByRole('button', { name: '→' }).click();
+    await navigation.getByRole('button', { name: 'Следующая страница текста' }).click();
     await expect(navigation).toContainText('2 /');
     await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
     await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
@@ -447,8 +498,8 @@ for (const [width, height] of [
     await expect(dialog.getByRole('article')).toHaveCount(3);
     expect(
       await page.evaluate(() =>
-        Reflect.get(window, 'savedExperiment').traces.every(
-          (item: { trace: { reasoning: unknown[] } }) => item.trace.reasoning.length === 1,
+        (window as unknown as NativeFixtureWindow).savedExperiment.traces.every(
+          (item) => item.trace.reasoning?.length === 1,
         ),
       ),
     ).toBe(true);
@@ -499,8 +550,8 @@ for (const [width, height] of [
     await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
     expect(
       await page.evaluate(() =>
-        Reflect.get(window, 'savedExperiment').input.people.map(
-          (person: { publicUrls: string[] }) => person.publicUrls,
+        (window as unknown as NativeFixtureWindow).savedExperiment.input.people.map(
+          (person) => person.publicUrls,
         ),
       ),
     ).toEqual([
@@ -543,10 +594,7 @@ test('system preset opening during execution waits without changing the active p
   await nativeFixture(page, true);
   await fillExperiment(page, false);
   await page.evaluate(() =>
-    Reflect.get(
-      window,
-      'openPresetFile',
-    )(
+    (window as unknown as NativeFixtureWindow).openPresetFile(
       JSON.stringify({
         format: 'proteus-personas',
         version: 1,
@@ -564,5 +612,42 @@ test('system preset opening during execution waits without changing the active p
   await page.getByRole('button', { name: 'Остановить', exact: true }).click();
   await page.getByRole('button', { name: 'Открыть пресет', exact: true }).click();
   await expect(page.getByLabel('Имя персоны A')).toHaveValue('Imported A');
-  expect(await page.evaluate(() => Reflect.get(window, 'stageCalls').length)).toBe(1);
+  expect(
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).stageCalls.length),
+  ).toBe(1);
 });
+
+for (const [width, height] of [
+  [640, 600],
+  [1024, 768],
+  [1280, 800],
+] as const) {
+  test(`expanded trace reader is readable, searchable and returns without changing text ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await nativeFixture(page);
+    await fillExperiment(page);
+    await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+    await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
+    const traces = page.getByRole('region', { name: 'Текст Intelligence traces' });
+    await traces.getByRole('button', { name: 'Развернуть: Текст', exact: true }).click();
+    const reader = page.getByRole('dialog', { name: 'Текст', exact: true });
+    const before = await reader.locator('p').textContent();
+    await reader.getByRole('textbox', { name: 'Поиск: Текст' }).fill('ограничения и варианты.');
+    await expect(reader.locator('mark')).toHaveText('ограничения и варианты.');
+    await reader.getByRole('button', { name: 'Следующее совпадение' }).click();
+    await expect(reader.getByRole('status').filter({ hasText: '2 /' })).toBeVisible();
+    await reader.getByRole('button', { name: 'Вернуться к месту' }).click();
+    await expect(reader.locator('div[tabindex="0"]')).toBeFocused();
+    await expect(reader.locator('p')).toHaveText(before!, { useInnerText: false });
+    await noOverflow(page);
+    const pageCount = await reader.getByRole('navigation').innerText();
+    expect(Number(pageCount.match(/\/\s*(\d+)/)?.[1])).toBeLessThan(10);
+    await reader.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Текст', exact: true })).toHaveCount(0);
+    await expect(
+      traces.getByRole('button', { name: 'Развернуть: Текст', exact: true }),
+    ).toBeFocused();
+  });
+}

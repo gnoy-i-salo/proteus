@@ -9,6 +9,12 @@ export * from './experiment';
 export * from './auth-callback';
 export * from './connections';
 export * from './sources';
+export {
+  decodeLegacySourceDocument,
+  decodeStoredSourceDocument,
+  encodeStoredSourceDocument,
+} from './source-document-codec';
+export type { StoredSourceDocument } from './source-document-codec';
 export * from './style';
 export type IntelligenceOperation =
   'generation' | 'public-research' | 'source-plan' | 'corpus-analysis' | 'persona-reply';

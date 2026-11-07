@@ -53,7 +53,8 @@ CREATE TABLE jobs (
 );
 CREATE TABLE job_records (
     job_id TEXT NOT NULL REFERENCES jobs(id),record_id TEXT NOT NULL REFERENCES records(id),
-    position INTEGER NOT NULL CHECK(position>=0),PRIMARY KEY(job_id,position),UNIQUE(job_id,record_id)
+    position INTEGER NOT NULL CHECK(position>=0),record_generation INTEGER NOT NULL CHECK(record_generation>0),
+    PRIMARY KEY(job_id,position),UNIQUE(job_id,record_id)
 );
 PRAGMA application_id=1347572819;
-PRAGMA user_version=1;
+PRAGMA user_version=2;

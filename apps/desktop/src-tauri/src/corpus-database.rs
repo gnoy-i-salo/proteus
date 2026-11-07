@@ -2,6 +2,8 @@
 //! or IPC commands. Sources rechecks current permissions before exposing content.
 #[path = "corpus-crypto.rs"]
 mod crypto;
+#[path = "corpus-migrations.rs"]
+mod migrations;
 #[path = "source-provenance.rs"]
 mod provenance;
 #[path = "corpus-record-store.rs"]
@@ -9,8 +11,24 @@ mod record_store;
 #[path = "corpus-snapshot-store.rs"]
 mod snapshot_store;
 pub use provenance::{Acquisition, HashAlgorithm, ProvenanceLimitation, SourceProvenance};
+#[path = "corpus-job-batch.rs"]
+mod job_batch;
+#[path = "corpus-job-budget.rs"]
+mod job_budget;
+#[path = "corpus-job-store.rs"]
+mod job_store;
+#[path = "corpus-job-types.rs"]
+mod job_types;
+#[path = "corpus-job-validation.rs"]
+mod job_validation;
+#[path = "corpus-jobs.rs"]
+mod jobs;
 #[path = "corpus-types.rs"]
 mod types;
+pub use job_types::{
+    JobBatch, JobBinding, JobBudget, JobCheckpoint, JobCoverage, JobError, JobInput, JobPeriod,
+    JobPhase, JobProvider, JobRole, JobSelection, JobState, JobStatus, StoredJob,
+};
 use rusqlite::{Connection, TransactionBehavior};
 use std::path::Path;
 pub use types::{
@@ -37,7 +55,7 @@ impl CorpusDatabase {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .map_err(sql_error)?;
-        if version != 0 && version != 1 {
+        if !(0..=2).contains(&version) {
             return Err(INVALID.into());
         }
         if version == 0 {
@@ -58,9 +76,15 @@ impl CorpusDatabase {
         if application != 0x50525453 {
             return Err(INVALID.into());
         }
+        if version == 1 {
+            migrations::upgrade_jobs(&mut connection)?;
+        }
         Ok(Self { connection })
     }
 }
+#[cfg(test)]
+#[path = "corpus-jobs-tests.rs"]
+mod job_tests;
 #[cfg(test)]
 #[path = "corpus-database-tests.rs"]
 mod tests;

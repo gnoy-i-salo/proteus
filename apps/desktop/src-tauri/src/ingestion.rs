@@ -18,6 +18,8 @@ pub mod preview_scan;
 pub mod preview_store;
 #[path = "ingestion-preview-workflow.rs"]
 pub mod preview_workflow;
+#[path = "ingestion-publication.rs"]
+pub mod publication;
 #[path = "ingestion-restore-workflow.rs"]
 pub mod restore_workflow;
 #[path = "telegram-archive-json.rs"]

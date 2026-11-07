@@ -271,3 +271,6 @@ mod job_workflow_tests;
 
 #[path = "ingestion-restore-workflow-tests.rs"]
 mod restore_workflow_tests;
+
+#[path = "ingestion-publication-tests.rs"]
+mod publication_tests;

@@ -213,3 +213,18 @@ pub async fn restore_ingestion_source(
     .await
     .map_err(|_| "Не удалось восстановить выбранный источник.".to_string())?
 }
+
+#[tauri::command]
+pub async fn publish_ingestion_job(
+    operation_id: String,
+    job_id: String,
+    sources: tauri::State<'_, Sources>,
+) -> Result<super::publication::SnapshotView, String> {
+    let sources = sources.inner().clone();
+    let operation = sources.begin_ingestion_operation(&operation_id, JobProvider::Telegram)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        super::publication::publish(&sources, &operation, &job_id, now_ms())
+    })
+    .await
+    .map_err(|_| "Не удалось получить снимок завершённого импорта.".to_string())?
+}

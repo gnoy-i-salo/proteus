@@ -225,11 +225,7 @@ fn publish(
             db.complete_job(&job.id)?;
         }
         operation.check()?;
-        db.publish_job(
-            &job.id,
-            &format!("corpus:{}", job.id),
-            &format!("import:{}", job.id),
-        )?;
+        super::publication::commit(db, &job.id)?;
         db.job(&job.id)?.ok_or_else(|| INVALID.into())
     })
 }

@@ -17,4 +17,5 @@ export { decodeResponseFields } from './response-fields-codec';
 export type { ResponseFieldPair } from './response-fields-codec';
 export { createUnconfiguredProvider, IntelligenceRunError } from './provider';
 export type { IntelligenceProvider } from './provider';
-export { object, text, texts, structured } from './structured';
+export { object, text, texts } from './json-fields';
+export { structured } from './structured-response';

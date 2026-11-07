@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { structured, text } from './structured';
+import { structured } from './structured-response';
+import { text } from './json-fields';
 import type { IntelligenceProvider } from './provider';
 const trace = { provider: 'codex' as const, reasoningMs: 1, terminalMs: 0, summary: '' };
 const decode = (data: Record<string, unknown>) => ({ answer: text(data.answer, 'answer') });

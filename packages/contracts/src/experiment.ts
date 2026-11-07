@@ -1,3 +1,4 @@
+import type { ExperimentMemoryProtocol } from './memory';
 import type { PersonInput } from './persona';
 import type { EvaluationRubric } from './evaluation';
 import type { IntelligenceEffort, ProviderId } from './intelligence';
@@ -23,6 +24,8 @@ export interface ExperimentProtocol {
   readonly promptVersion:
     'bsc-v2.2-source-style' | 'bsc-v2.3-source-identity' | 'bsc-v2.4-camel-case';
   readonly createdAt: string;
+  // Absence preserves the existing fixed non-RAG protocol behavior.
+  readonly memory?: ExperimentMemoryProtocol;
   readonly sourceSnapshots?: readonly [readonly string[], readonly string[]];
 }
 

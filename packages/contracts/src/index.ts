@@ -78,8 +78,12 @@ export type {
   CorpusReadBudget,
   CorpusPort,
   ModelSourceDocument,
+  SourceExcerpt,
 } from './corpus';
 export { projectBoundRevision } from './corpus';
+export { projectBoundExcerpt } from './source-excerpt';
+export { parseMemoryAction, validateRetrievalReceipt } from './memory-validation';
+export type { RetrievalReceiptScope } from './memory-validation';
 export type {
   IngestionBudget,
   IngestionSelection,
@@ -101,6 +105,19 @@ export type {
   RecallResult,
   MemoryPort,
   SimulationMemoryEntry,
+  ModelMemoryAction,
+  ModelCallBudget,
+  MemoryItemDraft,
+  ResearchPublicationDraft,
+  ResearchPublicationReceipt,
+  SkillDefinitionDraft,
+  PersonaManifestDraft,
+  ManifestFreezeReceipt,
+  SimulationMemoryDraft,
+  ModelContextRequest,
+  ModelContextLease,
+  PersonaMemoryProfile,
+  ExperimentMemoryProtocol,
 } from './memory';
 export type {
   CommunicationMode,

@@ -1,4 +1,4 @@
-import type { RevisionReference, SourceSpan } from './corpus';
+import type { CorpusCoverage, RevisionReference, SourceExcerpt, SourceSpan } from './corpus';
 
 export interface EmbeddingFingerprint {
   readonly modelId: string;
@@ -55,6 +55,7 @@ export interface RecallBudget {
   readonly maxDurationMs: number;
 }
 
+// snapshotId always identifies the immutable corpus snapshot.
 export interface RetrievalReceipt {
   readonly schemaVersion: 1;
   readonly id: string;
@@ -77,6 +78,7 @@ export interface RetrievalReceipt {
   readonly contextTokens: number;
 }
 
+// snapshotId is the immutable corpus snapshot backing the spans, not MemorySnapshot.id.
 export interface MemoryItem {
   readonly schemaVersion: 1;
   readonly id: string;
@@ -133,6 +135,7 @@ export interface PersonaManifest {
   readonly embeddingFingerprint: EmbeddingFingerprint | null;
   readonly mode: 'fixedContext' | 'agenticRecall';
   readonly recallBudget: RecallBudget;
+  readonly modelCallBudget: ModelCallBudget;
   readonly modelSettings: readonly {
     readonly component: 'stalker' | 'person-fabric' | 'person' | 'brain-analyzator';
     readonly provider: 'codex' | 'kimi';
@@ -162,12 +165,23 @@ export interface MemoryPort {
     signal?: AbortSignal,
   ): Promise<{
     readonly episodeId: string;
-    readonly sources: readonly {
-      readonly span: SourceSpan;
-      readonly text: string;
-    }[];
+    readonly sources: readonly SourceExcerpt[];
     readonly receipt: RetrievalReceipt;
   }>;
+  // Host orchestration only. These methods are never dispatched from model actions.
+  publishResearch(
+    draft: ResearchPublicationDraft,
+    signal?: AbortSignal,
+  ): Promise<ResearchPublicationReceipt>;
+  freezeManifest(draft: PersonaManifestDraft, signal?: AbortSignal): Promise<ManifestFreezeReceipt>;
+  appendSimulation(
+    draft: SimulationMemoryDraft,
+    signal?: AbortSignal,
+  ): Promise<SimulationMemoryEntry>;
+  reserveModelContext(
+    request: ModelContextRequest,
+    signal?: AbortSignal,
+  ): Promise<ModelContextLease>;
 }
 
 // Simulation output is a separate namespace; it is never original-author memory.
@@ -181,3 +195,143 @@ export interface SimulationMemoryEntry {
   readonly text: string;
   readonly createdAt: string;
 }
+
+/** Limits every model attempt, including format repair; independent of retrieval calls. */
+export interface ModelCallBudget {
+  readonly maxCalls: number;
+  readonly maxInputBytes: number;
+  readonly maxDurationMs: number;
+}
+
+/** Draft IDs only correlate a publication batch; persisted IDs/times/policy come from native. */
+export type MemoryItemDraft = Omit<
+  MemoryItem,
+  | 'schemaVersion'
+  | 'id'
+  | 'snapshotId'
+  | 'observedAt'
+  | 'contradictionIds'
+  | 'extractionVersion'
+  | 'policyVersion'
+> & {
+  readonly draftId: string;
+  readonly contradictions: readonly (
+    | { readonly kind: 'published'; readonly itemId: string }
+    | { readonly kind: 'draft'; readonly draftId: string }
+  )[];
+};
+
+export interface ResearchPublicationDraft {
+  readonly schemaVersion: 1;
+  readonly extractionVersion: string;
+  readonly items: readonly MemoryItemDraft[];
+  // Audit references only; native derives actual span coverage from consumed leases.
+  readonly analyzedRefs: readonly RevisionReference[];
+  readonly contextLeaseIds: readonly string[];
+}
+
+export interface ResearchPublicationReceipt {
+  readonly schemaVersion: 1;
+  readonly id: string;
+  readonly snapshot: MemorySnapshot;
+  readonly itemIds: readonly { readonly draftId: string; readonly itemId: string }[];
+  readonly coverage: CorpusCoverage;
+  readonly analyzedSpans: readonly SourceSpan[];
+  readonly publishedAt: string;
+}
+
+export type SkillDefinitionDraft = Omit<SkillDefinition, 'schemaVersion' | 'id'> & {
+  readonly draftId: string;
+};
+
+// The native bound session derives corpus/persona/source/split/index identity.
+export interface PersonaManifestDraft extends Pick<
+  PersonaManifest,
+  | 'profileVersion'
+  | 'exemplarIds'
+  | 'memorySnapshotId'
+  | 'preparationVersion'
+  | 'promptVersion'
+  | 'mode'
+  | 'recallBudget'
+  | 'modelCallBudget'
+  | 'modelSettings'
+> {
+  readonly schemaVersion: 1;
+  readonly skills: readonly SkillDefinitionDraft[];
+}
+
+export interface ManifestFreezeReceipt {
+  readonly schemaVersion: 1;
+  readonly manifest: PersonaManifest;
+  readonly skills: readonly SkillDefinition[];
+}
+
+export type SimulationMemoryDraft = Omit<SimulationMemoryEntry, 'id' | 'createdAt'>;
+
+export type ModelContextRequest = {
+  readonly schemaVersion: 1;
+  // SHA256 over UTF8 JSON.stringify([systemPrompt, task]); exact strings, no trimming.
+  readonly inputSha256: string;
+  // Byte length of that same framed UTF8 payload; recomputed at native dispatch.
+  readonly inputBytes: number;
+  readonly receiptIds: readonly string[];
+  readonly memoryItemIds: readonly string[];
+  readonly formatAttempt: 1 | 2;
+} & (
+  | { readonly purpose: 'research'; readonly manifestId: null }
+  | { readonly purpose: 'personaReply'; readonly manifestId: string }
+);
+
+// This DTO is a reservation receipt, not standalone authorization. The native CLI
+// consumer must revalidate the lease immediately before dispatch (later integration).
+export interface ModelContextLease {
+  readonly schemaVersion: 1;
+  readonly id: string;
+  readonly singleUse: true;
+  readonly personaId: string;
+  readonly inputSha256: string;
+  readonly corpusSnapshotId: string;
+  readonly manifestId: string | null;
+  readonly purpose: 'research' | 'personaReply';
+  readonly formatAttempt: 1 | 2;
+  readonly policyVersion: string;
+  readonly receiptIds: readonly string[];
+  readonly items: readonly MemoryItem[];
+  readonly sources: readonly SourceExcerpt[];
+  readonly contextSha256: string;
+  readonly expiresAt: string;
+  readonly usage: {
+    readonly modelCalls: number;
+    readonly inputBytes: number;
+  };
+}
+
+// Optional nested extension: absence is the existing non-RAG profile format.
+export interface PersonaMemoryProfile {
+  readonly schemaVersion: 1;
+  readonly manifestId: string;
+  readonly memorySnapshotId: string;
+  readonly skills: readonly SkillDefinition[];
+}
+
+// Audit metadata is not an access grant or proof of comparable knowledge.
+export interface ExperimentMemoryProtocol {
+  readonly schemaVersion: 1;
+  readonly mode: 'fixedContext' | 'agenticRecall';
+  readonly participants: readonly {
+    readonly participantId: 'a' | 'b' | 'neutral';
+    readonly manifestId: string;
+  }[];
+  readonly neutralKnowledgeCondition: 'matchedContext' | 'matchedRecall' | 'unmatched';
+  readonly limitations: readonly string[];
+}
+
+// The only model-proposed actions. Publication, leases and manifests are host commands.
+export type ModelMemoryAction =
+  | {
+      readonly action: 'recall';
+      readonly query: string;
+      readonly intent: 'facts' | 'context' | 'style' | 'procedure';
+    }
+  | { readonly action: 'readEpisode'; readonly episodeId: string };

@@ -167,6 +167,14 @@ export interface ModelSourceDocument {
   readonly relations: readonly DocumentRelation[];
 }
 
+// Exact bounded text with the existing attribution projection; full document text
+// and its duplicate revisionId are omitted. The span is the sole revision reference.
+export type SourceExcerpt = Omit<ModelSourceDocument, 'document' | 'revisionId'> & {
+  readonly span: SourceSpan;
+  readonly text: string;
+  readonly document: Omit<ModelSourceDocument['document'], 'text'>;
+};
+
 // Structural projection only: never an authorization token or a substitute for
 // native scope, expiry and revocation checks immediately before model dispatch.
 export function projectBoundRevision(

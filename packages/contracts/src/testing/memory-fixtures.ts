@@ -1,0 +1,67 @@
+import type { DocumentRevision, SourceBinding } from '../corpus';
+
+export const binding: SourceBinding = {
+  schemaVersion: 1,
+  id: 'binding-a',
+  personaId: 'persona-a',
+  provider: 'telegram',
+  accountId: 'account-a',
+  resourceId: 'private-chat-42',
+  grantId: 'grant-a',
+  policyVersion: 'policy-1',
+  role: 'own',
+  targetAuthorId: 'author-a',
+  allowedContextAuthorIds: ['author-b'],
+  allowUnknownContext: false,
+  period: { from: '2026-01-01T00:00:00Z', to: null, includeUndated: false },
+};
+
+export const revision: DocumentRevision = {
+  schemaVersion: 1,
+  revisionId: 'revision-1',
+  sourceKey: 'telegram:private-chat-42:message-1',
+  accountId: 'account-a',
+  document: {
+    id: 'message-1',
+    provider: 'telegram',
+    resourceId: 'private-chat-42',
+    authorId: 'author-a',
+    authorLabel: 'Анна',
+    authorship: 'owner',
+    kind: 'message',
+    mode: 'dialogue',
+    text: '  Анна → Борис\r\n«Ёлка» 👩🏽‍🔬\nhttps://example.org/Exact-ID  ',
+    sourceUrl: 'https://example.org/Exact-ID',
+    createdAt: '2026-05-10T12:00:00Z',
+    retrievedAt: '2026-06-01T00:00:00Z',
+    contentHash: 'unchanged-original-hash',
+    replyTo: 'message-0',
+    isForwarded: false,
+    truncated: false,
+    partition: 'reference',
+  },
+  editedAt: null,
+  relations: [
+    {
+      kind: 'reply',
+      original: { documentId: 'message-0', revisionId: 'revision-0' },
+      originalAuthor: { provider: 'telegram', id: 'author-b', label: 'Борис' },
+      span: null,
+    },
+  ],
+  attachments: [],
+  provenance: {
+    acquisition: 'api',
+    adapterVersion: 'tdlib-v1',
+    sourceFormat: 'tdlib-message',
+    originalObjectId: 'object-1',
+    originalByteLength: 111,
+    hashAlgorithm: 'sha256',
+  },
+  usagePolicy: {
+    grantId: 'grant-a',
+    version: 'policy-1',
+    allowModelProcessing: true,
+    allowExport: false,
+  },
+};

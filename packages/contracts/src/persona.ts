@@ -1,3 +1,4 @@
+import type { PersonaMemoryProfile } from './memory';
 import type { PersonaStyleProfile, StyleExemplar } from './style';
 
 export type EvidenceStatus = 'supported' | 'hypothesis' | 'unknown' | 'conflicting';
@@ -30,6 +31,8 @@ export interface PersonProfile {
   readonly taskSkills: readonly PersonaRule[];
   readonly sourceStatus: 'evidence-informed' | 'synthetic' | 'neutral';
   readonly sourceContext?: boolean;
+  // Absent on existing non-RAG profiles; the nested extension carries its own version.
+  readonly memory?: PersonaMemoryProfile;
   readonly styleProfile?: PersonaStyleProfile;
   readonly styleExemplars?: readonly StyleExemplar[];
 }

@@ -62,7 +62,7 @@ export function SourceSelection(props: {
   });
   return (
     <section
-      class={styles['source-selection']}
+      class={styles['sourceSelection']}
       role="dialog"
       aria-modal="true"
       aria-labelledby="sources-title"
@@ -102,14 +102,14 @@ export function SourceSelection(props: {
         fallback={<p>Выбор подключённых источников доступен в настольном приложении PROTEUS.</p>}
       >
         <Show when={!props.modelProcessingAvailable}>
-          <p class={styles['source-selection__error']} role="alert">
+          <p class={styles['sourceSelection__error']} role="alert">
             Для подключённых источников выберите Codex для всех компонентов в настройках. Поддержка
             Kimi для этих материалов пока недоступна.
           </p>
         </Show>
         <Show when={props.grants.length > 0}>
           <div
-            class={styles['source-selection__tabs']}
+            class={styles['sourceSelection__tabs']}
             role="tablist"
             aria-label="Режим выбора источника"
           >
@@ -145,7 +145,7 @@ export function SourceSelection(props: {
               });
             }}
           >
-            <div class={styles['source-selection__provider']}>
+            <div class={styles['sourceSelection__provider']}>
               <label>
                 Платформа
                 <select
@@ -187,8 +187,8 @@ export function SourceSelection(props: {
                 </label>
               </Show>
             </div>
-            <p class={styles['source-selection__hint']}>{providers[provider()].hint}</p>
-            <div class={styles['source-selection__resource']}>
+            <p class={styles['sourceSelection__hint']}>{providers[provider()].hint}</p>
+            <div class={styles['sourceSelection__resource']}>
               <label>
                 Ресурс
                 <input
@@ -206,7 +206,7 @@ export function SourceSelection(props: {
                 Импорт JSON / текста
               </button>
             </div>
-            <div class={styles['source-selection__range']}>
+            <div class={styles['sourceSelection__range']}>
               <label>
                 Автор
                 <input
@@ -239,7 +239,7 @@ export function SourceSelection(props: {
                 />
               </label>
             </div>
-            <label class={styles['source-selection__consent']}>
+            <label class={styles['sourceSelection__consent']}>
               <input
                 type="checkbox"
                 checked={consent()}
@@ -251,7 +251,7 @@ export function SourceSelection(props: {
                 Использую материалы, которые вправе предоставлять.
               </span>
             </label>
-            <p class={styles['source-selection__hint']}>
+            <p class={styles['sourceSelection__hint']}>
               На источник: до 1000 документов, 1 МиБ, 40 действий и 5 минут. Пустые даты — доступный
               диапазон; пустой автор — все авторы. Полнота будет указана в результате.
             </p>
@@ -271,7 +271,7 @@ export function SourceSelection(props: {
         </Show>
         <Show when={!adding() && current()}>
           {(grant) => (
-            <div class={styles['source-selection__attached']}>
+            <div class={styles['sourceSelection__attached']}>
               <p>
                 {providers[grant().provider].name} · {grant().resourceId}
               </p>
@@ -301,7 +301,7 @@ export function SourceSelection(props: {
           )}
         </Show>
         <Show when={error()}>
-          <p class={styles['source-selection__error']} role="alert">
+          <p class={styles['sourceSelection__error']} role="alert">
             {error()}
           </p>
         </Show>

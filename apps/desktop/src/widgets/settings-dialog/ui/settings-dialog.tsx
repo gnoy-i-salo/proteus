@@ -25,7 +25,7 @@ export function SettingsDialog(props: {
       ref={(element) => {
         dialog = element;
       }}
-      class={styles['settings-dialog']}
+      class={styles['settingsDialog']}
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-title"
@@ -45,13 +45,13 @@ export function SettingsDialog(props: {
         }
       }}
     >
-      <header class={styles['settings-dialog__header']}>
+      <header class={styles['settingsDialog__header']}>
         <h2 id="settings-title">Настройки PROTEUS</h2>
         <button aria-label="Закрыть настройки" onClick={() => props.onClose()}>
           ×
         </button>
       </header>
-      <div class={styles['settings-dialog__tabs']} role="tablist" aria-label="Раздел настроек">
+      <div class={styles['settingsDialog__tabs']} role="tablist" aria-label="Раздел настроек">
         <button
           id="models-tab"
           role="tab"
@@ -81,7 +81,7 @@ export function SettingsDialog(props: {
           <ModelSettingsPanel settings={props.settings} onChange={props.onChange} />
         </Show>
       </div>
-      <button class={styles['settings-dialog__done']} onClick={() => props.onClose()}>
+      <button class={styles['settingsDialog__done']} onClick={() => props.onClose()}>
         Готово ↵
       </button>
     </section>

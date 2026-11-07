@@ -55,7 +55,7 @@ export function TraceReader(props: { stages: StageTrace[]; running: boolean; per
             return (
               <article class={styles['experiment__trace']} data-expanded={active() === id}>
                 <button
-                  class={styles['experiment__trace-heading']}
+                  class={styles['experiment__traceHeading']}
                   aria-label={label()}
                   aria-expanded={active() === id}
                   onClick={() => {
@@ -71,7 +71,7 @@ export function TraceReader(props: { stages: StageTrace[]; running: boolean; per
                   <span>{traceMarker(item(), props.running)}</span>
                 </button>
                 <Show when={active() === id}>
-                  <p class={styles['experiment__reasoning-note']}>
+                  <p class={styles['experiment__reasoningNote']}>
                     {item().trace.summary || (props.running ? 'Выполняется…' : 'Этап не завершён')}
                     {item().trace.reasoningTruncated
                       ? ' · Текст сокращён до лимита сохранения.'
@@ -83,7 +83,7 @@ export function TraceReader(props: { stages: StageTrace[]; running: boolean; per
             );
           }}
         </For>
-        <nav class={styles['experiment__stage-pages']} aria-label="Страницы этапов">
+        <nav class={styles['experiment__stagePages']} aria-label="Страницы этапов">
           <button disabled={page() === 0} onClick={() => selectPage(page() - 1)}>
             ←
           </button>

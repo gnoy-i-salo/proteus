@@ -40,7 +40,7 @@ export function ExperimentWorkspace(props: {
             </button>
           )}
         </For>
-        <div class={styles['experiment__sidebar-bottom']}>
+        <div class={styles['experiment__sidebarBottom']}>
           <small>
             ONE TASK.
             <br />

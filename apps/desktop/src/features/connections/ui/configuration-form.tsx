@@ -11,7 +11,7 @@ export function ConfigurationForm(props: {
 }) {
   return (
     <form
-      class={styles['connections-panel__form']}
+      class={styles['connectionsPanel__form']}
       autocomplete="off"
       onSubmit={(event) => {
         event.preventDefault();

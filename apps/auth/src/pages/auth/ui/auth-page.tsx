@@ -35,43 +35,43 @@ export function AuthPage(props: { readonly callback: AuthCallbackResult }) {
       : undefined;
 
   return (
-    <div class={styles['auth-page']}>
-      <header class={styles['auth-page__brand']}>
-        <span class={styles['auth-page__wordmark']}>PROTEUS</span>
-        <span class={styles['auth-page__brand-caption']}>ONE TASK. MANY MINDS.</span>
+    <div class={styles['authPage']}>
+      <header class={styles['authPage__brand']}>
+        <span class={styles['authPage__wordmark']}>PROTEUS</span>
+        <span class={styles['authPage__brandCaption']}>ONE TASK. MANY MINDS.</span>
       </header>
-      <main class={styles['auth-page__panel']} aria-labelledby="auth-title">
-        <div class={styles['auth-page__window-bar']} aria-hidden="true">
+      <main class={styles['authPage__panel']} aria-labelledby="auth-title">
+        <div class={styles['authPage__windowBar']} aria-hidden="true">
           <span>PROTEUS / CONNECTIONS</span>
-          <span class={styles['auth-page__pixels']}>
+          <span class={styles['authPage__pixels']}>
             <i />
             <i />
             <i />
           </span>
         </div>
-        <div class={styles['auth-page__content']}>
-          <img class={styles['auth-page__logo']} src={proteusLogo} width="112" height="91" alt="" />
-          <p class={styles['auth-page__eyebrow']}>VK · АВТОРИЗАЦИЯ</p>
-          <h1 id="auth-title" class={styles['auth-page__title']}>
+        <div class={styles['authPage__content']}>
+          <img class={styles['authPage__logo']} src={proteusLogo} width="112" height="91" alt="" />
+          <p class={styles['authPage__eyebrow']}>VK · АВТОРИЗАЦИЯ</p>
+          <h1 id="auth-title" class={styles['authPage__title']}>
             {message().title}
           </h1>
-          <p class={styles['auth-page__description']} data-testid="auth-status">
+          <p class={styles['authPage__description']} data-testid="auth-status">
             {message().description}
           </p>
-          <p class={styles['auth-page__context']}>{message().context}</p>
+          <p class={styles['authPage__context']}>{message().context}</p>
           <Show when={deepLink()} keyed>
             {(href) => <ReturnToApp deepLink={href} />}
           </Show>
-          <aside class={styles['auth-page__help']} aria-label="Помощь с подключением">
-            <span class={styles['auth-page__help-mark']} aria-hidden="true">
+          <aside class={styles['authPage__help']} aria-label="Помощь с подключением">
+            <span class={styles['authPage__helpMark']} aria-hidden="true">
               ?
             </span>
             <p>Для продолжения нужно настольное приложение PROTEUS с поддержкой подключения VK.</p>
           </aside>
         </div>
-        <div class={styles['auth-page__bottom-line']} aria-hidden="true" />
+        <div class={styles['authPage__bottomLine']} aria-hidden="true" />
       </main>
-      <footer class={styles['auth-page__footer']}>Разные характеры. Общая основа.</footer>
+      <footer class={styles['authPage__footer']}>Разные характеры. Общая основа.</footer>
     </div>
   );
 }

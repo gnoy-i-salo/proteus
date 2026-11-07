@@ -1,4 +1,4 @@
-.source-selection {
+.sourceSelection {
   width: min(620px, calc(100vw - 40px));
   max-height: calc(100vh - 60px);
   overflow-y: auto;
@@ -17,7 +17,7 @@
   }
 
   h2 {
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     font-size: 12px;
     margin: 0;
     line-height: 1.5;

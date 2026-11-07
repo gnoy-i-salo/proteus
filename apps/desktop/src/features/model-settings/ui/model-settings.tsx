@@ -19,9 +19,9 @@ export function ModelSettingsPanel(props: {
   onChange: (settings: ModelSettings) => void;
 }) {
   return (
-    <section class={styles['model-settings']} aria-label="Настройки моделей">
+    <section class={styles['modelSettings']} aria-label="Настройки моделей">
       <p>Установленные CLI · авторизация остаётся в Codex / Kimi</p>
-      <div class={styles['model-settings__global']}>
+      <div class={styles['modelSettings__global']}>
         <label>
           Общая модель
           <select
@@ -42,10 +42,10 @@ export function ModelSettingsPanel(props: {
           Применить ко всем
         </button>
       </div>
-      <div class={styles['model-settings__components']}>
+      <div class={styles['modelSettings__components']}>
         <For each={componentIds}>
           {(id) => (
-            <div class={styles['model-settings__row']}>
+            <div class={styles['modelSettings__row']}>
               <label>
                 {labels[id]}
                 <select
@@ -77,7 +77,7 @@ export function ModelSettingsPanel(props: {
           )}
         </For>
       </div>
-      <p class={styles['model-settings__note']}>
+      <p class={styles['modelSettings__note']}>
         Пустое название использует модель CLI по умолчанию. Brain Scoring считает BSC по формуле и
         не вызывает модель.
       </p>

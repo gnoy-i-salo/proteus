@@ -25,7 +25,7 @@ export function ExperimentEntry(props: {
     >
       <header class={styles['experiment__hero']}>
         <div class={styles['experiment__topline']}>
-          <div class={styles['experiment__preset-actions']}>
+          <div class={styles['experiment__presetActions']}>
             <button type="button" onClick={() => void props.onOpenPreset()}>
               Импорт .proteus
             </button>
@@ -50,7 +50,7 @@ export function ExperimentEntry(props: {
       <div class={styles['experiment__duel']}>
         <For each={['A', 'B']}>
           {(letter, index) => (
-            <section class={styles['experiment__input-card']} data-tone={letter.toLowerCase()}>
+            <section class={styles['experiment__inputCard']} data-tone={letter.toLowerCase()}>
               <header>
                 <span>
                   PLAYER {index() + 1 < 10 ? '0' : ''}
@@ -59,7 +59,7 @@ export function ExperimentEntry(props: {
                 <strong>PERSON {letter}</strong>
                 <button
                   type="button"
-                  class={styles['experiment__source-button']}
+                  class={styles['experiment__sourceButton']}
                   aria-label={`Источники персоны ${letter}`}
                   onClick={() => props.onShowSources(index())}
                 >

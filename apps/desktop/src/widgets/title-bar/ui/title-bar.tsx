@@ -21,15 +21,15 @@ export function TitleBar() {
   const { error, busy, act } = createWindowControlModel();
   const platform = windowPlatform();
   return (
-    <header class={styles['title-bar']} data-platform={platform}>
-      <div class={styles['title-bar__drag']} data-tauri-drag-region>
-        ✦ PROTEUS <span class={styles['title-bar__label']}>PERSONA LAB / 0.3</span>
+    <header class={styles['titleBar']} data-platform={platform}>
+      <div class={styles['titleBar__drag']} data-tauri-drag-region>
+        ✦ PROTEUS <span class={styles['titleBar__label']}>PERSONA LAB / 0.3</span>
       </div>
       <Show
         when={isDesktop()}
-        fallback={<span class={styles['title-bar__label']}>WEB PREVIEW</span>}
+        fallback={<span class={styles['titleBar__label']}>WEB PREVIEW</span>}
       >
-        <div class={styles['title-bar__controls']}>
+        <div class={styles['titleBar__controls']}>
           <For each={windowActions(platform)}>
             {(action) => (
               <button

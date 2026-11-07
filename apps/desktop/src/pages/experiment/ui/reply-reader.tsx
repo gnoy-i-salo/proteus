@@ -27,14 +27,14 @@ export function ReplyReader(props: { person: ExperimentPerson }) {
   const current = () => replies()[selectedMessage()];
   return (
     <section class={styles['experiment__reply']} aria-label="Ответы персоны">
-      <p class={styles['experiment__reply-label']}>Поведенческая симуляция</p>
-      <div class={styles['experiment__reply-body']} data-testid="persona-reply-body">
+      <p class={styles['experiment__replyLabel']}>Поведенческая симуляция</p>
+      <div class={styles['experiment__replyBody']} data-testid="persona-reply-body">
         <PagedText
           text={current()?.text ?? ''}
           resetKey={`${props.person.profile.id}:${selectedMessage()}`}
         />
       </div>
-      <nav class={styles['experiment__reply-navigation']} aria-label="Сообщения персоны">
+      <nav class={styles['experiment__replyNavigation']} aria-label="Сообщения персоны">
         <button
           type="button"
           aria-label="Предыдущее сообщение"

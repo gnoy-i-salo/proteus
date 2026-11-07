@@ -22,7 +22,7 @@ export function ExperimentProgressView(props: {
 }) {
   return (
     <>
-      <header class={styles['experiment__progress-heading']}>
+      <header class={styles['experiment__progressHeading']}>
         <span>
           LIVE EXPERIMENT / {props.run.progress()} OF {props.run.total()}
         </span>
@@ -45,7 +45,7 @@ export function ExperimentProgressView(props: {
           {(protocol) => <PagedText text={protocolText(protocol())} resetKey="protocol" />}
         </Show>
       </div>
-      <nav class={styles['experiment__trace-pages']}>
+      <nav class={styles['experiment__tracePages']}>
         <span>{props.run.pendingProtocol() ? 'Протокол' : props.run.events().at(-1)?.message}</span>
         <Show when={props.run.pendingProtocol()}>
           <button onClick={() => props.run.approveProtocol()}>Принять протокол</button>

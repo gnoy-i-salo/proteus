@@ -1,4 +1,4 @@
-.auth-page {
+.authPage {
   display: grid;
   grid-template-rows: auto 1fr auto;
   align-items: center;
@@ -17,13 +17,13 @@
   }
 
   &__wordmark {
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     font-size: 0.875rem;
     line-height: 1.6;
     letter-spacing: 0.1em;
   }
 
-  &__brand-caption {
+  &__brandCaption {
     color: var(--muted);
     font-size: 0.625rem;
     letter-spacing: 0.12em;
@@ -36,7 +36,7 @@
     box-shadow: 6px 6px #0d0c18;
   }
 
-  &__window-bar {
+  &__windowBar {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -91,7 +91,7 @@
 
   &__title {
     margin: 0;
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     font-size: clamp(0.875rem, 2.8vw, 1.25rem);
     line-height: 1.75;
     overflow-wrap: anywhere;
@@ -129,7 +129,7 @@
     }
   }
 
-  &__help-mark {
+  &__helpMark {
     flex-shrink: 0;
     display: grid;
     place-items: center;
@@ -140,7 +140,7 @@
     font-weight: 700;
   }
 
-  &__bottom-line {
+  &__bottomLine {
     height: 4px;
     background: linear-gradient(
       to right,
@@ -159,7 +159,7 @@
 }
 
 @media (height <= 800px) and (width >= 521px) {
-  .auth-page {
+  .authPage {
     gap: 1.25rem;
     padding-top: 1.5rem;
     padding-bottom: 1.25rem;
@@ -190,7 +190,7 @@
 }
 
 @media (width <= 520px) {
-  .auth-page {
+  .authPage {
     gap: 1.5rem;
     padding: 1.5rem 1rem;
 
@@ -198,11 +198,11 @@
       justify-content: center;
     }
 
-    &__brand-caption {
+    &__brandCaption {
       display: none;
     }
 
-    &__window-bar {
+    &__windowBar {
       padding: 0.75rem;
       font-size: 0.5625rem;
     }

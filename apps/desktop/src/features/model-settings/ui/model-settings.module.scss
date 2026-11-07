@@ -1,4 +1,4 @@
-.model-settings {
+.modelSettings {
   p {
     margin: 8px 0;
     font-size: 12px;
@@ -44,7 +44,7 @@
 }
 
 @media (height <= 650px) {
-  .model-settings__components {
+  .modelSettings__components {
     gap: 7px;
     margin: 10px 0;
   }

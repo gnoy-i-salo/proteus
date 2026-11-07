@@ -21,7 +21,7 @@ export function ExperimentResultView(props: {
   };
   return (
     <>
-      <header class={styles['experiment__result-banner']}>
+      <header class={styles['experiment__resultBanner']}>
         <span>
           {props.run.result()?.status === 'complete'
             ? 'EXPERIMENT COMPLETE'
@@ -37,8 +37,8 @@ export function ExperimentResultView(props: {
               : 'Описание трёх прогонов · статистическое превосходство не установлено'}
         </p>
       </header>
-      <div class={styles['experiment__result-body']}>
-        <div class={styles['experiment__result-heading']}>
+      <div class={styles['experiment__resultBody']}>
+        <div class={styles['experiment__resultHeading']}>
           <h3>{persona()?.profile.label}</h3>
           <span>{sourceLabel(persona())}</span>
         </div>

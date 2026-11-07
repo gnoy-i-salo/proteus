@@ -1,4 +1,4 @@
-.return-to-app {
+.returnToApp {
   margin-top: 1.75rem;
 
   &__link {
@@ -47,7 +47,7 @@
 }
 
 @media (width <= 380px) {
-  .return-to-app__link {
+  .returnToApp__link {
     gap: 0.5rem;
     padding: 0.875rem 0.625rem;
     font-size: 0.875rem;

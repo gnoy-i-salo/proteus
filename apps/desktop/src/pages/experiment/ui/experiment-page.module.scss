@@ -1,6 +1,6 @@
 .experiment {
   --accent: #67e8d3;
-  --accent-dim: #154b50;
+  --accentDim: #154b50;
 
   position: relative;
   min-height: 0;
@@ -11,7 +11,7 @@
 
   &[data-palette='violet'] {
     --accent: #c49cff;
-    --accent-dim: #46316a;
+    --accentDim: #46316a;
   }
 
   &__start {
@@ -39,7 +39,7 @@
   }
 
   &__hero h1 {
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     font-size: clamp(24px, 3vw, 38px);
     color: #ffbd75;
     text-shadow: 4px 4px #282044;
@@ -48,7 +48,7 @@
   }
 
   &__hero p {
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     font-size: var(--caption);
     letter-spacing: 2px;
     margin: 0;
@@ -70,7 +70,7 @@
     min-height: 28px;
   }
 
-  &__preset-actions {
+  &__presetActions {
     display: flex;
     gap: 6px;
   }
@@ -98,7 +98,7 @@
     min-height: 0;
   }
 
-  &__input-card {
+  &__inputCard {
     padding: 18px;
     border: 3px solid #baf9ed;
     background: #222947;
@@ -110,12 +110,12 @@
     min-width: 0;
   }
 
-  &__input-card[data-tone='b'] {
+  &__inputCard[data-tone='b'] {
     border-color: #d0b0ff;
     background: #31284e;
   }
 
-  &__input-card > header {
+  &__inputCard > header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -123,19 +123,19 @@
     font-size: var(--caption);
   }
 
-  &__input-card[data-tone='b'] > header {
+  &__inputCard[data-tone='b'] > header {
     color: #d1b3ff;
   }
 
-  &__source-button {
+  &__sourceButton {
     min-height: 24px;
     padding: 3px 5px;
     font-size: var(--caption);
     color: inherit;
   }
 
-  &__input-card :where(header strong) {
-    font-family: var(--pixel-font);
+  &__inputCard :where(header strong) {
+    font-family: var(--pixelFont);
     font-size: var(--caption);
   }
 
@@ -232,7 +232,7 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%) rotate(-8deg);
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     color: #ffbf74;
     font-size: 25px;
     text-shadow: 4px 4px #24243f;
@@ -250,7 +250,7 @@
   }
 
   &__task > span {
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     color: #ffbd75;
     font-size: var(--caption);
     line-height: 2;
@@ -291,7 +291,7 @@
     background: #ffbc73;
     color: #26213b;
     border-color: #fff0c4;
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     font-size: 13px;
   }
 
@@ -329,7 +329,7 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 16px;
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     font-size: 13px;
   }
 
@@ -356,7 +356,7 @@
 
   &__person[data-active='true'] {
     border-color: var(--accent);
-    background: var(--accent-dim);
+    background: var(--accentDim);
     box-shadow: 4px 4px #121226;
   }
 
@@ -400,21 +400,21 @@
       3px 3px #101228;
   }
 
-  &__sidebar-bottom {
+  &__sidebarBottom {
     margin-top: auto;
     display: grid;
     gap: 12px;
   }
 
-  &__sidebar-bottom > small {
-    font-family: var(--pixel-font);
+  &__sidebarBottom > small {
+    font-family: var(--pixelFont);
     color: #8e8bad;
     font-size: var(--caption);
     line-height: 2;
     margin-bottom: 16px;
   }
 
-  &__sidebar-bottom button {
+  &__sidebarBottom button {
     font-size: var(--caption);
     text-align: left;
   }
@@ -427,26 +427,26 @@
     background: #282641e8;
   }
 
-  &__progress-heading {
+  &__progressHeading {
     padding: 28px 32px 20px;
     border-bottom: 2px solid #69628b;
   }
 
-  &__progress-heading > span,
-  &__result-banner > span {
+  &__progressHeading > span,
+  &__resultBanner > span {
     color: var(--accent);
     font-size: var(--caption);
     letter-spacing: 2px;
   }
 
-  &__progress-heading h2 {
-    font-family: var(--pixel-font);
+  &__progressHeading h2 {
+    font-family: var(--pixelFont);
     font-size: clamp(12px, 1.7vw, 22px);
     line-height: 1.6;
     margin: 16px 0;
   }
 
-  &__progress-heading p {
+  &__progressHeading p {
     margin: 0;
     color: var(--muted);
     font-size: var(--caption);
@@ -465,7 +465,7 @@
     min-height: 0;
   }
 
-  &__trace-pages {
+  &__tracePages {
     display: flex;
     align-items: center;
     gap: 14px;
@@ -473,17 +473,17 @@
     font-size: var(--caption);
   }
 
-  &__trace-pages > span {
+  &__tracePages > span {
     min-width: 0;
     flex: 1;
   }
 
-  &__trace-pages button {
+  &__tracePages button {
     flex-shrink: 0;
     font-size: var(--caption);
   }
 
-  &__trace-pages button:where(:last-child) {
+  &__tracePages button:where(:last-child) {
     margin-left: auto;
   }
 
@@ -494,7 +494,7 @@
     padding: 20px 28px;
     border-top: 3px solid #b3a6dd;
     background: #1f1f38;
-    font-family: var(--pixel-font);
+    font-family: var(--pixelFont);
     font-size: var(--caption);
   }
 
@@ -505,27 +505,27 @@
     accent-color: var(--accent);
   }
 
-  &__result-banner {
+  &__resultBanner {
     padding: 22px 32px;
-    background: var(--accent-dim);
+    background: var(--accentDim);
     border-bottom: 3px solid var(--accent);
   }
 
-  &__result-banner h2 {
-    font-family: var(--pixel-font);
+  &__resultBanner h2 {
+    font-family: var(--pixelFont);
     font-size: 28px;
     margin: 16px 0 12px;
     color: var(--accent);
     text-shadow: 3px 3px #17182b;
   }
 
-  &__result-banner p {
+  &__resultBanner p {
     margin: 0;
     font-size: var(--caption);
     color: var(--muted);
   }
 
-  &__result-body {
+  &__resultBody {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -533,20 +533,20 @@
     padding: 20px 32px;
   }
 
-  &__result-heading {
+  &__resultHeading {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 16px;
   }
 
-  &__result-heading h3 {
+  &__resultHeading h3 {
     margin: 0 0 18px;
     font-size: 20px;
     overflow-wrap: anywhere;
   }
 
-  &__result-heading span {
+  &__resultHeading span {
     font-size: var(--caption);
     color: var(--muted);
     max-width: 180px;
@@ -589,7 +589,7 @@
   }
 
   &__reply,
-  &__reply-body {
+  &__replyBody {
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -600,13 +600,13 @@
     gap: 8px;
   }
 
-  &__reply-label {
+  &__replyLabel {
     margin: 0;
     color: var(--muted);
     font-size: var(--caption);
   }
 
-  &__reply-navigation {
+  &__replyNavigation {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -643,7 +643,7 @@
     min-height: 0;
   }
 
-  &__stage-pages {
+  &__stagePages {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -652,12 +652,12 @@
     flex-shrink: 0;
   }
 
-  &__stage-pages button {
+  &__stagePages button {
     min-height: 25px;
     padding: 2px 10px;
   }
 
-  &__reasoning-note {
+  &__reasoningNote {
     font-size: var(--caption);
     color: var(--muted);
     margin: 0;
@@ -676,7 +676,7 @@
     border-color: var(--accent);
   }
 
-  &__trace-heading {
+  &__traceHeading {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -689,16 +689,16 @@
     font-size: var(--caption);
   }
 
-  &__trace-heading strong {
+  &__traceHeading strong {
     min-width: 0;
     overflow-wrap: anywhere;
   }
 
-  &__trace-heading small {
+  &__traceHeading small {
     flex-shrink: 0;
   }
 
-  &__trace .experiment__reasoning-note {
+  &__trace .experiment__reasoningNote {
     padding: 4px 10px;
     white-space: nowrap;
     overflow: hidden;
@@ -765,7 +765,7 @@
     gap: 9%;
   }
 
-  .experiment__input-card {
+  .experiment__inputCard {
     padding: 12px;
   }
 
@@ -809,12 +809,12 @@
     font-size: var(--caption);
   }
 
-  .experiment__progress-heading,
-  .experiment__result-banner {
+  .experiment__progressHeading,
+  .experiment__resultBanner {
     padding: 18px;
   }
 
-  .experiment__result-body {
+  .experiment__resultBody {
     padding: 16px;
   }
 
@@ -841,7 +841,7 @@
     gap: 10px;
   }
 
-  .experiment__trace-pages {
+  .experiment__tracePages {
     margin-inline: 16px;
   }
 
@@ -889,7 +889,7 @@
     height: 64px;
   }
 
-  .experiment__input-card {
+  .experiment__inputCard {
     gap: 6px;
     padding-block: 6px;
   }
@@ -903,11 +903,11 @@
     padding-block: 8px;
   }
 
-  .experiment__progress-heading {
+  .experiment__progressHeading {
     padding-block: 14px;
   }
 
-  .experiment__progress-heading h2 {
+  .experiment__progressHeading h2 {
     margin-block: 10px;
   }
 
@@ -916,7 +916,7 @@
     padding-block: 14px;
   }
 
-  .experiment__trace-pages {
+  .experiment__tracePages {
     margin-bottom: 12px;
   }
 
@@ -924,16 +924,16 @@
     padding-block: 14px;
   }
 
-  .experiment__result-banner {
+  .experiment__resultBanner {
     padding-block: 14px;
   }
 
-  .experiment__result-banner h2 {
+  .experiment__resultBanner h2 {
     font-size: 24px;
     margin-block: 10px;
   }
 
-  .experiment__result-heading h3 {
+  .experiment__resultHeading h3 {
     font-size: 16px;
     margin-bottom: 10px;
   }

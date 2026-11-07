@@ -43,8 +43,8 @@ export function ConnectionsPanel(props: {
   const configurationVisible = () => editing() || current().status === 'unconfigured';
 
   return (
-    <section class={styles['connections-panel']} aria-label="Подключения источников">
-      <div class={styles['connections-panel__providers']} role="tablist" aria-label="Источник">
+    <section class={styles['connectionsPanel']} aria-label="Подключения источников">
+      <div class={styles['connectionsPanel__providers']} role="tablist" aria-label="Источник">
         <For each={connectionProviders}>
           {(provider) => (
             <button
@@ -65,7 +65,7 @@ export function ConnectionsPanel(props: {
         </For>
       </div>
       <div id="connection-details" role="tabpanel" aria-labelledby={`connection-tab-${selected()}`}>
-        <p class={styles['connections-panel__description']}>
+        <p class={styles['connectionsPanel__description']}>
           {selected() === 'telegram' && current().status === 'qr-required'
             ? 'Доступная история выбранного чата.'
             : descriptions[selected()]}
@@ -74,7 +74,7 @@ export function ConnectionsPanel(props: {
           when={desktop}
           fallback={<p role="status">Подключения доступны в настольном приложении PROTEUS.</p>}
         >
-          <p class={styles['connections-panel__state']} role="status" aria-live="polite">
+          <p class={styles['connectionsPanel__state']} role="status" aria-live="polite">
             {busy() ? 'Выполняем запрос…' : stateLabels[current().status]}
             <Show when={current().status === 'connected' && current().label}>
               {' '}
@@ -82,11 +82,11 @@ export function ConnectionsPanel(props: {
             </Show>
           </p>
           <Show when={current().message}>
-            <p class={styles['connections-panel__note']}>{current().message}</p>
+            <p class={styles['connectionsPanel__note']}>{current().message}</p>
           </Show>
           <Show when={selected() === 'instagram'}>
             <div
-              class={styles['connections-panel__modes']}
+              class={styles['connectionsPanel__modes']}
               role="tablist"
               aria-label="Способ доступа к Instagram"
             >
@@ -152,7 +152,7 @@ export function ConnectionsPanel(props: {
                 (current().status === 'disconnected' || current().status === 'error')
               }
             >
-              <div class={styles['connections-panel__actions']}>
+              <div class={styles['connectionsPanel__actions']}>
                 <button disabled={busy()} onClick={() => void begin('qr')}>
                   Войти по QR-коду
                 </button>
@@ -162,11 +162,11 @@ export function ConnectionsPanel(props: {
               </div>
             </Show>
             <Show when={selected() === 'telegram' && current().status === 'qr-required'}>
-              <div class={styles['connections-panel__qr']}>
+              <div class={styles['connectionsPanel__qr']}>
                 <Show
                   when={qrCode()}
                   fallback={
-                    <div class={styles['connections-panel__qr-placeholder']}>
+                    <div class={styles['connectionsPanel__qrPlaceholder']}>
                       Ожидаем актуальный QR-код…
                     </div>
                   }
@@ -188,7 +188,7 @@ export function ConnectionsPanel(props: {
             <Show when={challenge()} keyed>
               {(step) => (
                 <form
-                  class={styles['connections-panel__form']}
+                  class={styles['connectionsPanel__form']}
                   autocomplete="off"
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -216,17 +216,17 @@ export function ConnectionsPanel(props: {
               )}
             </Show>
             <Show when={current().status === 'pending' && selected() === 'telegram'}>
-              <p class={styles['connections-panel__note']}>
+              <p class={styles['connectionsPanel__note']}>
                 Готовим вход в Telegram. Дождитесь обновления состояния.
               </p>
             </Show>
             <Show when={current().status === 'pending' && selected() !== 'telegram'}>
               <Show when={current().userCode}>
-                <p class={styles['connections-panel__device-code']}>
+                <p class={styles['connectionsPanel__deviceCode']}>
                   Код для страницы подтверждения: <strong>{current().userCode}</strong>
                 </p>
               </Show>
-              <p class={styles['connections-panel__note']}>
+              <p class={styles['connectionsPanel__note']}>
                 Завершите вход в открывшемся браузере. Здесь появится подтверждённое состояние
                 аккаунта.
               </p>
@@ -245,7 +245,7 @@ export function ConnectionsPanel(props: {
               </button>
             </Show>
             <Show when={current().status === 'connected'}>
-              <p class={styles['connections-panel__note']}>
+              <p class={styles['connectionsPanel__note']}>
                 Доступ:{' '}
                 {current()
                   .capabilities.map((item) => capabilityLabels[item])
@@ -254,7 +254,7 @@ export function ConnectionsPanel(props: {
                 .
               </p>
             </Show>
-            <div class={styles['connections-panel__actions']}>
+            <div class={styles['connectionsPanel__actions']}>
               <Show
                 when={
                   !configurationVisible() &&
@@ -292,7 +292,7 @@ export function ConnectionsPanel(props: {
             <button disabled={busy()} onClick={() => void openPage('instagram-export')}>
               Открыть экспорт Instagram
             </button>
-            <p class={styles['connections-panel__note']}>
+            <p class={styles['connectionsPanel__note']}>
               Центр аккаунтов → Ваша информация и разрешения → Экспорт информации → На устройство.
               Выберите сообщения, нужные даты и формат JSON. Распакуйте архив и импортируйте JSON
               выбранной переписки или подготовленный текст. Чужая страница целиком в экспорт не
@@ -308,15 +308,15 @@ export function ConnectionsPanel(props: {
             </button>
             <Show when={imported()} keyed>
               {(source) => (
-                <p class={styles['connections-panel__imported']}>
+                <p class={styles['connectionsPanel__imported']}>
                   {source.label} · {source.documentCount} объекта
                 </p>
               )}
             </Show>
           </Show>
-          <div class={styles['connections-panel__data']}>
+          <div class={styles['connectionsPanel__data']}>
             <Show when={clearConfirm()}>
-              <p class={styles['connections-panel__note']}>
+              <p class={styles['connectionsPanel__note']}>
                 Подключение сохраняется.
                 {selected() === 'telegram' ? ' Кэш Telegram не входит в материалы STALKER.' : ''}
               </p>
@@ -331,11 +331,11 @@ export function ConnectionsPanel(props: {
             </Show>
           </div>
           <Show when={error()}>
-            <p class={styles['connections-panel__error']} role="alert">
+            <p class={styles['connectionsPanel__error']} role="alert">
               {error()}
             </p>
           </Show>
-          <p class={styles['connections-panel__privacy']}>
+          <p class={styles['connectionsPanel__privacy']}>
             Ключи хранятся нативно. Отключение удаляет локальный доступ; отзыв прав у сервиса
             выполняется отдельно.
           </p>

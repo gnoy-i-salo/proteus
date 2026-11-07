@@ -5,9 +5,9 @@ export function ReturnToApp(props: { readonly deepLink: string }) {
   const [attempted, setAttempted] = createSignal(false);
 
   return (
-    <div class={styles['return-to-app']}>
+    <div class={styles['returnToApp']}>
       <a
-        class={styles['return-to-app__link']}
+        class={styles['returnToApp__link']}
         href={props.deepLink}
         onClick={() => setAttempted(true)}
         referrerpolicy="no-referrer"
@@ -15,13 +15,13 @@ export function ReturnToApp(props: { readonly deepLink: string }) {
         data-testid="return-to-proteus"
       >
         Вернуться в PROTEUS
-        <span class={styles['return-to-app__arrow']} aria-hidden="true">
+        <span class={styles['returnToApp__arrow']} aria-hidden="true">
           ↗
         </span>
       </a>
       <p
         id="handoff-status"
-        class={styles['return-to-app__status']}
+        class={styles['returnToApp__status']}
         role="status"
         aria-live="polite"
         aria-atomic="true"

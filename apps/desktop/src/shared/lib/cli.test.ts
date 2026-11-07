@@ -6,7 +6,7 @@ const native = vi.hoisted(() => ({
   invoke: vi.fn(),
   listen: vi.fn(),
   unlisten: vi.fn(),
-  receive: undefined as ((event: { payload: CliEvent }) => void) | undefined,
+  receive: undefined as ((event: { payload: unknown }) => void) | undefined,
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: native.invoke }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: native.listen }));
@@ -36,13 +36,13 @@ describe('failed native calls retain public traces', () => {
     const failure = await cliProviders(() => {})
       .kimi.run({
         task: 'Task',
-        'system-prompt': 'PERSON',
+        systemPrompt: 'PERSON',
         effort: 'medium',
       })
       .catch((error: unknown) => error);
     expect(failure).toMatchObject({
       trace: {
-        'reasoning-truncated': true,
+        reasoningTruncated: true,
         reasoning: [{ id: 'r', kind: 'thinking', text: 'я'.repeat(24576) }],
       },
     });
@@ -80,7 +80,7 @@ describe('failed native calls retain public traces', () => {
       .codex.run(
         {
           task: 'Task',
-          'system-prompt': 'PERSON',
+          systemPrompt: 'PERSON',
           effort: 'high',
           model: 'chosen-alias',
         },
@@ -91,14 +91,14 @@ describe('failed native calls retain public traces', () => {
       name: 'IntelligenceRunError',
       trace: {
         provider: 'codex',
-        'wall-time-ms': 150,
-        'reasoning-ms': 150,
-        'active-reasoning-ms': null,
-        'requested-model': 'chosen-alias',
-        'resolved-model': null,
-        'requested-effort': 'high',
-        'applied-effort': null,
-        'cli-version': null,
+        wallTimeMs: 150,
+        reasoningMs: 150,
+        activeReasoningMs: null,
+        requestedModel: 'chosen-alias',
+        resolvedModel: null,
+        requestedEffort: 'high',
+        appliedEffort: null,
+        cliVersion: null,
         reasoning: [{ id: 'r', kind: 'summary', text: 'Updated public summary' }],
       },
     });
@@ -128,7 +128,7 @@ describe('failed native calls retain public traces', () => {
       .kimi.run(
         {
           task: 'Task',
-          'system-prompt': 'PERSON',
+          systemPrompt: 'PERSON',
           effort: 'medium',
         },
         controller.signal,
@@ -136,9 +136,69 @@ describe('failed native calls retain public traces', () => {
       .catch((error: unknown) => error);
     expect(failure).toMatchObject({
       trace: {
-        'wall-time-ms': 250,
+        wallTimeMs: 250,
         reasoning: [{ id: 'thinking', kind: 'thinking', text: 'Public thought' }],
       },
     });
   });
+});
+
+it('rejects malformed matching-run events without throwing from the subscription callback', async () => {
+  let callbackFailure: unknown;
+  native.invoke.mockImplementation(async (command, args) => {
+    if (command === 'cancel_cli') return;
+    try {
+      native.receive?.({
+        payload: {
+          id: args.request.id,
+          kind: 'reasoning',
+          'elapsed-ms': 1,
+          reasoning: { id: 'r', kind: 'answer', text: 'Must not be promoted to reasoning' },
+        },
+      });
+    } catch (error) {
+      callbackFailure = error;
+    }
+    return {
+      answer: 'Answer',
+      trace: { provider: 'codex', 'reasoning-ms': 1, 'terminal-ms': 0, summary: 'Done' },
+    };
+  });
+  const seen: CliEvent[] = [];
+  await expect(
+    cliProviders((event) => seen.push(event)).codex.run({
+      task: 'Task',
+      systemPrompt: 'PERSON',
+      effort: 'medium',
+    }),
+  ).rejects.toThrow();
+  expect(callbackFailure).toBeUndefined();
+  expect(seen).toEqual([]);
+  expect(native.invoke).toHaveBeenCalledWith('cancel_cli', expect.anything());
+  expect(native.unlisten).toHaveBeenCalledOnce();
+});
+
+it('encodes the canonical request to legacy native keys and decodes the returned trace', async () => {
+  native.invoke.mockResolvedValue({
+    answer: 'Exact answer  \r\n👩🏽‍🔬',
+    trace: {
+      provider: 'kimi',
+      'reasoning-ms': 5,
+      'terminal-ms': 0,
+      summary: 'Done',
+      'resolved-model': null,
+    },
+  });
+  const result = await cliProviders(() => {}).kimi.run({
+    task: 'Task',
+    systemPrompt: 'PERSON',
+    effort: 'medium',
+    sourceContext: true,
+  });
+  expect(native.invoke).toHaveBeenCalledWith('run_cli', {
+    request: expect.objectContaining({ 'system-prompt': 'PERSON', 'source-context': true }),
+  });
+  expect(native.invoke.mock.calls[0]?.[1].request).not.toHaveProperty('systemPrompt');
+  expect(result.trace).toMatchObject({ reasoningMs: 5, resolvedModel: null });
+  expect(result.answer).toBe('Exact answer  \r\n👩🏽‍🔬');
 });

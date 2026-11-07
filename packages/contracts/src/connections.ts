@@ -26,27 +26,27 @@ export interface ConnectionStatus {
   readonly status: ConnectionState;
   readonly label?: string;
   readonly message?: string;
-  readonly 'client-id'?: string;
-  readonly 'api-id'?: number;
-  readonly 'user-code'?: string;
+  readonly clientId?: string;
+  readonly apiId?: number;
+  readonly userCode?: string;
   /** Native-generated SVG image data URL, at most 128 KiB; only present while QR is required. */
-  readonly 'qr-code'?: string;
-  readonly 'poll-after-ms'?: number;
+  readonly qrCode?: string;
+  readonly pollAfterMs?: number;
   readonly capabilities: readonly string[];
 }
 
 /** One-use input for native IPC. Never persist, log, return or pass to a model. */
 export interface ConnectionConfig {
   readonly provider: SourceProvider;
-  readonly 'client-id'?: string;
-  readonly 'api-id'?: number;
-  readonly 'api-hash'?: string;
+  readonly clientId?: string;
+  readonly apiId?: number;
+  readonly apiHash?: string;
   readonly token?: string;
 }
 
 export interface ImportedSource {
   readonly id: string;
   readonly label: string;
-  readonly 'document-count': number;
+  readonly documentCount: number;
   readonly warnings: readonly string[];
 }

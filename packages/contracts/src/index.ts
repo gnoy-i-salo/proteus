@@ -1,21 +1,65 @@
-import type { PersonReply } from './style';
-
-export type ProviderId = 'codex' | 'kimi';
-export type PaletteId = 'turquoise' | 'violet';
-export type IntelligenceEffort = 'low' | 'medium' | 'high';
-export * from './persona';
-export * from './evaluation';
-export * from './experiment';
-export * from './auth-callback';
-export * from './connections';
-export * from './sources';
+export type {
+  ProviderId,
+  IntelligenceEffort,
+  IntelligenceOperation,
+  IntelligenceRequest,
+  ReasoningBlock,
+  IntelligenceTrace,
+  IntelligenceResult,
+} from './intelligence';
+export type {
+  EvidenceStatus,
+  Evidence,
+  PersonaRule,
+  PersonProfile,
+  PaletteId,
+  PersonInput,
+  PersonaObservation,
+} from './persona';
+export type {
+  ScoreInterval,
+  RubricCriterion,
+  EvaluationRubric,
+  CriterionStatus,
+  CriterionAssessment,
+  AnswerEvaluation,
+  RequiredStatus,
+  CriterionScore,
+  TrialScore,
+  ScoreSummary,
+  PersonScore,
+} from './evaluation';
+export type { ExperimentProtocol, InvocationAttempt, ExperimentInput } from './experiment';
+export type { AuthCallbackResult } from './auth-callback';
+export { AUTH_CALLBACK_VERSION, parseVkAuthCallback } from './auth-callback';
+export type {
+  TelegramAuthMethod,
+  ConnectionPage,
+  ConnectionState,
+  ConnectionStatus,
+  ConnectionConfig,
+  ImportedSource,
+} from './connections';
+export { connectionProviders } from './connections';
+export type {
+  SourceProvider,
+  SourceOperation,
+  SourceBudget,
+  SourceGrantRequest,
+  SourceGrant,
+  SourceAction,
+  CollectionAction,
+  SourceDocument,
+  SourceCoverage,
+  SourceResult,
+  SourcePort,
+} from './sources';
+export type { StoredSourceDocument } from './source-document-codec';
 export {
   decodeLegacySourceDocument,
   decodeStoredSourceDocument,
   encodeStoredSourceDocument,
 } from './source-document-codec';
-export type { StoredSourceDocument } from './source-document-codec';
-export { projectBoundRevision } from './corpus';
 export type {
   CorpusProvider,
   SourceRole,
@@ -34,6 +78,7 @@ export type {
   CorpusPort,
   ModelSourceDocument,
 } from './corpus';
+export { projectBoundRevision } from './corpus';
 export type {
   IngestionBudget,
   IngestionSelection,
@@ -56,62 +101,10 @@ export type {
   MemoryPort,
   SimulationMemoryEntry,
 } from './memory';
-export * from './style';
-export type IntelligenceOperation =
-  'generation' | 'public-research' | 'source-plan' | 'corpus-analysis' | 'persona-reply';
-export interface IntelligenceRequest {
-  readonly 'source-context'?: boolean;
-  readonly task: string;
-  readonly 'system-prompt': string;
-  readonly effort: IntelligenceEffort;
-  readonly model?: string;
-  readonly operation?: IntelligenceOperation;
-  readonly 'format-attempt'?: 1 | 2;
-}
-// Text explicitly exposed by the provider's public CLI stream, not encrypted/raw model state.
-export interface ReasoningBlock {
-  readonly id: string;
-  readonly kind: 'summary' | 'thinking';
-  readonly text: string;
-}
-export interface IntelligenceTrace {
-  readonly provider: ProviderId;
-  /** Legacy field: elapsed request duration, never measured active reasoning. */
-  readonly 'reasoning-ms': number;
-  readonly 'wall-time-ms'?: number;
-  readonly 'active-reasoning-ms'?: null;
-  readonly 'requested-model'?: string;
-  readonly 'resolved-model'?: string | null;
-  readonly 'requested-effort'?: IntelligenceEffort;
-  readonly 'applied-effort'?: IntelligenceEffort | null;
-  readonly 'cli-version'?: string | null;
-  readonly 'terminal-ms': number;
-  readonly summary: string;
-  readonly reasoning?: readonly ReasoningBlock[];
-  readonly 'reasoning-truncated'?: boolean;
-}
-export interface IntelligenceResult {
-  readonly answer: string;
-  readonly trace: IntelligenceTrace;
-  readonly reply?: PersonReply;
-}
-export interface PersonScore {
-  readonly 'person-id': string;
-  readonly 'reasoning-minutes': number;
-  readonly bsc: number;
-}
-
-export interface PersonInput {
-  readonly label: string;
-  readonly context: string;
-  readonly 'public-urls': readonly string[];
-}
-export interface ExperimentInput {
-  readonly task: string;
-  readonly people: readonly [PersonInput, PersonInput];
-}
-export interface PersonaObservation {
-  readonly strengths: readonly string[];
-  readonly weaknesses: readonly string[];
-  readonly observations: readonly string[];
-}
+export type {
+  CommunicationMode,
+  StyleExemplar,
+  StyleRule,
+  PersonaStyleProfile,
+  PersonReply,
+} from './style';

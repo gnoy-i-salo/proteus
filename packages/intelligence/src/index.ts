@@ -2,13 +2,16 @@ export {
   componentIds,
   createModelSettings,
   isProviderId,
-  parseModelSettings,
   setComponentModel,
   setGlobalModel,
   setModelAlias,
 } from './model-settings';
 export type { ComponentId, ModelSettings } from './model-settings';
-export { decodeModelSettings, encodeModelSettings } from './model-settings-codec';
+export {
+  decodeModelSettings,
+  encodeModelSettings,
+  parseModelSettings,
+} from './model-settings-codec';
 export type { StoredModelSettings } from './model-settings-codec';
 export { decodeResponseFields } from './response-fields-codec';
 export type { ResponseFieldPair } from './response-fields-codec';

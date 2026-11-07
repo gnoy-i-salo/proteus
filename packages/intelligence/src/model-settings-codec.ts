@@ -1,12 +1,9 @@
 import type { ProviderId } from '@proteus-int/contracts';
-import { componentIds, isProviderId, type ComponentId } from './model-settings';
+import { componentIds, createModelSettings, isProviderId } from './model-settings';
+import type { ComponentId, ModelSettings } from './model-settings';
 
-// Boundary shape prepared before the atomic domain/consumer migration.
-export interface StoredModelSettings {
-  readonly globalModel: ProviderId;
-  readonly components: Readonly<Record<ComponentId, ProviderId>>;
-  readonly aliases: Readonly<Record<ComponentId, string>>;
-}
+// Persisted boundaries decode to the single canonical domain shape.
+export type StoredModelSettings = ModelSettings;
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -66,4 +63,14 @@ export function encodeModelSettings(settings: StoredModelSettings): string {
   const data = JSON.stringify({ format: 'proteus-model-settings', version: 2, ...settings });
   decodeModelSettings(data);
   return data;
+}
+
+/** Compatibility UI reader only; migration uses the strict decoder and never writes defaults. */
+export function parseModelSettings(raw: string | null): ModelSettings {
+  if (raw === null) return createModelSettings();
+  try {
+    return decodeModelSettings(raw);
+  } catch {
+    return createModelSettings();
+  }
 }

@@ -15,15 +15,15 @@ it('marks collapsed median intervals as uncertain when no complete point score i
 it('does not show a completion mark for a failed stage with an error summary', () => {
   const trace = {
     provider: 'codex' as const,
-    'reasoning-ms': 10,
-    'terminal-ms': 0,
+    reasoningMs: 10,
+    terminalMs: 0,
     summary: 'Запрос не завершён',
   };
   expect(
     traceMarker(
       {
         trace,
-        attempts: [{ index: 1, status: 'failed', 'wall-time-ms': 10, error: 'CLI failed' }],
+        attempts: [{ index: 1, status: 'failed', wallTimeMs: 10, error: 'CLI failed' }],
       },
       false,
     ),
@@ -32,14 +32,14 @@ it('does not show a completion mark for a failed stage with an error summary', (
     traceMarker(
       {
         trace,
-        attempts: [{ index: 1, status: 'format-rejected', 'wall-time-ms': 10, error: null }],
+        attempts: [{ index: 1, status: 'format-rejected', wallTimeMs: 10, error: null }],
       },
       false,
     ),
   ).toBe('!');
   expect(
     traceMarker(
-      { trace, attempts: [{ index: 1, status: 'accepted', 'wall-time-ms': 10, error: null }] },
+      { trace, attempts: [{ index: 1, status: 'accepted', wallTimeMs: 10, error: null }] },
       false,
     ),
   ).toBe('✓');
@@ -47,10 +47,10 @@ it('does not show a completion mark for a failed stage with an error summary', (
 });
 it('shows small positive criterion weights without rounding them to zero', () => {
   const protocol: ExperimentProtocol = {
-    version: 2,
+    version: 3,
     task: 'Task',
     repetitions: 1,
-    'participant-order': [['a', 'b', 'neutral']],
+    participantOrder: [['a', 'b', 'neutral']],
     rubric: {
       version: 2,
       criteria: [
@@ -63,12 +63,12 @@ it('shows small positive criterion weights without rounding them to zero', () =>
         },
       ],
     },
-    'model-settings': {},
-    'format-attempts': 2,
-    'stage-timeout-ms': 600000,
-    'prompt-version': 'bsc-v2.2-source-style',
-    'source-snapshots': [[], []],
-    'created-at': '2026-11-06T00:00:00Z',
+    modelSettings: {},
+    formatAttempts: 2,
+    stageTimeoutMs: 600000,
+    promptVersion: 'bsc-v2.2-source-style',
+    sourceSnapshots: [[], []],
+    createdAt: '2026-11-06T00:00:00Z',
   };
   expect(protocolText(protocol)).toContain('Вес: 0.01;');
 });

@@ -10,7 +10,7 @@ import type {
   SourceAction,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
-import { structured } from '@proteus-int/intelligence';
+import { decodeResponseFields, structured } from '@proteus-int/intelligence';
 import { sourceSkill } from './source-skills';
 import { sourceModelDocument } from './source-model-document';
 
@@ -24,17 +24,18 @@ export interface SourceCollection {
   readonly usage: {
     readonly steps: number;
     readonly bytes: number;
-    readonly 'duration-ms': number;
+    readonly durationMs: number;
   };
 }
 
-export function parseCollectionAction(value: Record<string, unknown>): CollectionAction {
+export function parseCollectionAction(raw: Record<string, unknown>): CollectionAction {
+  const value = decodeResponseFields(raw, [['document-ids', 'documentIds']]);
   const allowed: Record<string, readonly string[]> = {
     describe: ['action'],
     coverage: ['action'],
     search: ['action', 'query', 'limit'],
     collect: ['action', 'cursor', 'limit'],
-    read: ['action', 'document-ids'],
+    read: ['action', 'documentIds'],
     finish: ['action', 'reason'],
   };
   const fields = typeof value.action === 'string' ? allowed[value.action] : undefined;
@@ -54,10 +55,10 @@ export function parseCollectionAction(value: Record<string, unknown>): Collectio
     return fail();
   if (
     value.action === 'read' &&
-    (!Array.isArray(value['document-ids']) ||
-      !value['document-ids'].length ||
-      value['document-ids'].length > 20 ||
-      value['document-ids'].some((id) => !bounded(id, 128)))
+    (!Array.isArray(value.documentIds) ||
+      !value.documentIds.length ||
+      value.documentIds.length > 20 ||
+      value.documentIds.some((id) => !bounded(id, 128)))
   )
     return fail();
   if (value.action === 'finish' && !bounded(value.reason, 1000)) return fail();
@@ -70,36 +71,36 @@ export function isSourceBudgetFailure(error: unknown): boolean {
 }
 const emptyCoverage = (): SourceCoverage => ({
   documents: 0,
-  'total-documents': null,
+  totalDocuments: null,
   bytes: 0,
   complete: false,
   truncated: false,
-  'not-analyzed': 0,
+  notAnalyzed: 0,
   unavailable: [],
 });
 export function validateSourceGrant(grant: SourceGrant) {
   if (
     !grant.id ||
-    !grant['snapshot-id'] ||
-    !grant['account-id'] ||
-    !grant['resource-id'] ||
-    grant['allow-model-processing'] !== true ||
-    !(Date.parse(grant['expires-at']) > Date.now()) ||
+    !grant.snapshotId ||
+    !grant.accountId ||
+    !grant.resourceId ||
+    grant.allowModelProcessing !== true ||
+    !(Date.parse(grant.expiresAt) > Date.now()) ||
     (grant.from !== null && !Number.isFinite(Date.parse(grant.from))) ||
     (grant.to !== null && !Number.isFinite(Date.parse(grant.to))) ||
     (grant.from !== null && grant.to !== null && Date.parse(grant.from) > Date.parse(grant.to)) ||
     !grant.operations.includes('collect') ||
     Object.values(grant.budget).some((value) => !Number.isSafeInteger(value) || value <= 0) ||
-    grant.budget['max-steps'] > 100 ||
-    grant.budget['max-documents'] > 5000 ||
-    grant.budget['max-bytes'] > 5 * 1024 * 1024 ||
-    grant.budget['max-duration-ms'] > 600000
+    grant.budget.maxSteps > 100 ||
+    grant.budget.maxDocuments > 5000 ||
+    grant.budget.maxBytes > 5 * 1024 * 1024 ||
+    grant.budget.maxDurationMs > 600000
   )
     throw new Error('STALKER: invalid or expired source grant');
 }
 function validateResult(result: SourceResult, grant: SourceGrant) {
   if (
-    result['snapshot-id'] !== grant['snapshot-id'] ||
+    result.snapshotId !== grant.snapshotId ||
     !Array.isArray(result.documents) ||
     result.documents.length > 20
   )
@@ -109,37 +110,34 @@ function validateResult(result: SourceResult, grant: SourceGrant) {
       !doc.id ||
       doc.id.length > 128 ||
       doc.provider !== grant.provider ||
-      doc['resource-id'] !== grant['resource-id'] ||
+      doc.resourceId !== grant.resourceId ||
       typeof doc.text !== 'string' ||
       doc.text.length > 24000 ||
-      !doc['content-hash'] ||
-      (doc['created-at'] !== null && !Number.isFinite(Date.parse(doc['created-at']))) ||
+      !doc.contentHash ||
+      (doc.createdAt !== null && !Number.isFinite(Date.parse(doc.createdAt))) ||
       typeof doc.truncated !== 'boolean' ||
-      typeof doc['is-forwarded'] !== 'boolean' ||
-      (doc['author-label'] !== null && typeof doc['author-label'] !== 'string') ||
+      typeof doc.isForwarded !== 'boolean' ||
+      (doc.authorLabel !== null && typeof doc.authorLabel !== 'string') ||
       !['reference', 'holdout'].includes(doc.partition) ||
       !['owner', 'other', 'unknown'].includes(doc.authorship) ||
       !['dialogue', 'comment', 'formal'].includes(doc.mode) ||
-      (grant['author-id'] &&
-        doc.authorship === 'owner' &&
-        doc['author-id'] !== grant['author-id']) ||
-      (grant.from &&
-        (!doc['created-at'] || Date.parse(doc['created-at']) < Date.parse(grant.from))) ||
-      (grant.to && (!doc['created-at'] || Date.parse(doc['created-at']) > Date.parse(grant.to)))
+      (grant.authorId && doc.authorship === 'owner' && doc.authorId !== grant.authorId) ||
+      (grant.from && (!doc.createdAt || Date.parse(doc.createdAt) < Date.parse(grant.from))) ||
+      (grant.to && (!doc.createdAt || Date.parse(doc.createdAt) > Date.parse(grant.to)))
     )
       throw new Error('STALKER: document outside source scope or invalid document');
-    if (doc['retrieved-at'] !== null && !Number.isFinite(Date.parse(doc['retrieved-at'])))
+    if (doc.retrievedAt !== null && !Number.isFinite(Date.parse(doc.retrievedAt)))
       throw new Error('STALKER: invalid source retrieval receipt');
   }
   if (
-    ![result.coverage.documents, result.coverage.bytes, result.coverage['not-analyzed']].every(
+    ![result.coverage.documents, result.coverage.bytes, result.coverage.notAnalyzed].every(
       (n) => Number.isSafeInteger(n) && n >= 0,
     ) ||
     typeof result.coverage.complete !== 'boolean' ||
     typeof result.coverage.truncated !== 'boolean' ||
-    (result.coverage['total-documents'] !== null &&
-      (!Number.isSafeInteger(result.coverage['total-documents']) ||
-        result.coverage['total-documents'] < 0)) ||
+    (result.coverage.totalDocuments !== null &&
+      (!Number.isSafeInteger(result.coverage.totalDocuments) ||
+        result.coverage.totalDocuments < 0)) ||
     (result.cursor !== null && result.coverage.complete) ||
     (result.cursor !== null &&
       (typeof result.cursor !== 'string' || result.cursor.length > 1024)) ||
@@ -164,11 +162,11 @@ export async function collectSource(
   signal?.addEventListener('abort', cancel, { once: true });
   const timer = setTimeout(
     () => controller.abort(new CollectionStop('Source duration budget reached')),
-    grant.budget['max-duration-ms'],
+    grant.budget.maxDurationMs,
   );
   // Reads and planning share the persistent native budget with corpus analysis.
   // Leave room for analysis plus a format repair, while allowing one initial read.
-  const maxSteps = grant.budget['max-steps'];
+  const maxSteps = grant.budget.maxSteps;
   const analysisSteps = Math.min(maxSteps - 1, Math.max(2, Math.min(4, Math.floor(maxSteps / 3))));
   const collectionSteps = maxSteps - analysisSteps;
   let steps = 0;
@@ -180,15 +178,14 @@ export async function collectSource(
   const limitations: string[] = [];
   const check = () => {
     controller.signal.throwIfAborted();
-    if (Date.now() >= Date.parse(grant['expires-at']))
-      throw new CollectionStop('Source grant expired');
+    if (Date.now() >= Date.parse(grant.expiresAt)) throw new CollectionStop('Source grant expired');
     if (steps >= collectionSteps)
       throw new CollectionStop(
         analysisSteps > 0
           ? 'Source collection budget reached; remaining steps reserved for analysis'
           : 'Source collection budget reached; no steps remain for analysis',
       );
-    if (Date.now() - started >= grant.budget['max-duration-ms'])
+    if (Date.now() - started >= grant.budget.maxDurationMs)
       throw new CollectionStop('Source collection budget reached');
     steps++;
   };
@@ -198,7 +195,7 @@ export async function collectSource(
       throw new CollectionStop('Source action is outside the granted operations');
     if (
       action.action === 'read' &&
-      action['document-ids'].some(
+      action.documentIds.some(
         (id) => !documents.has(id) || documents.get(id)?.partition !== 'reference',
       )
     )
@@ -209,17 +206,11 @@ export async function collectSource(
     limitations.push(...result.limitations);
     for (const doc of result.documents) {
       const previous = documents.get(doc.id);
-      if (
-        previous &&
-        (previous['content-hash'] !== doc['content-hash'] || previous.text !== doc.text)
-      )
+      if (previous && (previous.contentHash !== doc.contentHash || previous.text !== doc.text))
         throw new Error('STALKER: source snapshot changed during collection');
       if (previous) continue;
       const size = new TextEncoder().encode(doc.text).length;
-      if (
-        documents.size >= grant.budget['max-documents'] ||
-        bytes + size > grant.budget['max-bytes']
-      )
+      if (documents.size >= grant.budget.maxDocuments || bytes + size > grant.budget.maxBytes)
         throw new CollectionStop('Source document or byte budget reached');
       documents.set(doc.id, doc);
       bytes += size;
@@ -248,7 +239,7 @@ export async function collectSource(
     const cursors = new Set<string>();
     let last: SourceResult;
     do {
-      const remaining = grant.budget['max-documents'] - documents.size;
+      const remaining = grant.budget.maxDocuments - documents.size;
       if (remaining <= 0) throw new CollectionStop('Source document budget reached');
       last = await execute({ action: 'collect', cursor, limit: Math.min(20, remaining) });
       cursor = last.cursor;
@@ -260,10 +251,10 @@ export async function collectSource(
       const holdoutHashes = new Set(
         [...documents.values()]
           .filter((doc) => doc.partition === 'holdout')
-          .map((doc) => doc['content-hash']),
+          .map((doc) => doc.contentHash),
       );
       const reference = [...documents.values()].filter(
-        (doc) => doc.partition === 'reference' && !holdoutHashes.has(doc['content-hash']),
+        (doc) => doc.partition === 'reference' && !holdoutHashes.has(doc.contentHash),
       );
       const observation = last.documents
         .filter((doc) => reference.some((item) => item.id === doc.id))
@@ -285,7 +276,7 @@ export async function collectSource(
           person: input,
           coverage,
           documents: observation,
-          'known-document-ids': reference.slice(0, 200).map((doc) => doc.id),
+          knownDocumentIds: reference.slice(0, 200).map((doc) => doc.id),
         },
         controller.signal,
         'medium',
@@ -316,6 +307,6 @@ export async function collectSource(
     traces,
     status,
     limitations: [...new Set(limitations)],
-    usage: { steps, bytes, 'duration-ms': Date.now() - started },
+    usage: { steps, bytes, durationMs: Date.now() - started },
   };
 }

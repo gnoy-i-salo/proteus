@@ -63,8 +63,8 @@ export function scoreTrial(
   if (!personId.trim()) throw new Error('Person ID is required');
   if (passes.length !== 2) throw new Error('BSC v2 requires two evaluation passes');
   for (const pass of passes) {
-    if (pass['person-id'] !== personId) throw new Error('Evaluation person ID mismatch');
-    const ids = new Set(pass.criteria.map((item) => item['criterion-id']));
+    if (pass.personId !== personId) throw new Error('Evaluation person ID mismatch');
+    const ids = new Set(pass.criteria.map((item) => item.criterionId));
     if (
       pass.criteria.length !== rubric.criteria.length ||
       ids.size !== rubric.criteria.length ||
@@ -74,11 +74,11 @@ export function scoreTrial(
   }
   const criteria: CriterionScore[] = rubric.criteria.map((criterion) => {
     const assessments = passes.map((pass) =>
-      pass.criteria.find((item) => item['criterion-id'] === criterion.id)!,
+      pass.criteria.find((item) => item.criterionId === criterion.id)!,
     );
     const intervals = assessments.map(assessmentInterval);
     return {
-      'criterion-id': criterion.id,
+      criterionId: criterion.id,
       assessments,
       disputed: new Set(assessments.map((assessment) => assessment.status)).size > 1,
       interval: {
@@ -101,11 +101,11 @@ export function scoreTrial(
   });
   return {
     version: 2,
-    'person-id': personId,
+    personId: personId,
     interval: { lower: Math.min(100, weighted('lower')), upper: Math.min(100, weighted('upper')) },
     criteria,
-    'required-status': combineRequired(required),
-    'judge-disagreement': criteria.some((criterion) => criterion.disputed),
+    requiredStatus: combineRequired(required),
+    judgeDisagreement: criteria.some((criterion) => criterion.disputed),
   };
 }
 function validateInterval(interval: ScoreInterval): void {
@@ -132,8 +132,8 @@ export function summarizeScores(
   for (const score of scores) {
     if (
       score.version !== 2 ||
-      score['person-id'] !== personId ||
-      !['passed', 'failed', 'unknown'].includes(score['required-status'])
+      score.personId !== personId ||
+      !['passed', 'failed', 'unknown'].includes(score.requiredStatus)
     )
       throw new Error('Invalid version, person or required status in trial score');
     validateInterval(score.interval);
@@ -149,12 +149,12 @@ export function summarizeScores(
       }
     : null;
   const required = combineRequired([
-    ...scores.map((score) => score['required-status']),
+    ...scores.map((score) => score.requiredStatus),
     ...(!complete ? ['unknown' as const] : []),
   ]);
   return {
     version: 2,
-    'person-id': personId,
+    personId: personId,
     interval,
     point:
       complete && fullyAssessed && interval?.lower === interval?.upper
@@ -169,14 +169,14 @@ export function summarizeScores(
           upper: Math.max(...scores.map((score) => score.interval.upper)),
         }
       : null,
-    'required-status': required,
-    'judge-disagreement': scores.some((score) => score['judge-disagreement']),
-    'comparison-eligible':
+    requiredStatus: required,
+    judgeDisagreement: scores.some((score) => score.judgeDisagreement),
+    comparisonEligible:
       complete &&
       fullyAssessed &&
       required === 'passed' &&
       scores.every(
-        (score) => !score['judge-disagreement'] && score.interval.lower === score.interval.upper,
+        (score) => !score.judgeDisagreement && score.interval.lower === score.interval.upper,
       ),
   };
 }

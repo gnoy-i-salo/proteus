@@ -19,40 +19,46 @@ export interface EvaluationRubric {
 }
 export type CriterionStatus = 'unmet' | 'partial' | 'met' | 'unknown';
 export interface CriterionAssessment {
-  readonly 'criterion-id': string;
+  readonly criterionId: string;
   readonly status: CriterionStatus;
   readonly reason: string;
   readonly quote: string;
 }
 export interface AnswerEvaluation {
-  readonly 'person-id': string;
+  readonly personId: string;
   readonly criteria: readonly CriterionAssessment[];
 }
 export type RequiredStatus = 'passed' | 'failed' | 'unknown';
 export interface CriterionScore {
-  readonly 'criterion-id': string;
+  readonly criterionId: string;
   readonly interval: ScoreInterval;
   readonly assessments: readonly CriterionAssessment[];
   readonly disputed: boolean;
 }
 export interface TrialScore {
   readonly version: 2;
-  readonly 'person-id': string;
+  readonly personId: string;
   readonly interval: ScoreInterval;
   readonly criteria: readonly CriterionScore[];
-  readonly 'required-status': RequiredStatus;
-  readonly 'judge-disagreement': boolean;
+  readonly requiredStatus: RequiredStatus;
+  readonly judgeDisagreement: boolean;
 }
 export interface ScoreSummary {
   readonly version: 2;
-  readonly 'person-id': string;
+  readonly personId: string;
   readonly interval: ScoreInterval | null;
   readonly point: number | null;
   readonly planned: number;
   readonly evaluated: number;
   readonly complete: boolean;
   readonly spread: ScoreInterval | null;
-  readonly 'required-status': RequiredStatus;
-  readonly 'judge-disagreement': boolean;
-  readonly 'comparison-eligible': boolean;
+  readonly requiredStatus: RequiredStatus;
+  readonly judgeDisagreement: boolean;
+  readonly comparisonEligible: boolean;
+}
+
+export interface PersonScore {
+  readonly personId: string;
+  readonly reasoningMinutes: number;
+  readonly bsc: number;
 }

@@ -7,7 +7,7 @@ describe('unconfigured providers', () => {
       await expect(
         createUnconfiguredProvider(id).run({
           task: 'example',
-          'system-prompt': '',
+          systemPrompt: '',
           effort: 'medium',
         }),
       ).rejects.toThrow('not configured');
@@ -21,10 +21,10 @@ it('retains an independent copy of published trace data and the failure cause', 
     'Interrupted',
     {
       provider: 'codex',
-      'reasoning-ms': 40,
-      'wall-time-ms': 40,
-      'active-reasoning-ms': null,
-      'terminal-ms': 0,
+      reasoningMs: 40,
+      wallTimeMs: 40,
+      activeReasoningMs: null,
+      terminalMs: 0,
       summary: 'Partial',
       reasoning: [block],
     },
@@ -34,5 +34,5 @@ it('retains an independent copy of published trace data and the failure cause', 
   expect(failure).toBeInstanceOf(Error);
   expect(failure.cause).toBe(cause);
   expect(failure.trace.reasoning?.[0]?.text).toBe('Public snapshot');
-  expect(failure.trace['active-reasoning-ms']).toBeNull();
+  expect(failure.trace.activeReasoningMs).toBeNull();
 });

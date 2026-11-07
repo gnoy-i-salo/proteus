@@ -4,36 +4,35 @@ describe('BSC from the PROTEUS board', () => {
   it('divides reasoning minutes by estimated BSC; excludes terminal time', () => {
     expect(
       scorePerson({
-        'person-id': 'a',
-        'reasoning-ms': 120_000,
-        'terminal-ms': 600_000,
-        'estimated-bsc': 4,
+        personId: 'a',
+        reasoningMs: 120_000,
+        terminalMs: 600_000,
+        estimatedBsc: 4,
       }),
-    ).toEqual({ 'person-id': 'a', 'reasoning-minutes': 2, bsc: 0.5 });
+    ).toEqual({ personId: 'a', reasoningMinutes: 2, bsc: 0.5 });
   });
   it('accepts zero reasoning time', () => {
-    expect(
-      scorePerson({ 'person-id': 'a', 'reasoning-ms': 0, 'terminal-ms': 0, 'estimated-bsc': 2 })
-        .bsc,
-    ).toBe(0);
+    expect(scorePerson({ personId: 'a', reasoningMs: 0, terminalMs: 0, estimatedBsc: 2 }).bsc).toBe(
+      0,
+    );
   });
   it.each([0, -1, NaN, Infinity])('rejects invalid estimated BSC %s', (value) => {
     expect(() =>
       scorePerson({
-        'person-id': 'a',
-        'reasoning-ms': 60_000,
-        'terminal-ms': 0,
-        'estimated-bsc': value,
+        personId: 'a',
+        reasoningMs: 60_000,
+        terminalMs: 0,
+        estimatedBsc: value,
       }),
     ).toThrow();
   });
   it.each([-1, NaN, Infinity])('rejects invalid duration %s', (value) => {
     expect(() =>
       scorePerson({
-        'person-id': 'a',
-        'reasoning-ms': value,
-        'terminal-ms': 0,
-        'estimated-bsc': 1,
+        personId: 'a',
+        reasoningMs: value,
+        terminalMs: 0,
+        estimatedBsc: 1,
       }),
     ).toThrow();
   });

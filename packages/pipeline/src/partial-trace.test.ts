@@ -7,21 +7,21 @@ import { runExperiment } from './index';
 const input = {
   task: 'Write a short plan',
   people: [
-    { label: 'Ada', context: 'Plans', 'public-urls': [] },
-    { label: 'Boris', context: 'Explores', 'public-urls': [] },
+    { label: 'Ada', context: 'Plans', publicUrls: [] },
+    { label: 'Boris', context: 'Explores', publicUrls: [] },
   ],
 } as const;
 const trace = (text: string, duration: number): IntelligenceTrace => ({
   provider: 'codex',
-  'reasoning-ms': duration,
-  'wall-time-ms': duration,
-  'terminal-ms': 0,
+  reasoningMs: duration,
+  wallTimeMs: duration,
+  terminalMs: 0,
   summary: 'Public trace',
-  'active-reasoning-ms': null,
+  activeReasoningMs: null,
   reasoning: [{ id: 'r', kind: 'summary', text }],
 });
 function preparation(request: IntelligenceRequest): unknown {
-  const stage = request['system-prompt'].split('\n')[0];
+  const stage = request.systemPrompt.split('\n')[0];
   if (stage === 'BRAIN_ANALYZATOR_RUBRIC')
     return {
       criteria: [
@@ -38,9 +38,9 @@ function preparation(request: IntelligenceRequest): unknown {
     return {
       evidence: [],
       character: 'unknown',
-      'thinking-style': 'unknown',
+      thinkingStyle: 'unknown',
       activity: 'unknown',
-      'behavior-summary': 'unknown',
+      behaviorSummary: 'unknown',
     };
   if (stage === 'PERSON_FABRIC') return { rules: [] };
   if (stage === 'PERSON_FABRIC_ADAPT')
@@ -49,7 +49,7 @@ function preparation(request: IntelligenceRequest): unknown {
         {
           id: 's1',
           instruction: 'Use a general plan',
-          'evidence-ids': [],
+          evidenceIds: [],
           status: 'hypothesis',
           limitations: [],
         },
@@ -67,14 +67,14 @@ describe('partial public traces in experiment results', () => {
       const provider: IntelligenceProvider = {
         id: 'codex',
         async run(request) {
-          if (request['system-prompt'].startsWith('PERSON\n')) {
+          if (request.systemPrompt.startsWith('PERSON\n')) {
             solves++;
             if (solves === 1)
               return { answer: 'invalid JSON', trace: trace('First public summary', 10) };
             if (cancelled) controller.abort();
             throw new IntelligenceRunError('Provider interrupted', {
               ...trace('Partial second public summary', 20),
-              'reasoning-truncated': true,
+              reasoningTruncated: true,
             });
           }
           return { answer: JSON.stringify(preparation(request)), trace: trace('Preparation', 5) };
@@ -91,10 +91,10 @@ describe('partial public traces in experiment results', () => {
       );
       expect(result.status).toBe(cancelled ? 'cancelled' : 'incomplete');
       const stage = result.traces.find((entry) => entry.id === 'solve-1-a')!;
-      expect(stage.trace['wall-time-ms']).toBe(30);
-      expect(stage.trace['reasoning-ms']).toBe(30);
-      expect(stage.trace['active-reasoning-ms']).toBeNull();
-      expect(stage.trace['reasoning-truncated']).toBe(true);
+      expect(stage.trace.wallTimeMs).toBe(30);
+      expect(stage.trace.reasoningMs).toBe(30);
+      expect(stage.trace.activeReasoningMs).toBeNull();
+      expect(stage.trace.reasoningTruncated).toBe(true);
       expect(stage.trace.reasoning).toEqual([
         { id: '1:r', kind: 'summary', text: 'First public summary' },
         { id: '2:r', kind: 'summary', text: 'Partial second public summary' },
@@ -103,9 +103,9 @@ describe('partial public traces in experiment results', () => {
         'format-rejected',
         'failed',
       ]);
-      expect(stage.attempts.map((attempt) => attempt['wall-time-ms'])).toEqual([10, 20]);
+      expect(stage.attempts.map((attempt) => attempt.wallTimeMs)).toEqual([10, 20]);
       expect(result.trials[0]).toMatchObject({ status: 'failed', attempt: null, score: null });
-      expect(result.comparison['comparison-eligible']).toBe(false);
+      expect(result.comparison.comparisonEligible).toBe(false);
       expect(JSON.stringify(result)).toContain('Partial second public summary');
     },
   );

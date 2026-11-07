@@ -10,10 +10,10 @@ export function validateExperiment(
   for (const [index, person] of input.people.entries()) {
     if (!person.label.trim() || person.label.length > 80)
       throw new Error('Укажите имя персоны (до 80 символов).');
-    if (!person.context.trim() && !person['public-urls'].length && !selectedSources[index])
+    if (!person.context.trim() && !person.publicUrls.length && !selectedSources[index])
       throw new Error('Добавьте выбранный источник, публичную ссылку или контекст каждой персоны.');
-    if (person.context.length > 4000 || person['public-urls'].length > 5)
+    if (person.context.length > 4000 || person.publicUrls.length > 5)
       throw new Error('Максимум 5 ссылок и 4000 символов контекста на персону.');
-    person['public-urls'].forEach(validatePublicUrl);
+    person.publicUrls.forEach(validatePublicUrl);
   }
 }

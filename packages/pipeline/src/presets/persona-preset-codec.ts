@@ -63,16 +63,7 @@ export function decodePersonaPreset(data: string): StoredPersonaPreset {
     person(preset.people[0], preset.version === 1),
     person(preset.people[1], preset.version === 1),
   ];
-  // Reuse the current domain rules until the atomic consumer migration.
-  const legacyPerson = (value: StoredPersonaInput) => ({
-    label: value.label,
-    context: value.context,
-    'public-urls': value.publicUrls,
-  });
-  validateExperiment({
-    task: preset.task.trim() ? preset.task : 'Preset',
-    people: [legacyPerson(people[0]), legacyPerson(people[1])],
-  });
+  validateExperiment({ task: preset.task.trim() ? preset.task : 'Preset', people });
   if (preset.task.length > 4000) throw new Error('Задача превышает 4000 символов.');
   return { task: preset.task, people };
 }

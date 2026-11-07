@@ -1,23 +1,22 @@
-import type { PaletteId } from './index';
 import type { PersonaStyleProfile, StyleExemplar } from './style';
 
 export type EvidenceStatus = 'supported' | 'hypothesis' | 'unknown' | 'conflicting';
 export interface Evidence {
   readonly id: string;
-  readonly 'source-url': string;
+  readonly sourceUrl: string;
   readonly kind: 'fact' | 'hypothesis';
   readonly summary: string;
   readonly status: EvidenceStatus;
   readonly verification: 'model-reported' | 'source-retrieved' | 'unverified';
-  readonly 'document-ids'?: readonly string[];
+  readonly documentIds?: readonly string[];
   readonly excerpt: string | null;
-  readonly 'retrieved-at': string | null;
+  readonly retrievedAt: string | null;
   readonly limitations: readonly string[];
 }
 export interface PersonaRule {
   readonly id: string;
   readonly instruction: string;
-  readonly 'evidence-ids': readonly string[];
+  readonly evidenceIds: readonly string[];
   readonly status: EvidenceStatus;
   readonly limitations: readonly string[];
 }
@@ -28,9 +27,21 @@ export interface PersonProfile {
   readonly archetype: string;
   readonly skills: readonly string[];
   readonly rules: readonly PersonaRule[];
-  readonly 'task-skills': readonly PersonaRule[];
-  readonly 'source-status': 'evidence-informed' | 'synthetic' | 'neutral';
-  readonly 'source-context'?: boolean;
-  readonly 'style-profile'?: PersonaStyleProfile;
-  readonly 'style-exemplars'?: readonly StyleExemplar[];
+  readonly taskSkills: readonly PersonaRule[];
+  readonly sourceStatus: 'evidence-informed' | 'synthetic' | 'neutral';
+  readonly sourceContext?: boolean;
+  readonly styleProfile?: PersonaStyleProfile;
+  readonly styleExemplars?: readonly StyleExemplar[];
+}
+
+export type PaletteId = 'turquoise' | 'violet';
+export interface PersonInput {
+  readonly label: string;
+  readonly context: string;
+  readonly publicUrls: readonly string[];
+}
+export interface PersonaObservation {
+  readonly strengths: readonly string[];
+  readonly weaknesses: readonly string[];
+  readonly observations: readonly string[];
 }

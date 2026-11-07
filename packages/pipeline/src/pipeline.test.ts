@@ -13,8 +13,8 @@ import { exportExperiment, runExperiment, validateExperiment } from './index';
 const input = {
   task: 'Design a public reading room',
   people: [
-    { label: 'Ada', context: 'Careful planner', 'public-urls': ['https://example.org/ada'] },
-    { label: 'Boris', context: 'Improvises rapidly', 'public-urls': [] },
+    { label: 'Ada', context: 'Careful planner', publicUrls: ['https://example.org/ada'] },
+    { label: 'Boris', context: 'Improvises rapidly', publicUrls: [] },
   ],
 } as const;
 const rubric = [
@@ -37,7 +37,7 @@ function providers() {
     id,
     async run(request, signal) {
       signal?.throwIfAborted();
-      const stage = request['system-prompt'].split('\n')[0]!;
+      const stage = request.systemPrompt.split('\n')[0]!;
       calls.push({ stage, request, provider: id });
       const payload = JSON.parse(request.task) as Record<string, unknown>;
       let data: unknown;
@@ -52,15 +52,15 @@ function providers() {
               kind: 'fact',
               summary: 'Plans before acting',
               status: 'supported',
-              'document-ids': ['d1'],
+              documentIds: ['d1'],
               excerpt: 'Plans before acting',
               limitations: [],
             },
           ],
           character: 'unknown',
-          'thinking-style': 'unknown',
+          thinkingStyle: 'unknown',
           activity: 'unknown',
-          'behavior-summary': 'unknown',
+          behaviorSummary: 'unknown',
         };
       else if (stage === 'STALKER')
         data = {
@@ -68,7 +68,7 @@ function providers() {
             {
               id: 'e1',
               kind: 'hypothesis',
-              'source-url': '',
+              sourceUrl: '',
               summary:
                 payload.context === 'Careful planner'
                   ? 'Plans before acting'
@@ -79,19 +79,19 @@ function providers() {
             },
           ],
           character: 'unknown',
-          'thinking-style': 'unknown',
+          thinkingStyle: 'unknown',
           activity: 'unknown',
-          'behavior-summary': 'unknown',
+          behaviorSummary: 'unknown',
         };
       else if (stage === 'PERSON_FABRIC') {
         const evidence = payload.evidence as { id: string; summary: string }[];
         data = {
-          ...(payload['style-exemplars']
+          ...(payload.styleExemplars
             ? {
                 style: {
-                  'reasoning-patterns': [],
-                  'voice-rules': [],
-                  'format-rules': [],
+                  reasoningPatterns: [],
+                  voiceRules: [],
+                  formatRules: [],
                   limitations: [],
                 },
               }
@@ -102,7 +102,7 @@ function providers() {
               instruction: evidence[0]!.summary.startsWith('Plans')
                 ? 'Plan first'
                 : 'Prototype first',
-              'evidence-ids': ['e1'],
+              evidenceIds: ['e1'],
               status: 'hypothesis',
               limitations: [],
             },
@@ -115,7 +115,7 @@ function providers() {
             {
               id: 's1',
               instruction: rules[0]?.instruction ?? 'Use a general plan',
-              'evidence-ids': rules[0]?.['evidence-ids'] ?? [],
+              evidenceIds: rules[0]?.evidenceIds ?? [],
               status: 'hypothesis',
               limitations: [],
             },
@@ -132,7 +132,7 @@ function providers() {
             label: answer.label,
             criteria: [
               {
-                'criterion-id': 'coverage',
+                criterionId: 'coverage',
                 status: answer.answer === 'Plan first' ? 'met' : 'partial',
                 reason: 'Observable completeness of the plan',
                 quote: answer.answer,
@@ -145,9 +145,9 @@ function providers() {
         answer: JSON.stringify(data),
         trace: {
           provider: id,
-          'reasoning-ms': 60000,
-          'wall-time-ms': 60000,
-          'terminal-ms': 0,
+          reasoningMs: 60000,
+          wallTimeMs: 60000,
+          terminalMs: 0,
           summary: 'Completed',
           reasoning: [{ id: 'r', kind: 'summary', text: 'Public summary' }],
         },
@@ -164,33 +164,33 @@ describe('controlled persona experiment', () => {
   const grant: SourceGrant = {
     id: 'source-grant',
     provider: 'telegram',
-    'account-id': 'local-account',
-    'resource-id': 'selected-chat',
-    'author-id': 'author-a',
+    accountId: 'local-account',
+    resourceId: 'selected-chat',
+    authorId: 'author-a',
     from: null,
     to: null,
-    'snapshot-id': 'snapshot-a',
-    'expires-at': '2099-01-01T00:00:00Z',
-    'allow-model-processing': true,
+    snapshotId: 'snapshot-a',
+    expiresAt: '2099-01-01T00:00:00Z',
+    allowModelProcessing: true,
     operations: ['collect', 'read', 'search', 'coverage', 'describe'],
-    budget: { 'max-steps': 20, 'max-documents': 50, 'max-bytes': 100000, 'max-duration-ms': 60000 },
+    budget: { maxSteps: 20, maxDocuments: 50, maxBytes: 100000, maxDurationMs: 60000 },
   };
   const document: SourceDocument = {
     id: 'd1',
     provider: 'telegram',
-    'resource-id': 'selected-chat',
-    'author-id': 'author-a',
-    'author-label': 'Ada',
+    resourceId: 'selected-chat',
+    authorId: 'author-a',
+    authorLabel: 'Ada',
     authorship: 'owner',
     kind: 'message',
     mode: 'dialogue',
     text: 'Plans before acting',
-    'source-url': null,
-    'created-at': '2026-01-01T00:00:00Z',
-    'retrieved-at': '2026-02-01T00:00:00Z',
-    'content-hash': 'hash-one',
-    'reply-to': null,
-    'is-forwarded': false,
+    sourceUrl: null,
+    createdAt: '2026-01-01T00:00:00Z',
+    retrievedAt: '2026-02-01T00:00:00Z',
+    contentHash: 'hash-one',
+    replyTo: null,
+    isForwarded: false,
     truncated: false,
     partition: 'reference',
   };
@@ -205,16 +205,16 @@ describe('controlled persona experiment', () => {
         async execute(id) {
           executions.push(id);
           return {
-            'snapshot-id': 'snapshot-a',
+            snapshotId: 'snapshot-a',
             documents: [document],
             cursor: null,
             coverage: {
               documents: 1,
-              'total-documents': 1,
+              totalDocuments: 1,
               bytes: 19,
               complete: true,
               truncated: false,
-              'not-analyzed': 0,
+              notAnalyzed: 0,
               unavailable: [],
             },
             limitations: [],
@@ -222,7 +222,7 @@ describe('controlled persona experiment', () => {
         },
       },
       onProtocol: async (protocol) => {
-        expect(protocol['source-snapshots']).toEqual([['snapshot-a'], []]);
+        expect(protocol.sourceSnapshots).toEqual([['snapshot-a'], []]);
         Object.assign(selected, { id: 'mutated-grant' });
       },
     });
@@ -230,7 +230,7 @@ describe('controlled persona experiment', () => {
     expect(calls.filter((call) => call.request.operation === 'public-research')).toHaveLength(1);
     expect(calls.filter((call) => call.request.operation === 'source-plan')).toHaveLength(1);
     expect(calls.filter((call) => call.request.operation === 'corpus-analysis')).toHaveLength(1);
-    expect(calls.every((call) => call.request['source-context'] === true)).toBe(true);
+    expect(calls.every((call) => call.request.sourceContext === true)).toBe(true);
     expect(result.people[0]?.report?.evidence[0]?.verification).toBe('source-retrieved');
     expect(
       result.traces.find((item) => item.id === 'sources-0')?.attempts.map((item) => item.status),
@@ -246,7 +246,7 @@ describe('controlled persona experiment', () => {
     ).rejects.toThrow(/source|источник/i);
     await expect(
       runExperiment(input, createModelSettings(), adapters, {
-        sourceGrants: [[{ ...grant, 'allow-model-processing': false }], []],
+        sourceGrants: [[{ ...grant, allowModelProcessing: false }], []],
         sourcePort: {
           async reserveModelCall() {},
           async execute() {
@@ -262,19 +262,19 @@ describe('controlled persona experiment', () => {
     const result = await runExperiment(input, createModelSettings(), adapters);
     const privateSample = {
       id: 's1',
-      'document-id': 'd1',
+      documentId: 'd1',
       mode: 'dialogue' as const,
       text: 'PRIVATE ORIGINAL STYLE SAMPLE',
       context: 'PRIVATE NEIGHBORING CONTEXT',
       redactions: [],
-      'export-allowed': false,
+      exportAllowed: false,
     };
     const allowed = {
       ...privateSample,
       id: 's2',
       text: 'Permitted public example',
       context: 'Public context',
-      'export-allowed': true,
+      exportAllowed: true,
     };
     const person = result.people[0]!;
     const exampleResult = {
@@ -282,11 +282,11 @@ describe('controlled persona experiment', () => {
       people: [
         {
           ...person,
-          report: { ...person.report!, 'style-exemplars': [privateSample, allowed] },
-          profile: { ...person.profile, 'style-exemplars': [privateSample, allowed] },
-          'base-profile': {
-            ...person['base-profile'],
-            'style-exemplars': [privateSample, allowed],
+          report: { ...person.report!, styleExemplars: [privateSample, allowed] },
+          profile: { ...person.profile, styleExemplars: [privateSample, allowed] },
+          baseProfile: {
+            ...person.baseProfile,
+            styleExemplars: [privateSample, allowed],
           },
           artifacts: {
             ...person.artifacts,
@@ -299,7 +299,7 @@ describe('controlled persona experiment', () => {
     const exported = exportExperiment(exampleResult);
     expect(exported).not.toMatch(/PRIVATE ORIGINAL|PRIVATE NEIGHBORING/);
     expect(exported).toContain('Permitted public example');
-    expect(exampleResult.people[0]!.profile['style-exemplars']).toHaveLength(2);
+    expect(exampleResult.people[0]!.profile.styleExemplars).toHaveLength(2);
   });
   it('omits every connected-source excerpt including short and non-exemplar quotes', async () => {
     const { adapters } = providers();
@@ -324,17 +324,17 @@ describe('controlled persona experiment', () => {
     };
     const withQuotes = { ...result, people: [{ ...original, report }, result.people[1]!] };
     const exported = JSON.parse(exportExperiment(withQuotes)) as typeof withQuotes & {
-      'export-metadata': {
+      exportMetadata: {
         redacted: boolean;
-        'omitted-source-excerpts': number;
-        'preparation-reasoning-omitted': boolean;
+        omittedSourceExcerpts: number;
+        preparationReasoningOmitted: boolean;
       };
     };
     expect(exported.people[0]!.report!.evidence.map((item) => item.excerpt)).toEqual([null, null]);
-    expect(exported['export-metadata']).toMatchObject({
+    expect(exported.exportMetadata).toMatchObject({
       redacted: true,
-      'omitted-source-excerpts': 2,
-      'preparation-reasoning-omitted': true,
+      omittedSourceExcerpts: 2,
+      preparationReasoningOmitted: true,
     });
     expect(report.evidence.map((item) => item.excerpt)).toEqual([
       'ok',
@@ -353,7 +353,7 @@ describe('controlled persona experiment', () => {
     await expect(
       runExperiment(input, createModelSettings(), { codex: adapter, kimi: adapter }),
     ).rejects.toThrow('Stop after observing');
-    expect(requests[0]?.['system-prompt']).toMatch(/^BRAIN_ANALYZATOR_RUBRIC/);
+    expect(requests[0]?.systemPrompt).toMatch(/^BRAIN_ANALYZATOR_RUBRIC/);
     expect(JSON.parse(requests[0]!.task)).toEqual({ task: input.task });
   });
 
@@ -385,7 +385,7 @@ describe('controlled persona experiment', () => {
         onProgress: (event) => stages.push(event.stage),
       },
     );
-    expect(result).toMatchObject({ 'schema-version': 3, 'scoring-version': 2, status: 'complete' });
+    expect(result).toMatchObject({ schemaVersion: 4, scoringVersion: 2, status: 'complete' });
     expect(calls).toHaveLength(13);
     expect(result.traces).toHaveLength(13);
     expect(calls.filter((call) => call.provider === 'kimi')).toHaveLength(2);
@@ -393,9 +393,9 @@ describe('controlled persona experiment', () => {
     expect(result.control.attempt?.answer).toBe('Neutral plan');
     expect(result.control.score.point).toBe(50);
     expect(result.control.report).toBeNull();
-    expect(result.control.profile['source-status']).toBe('neutral');
-    expect(result.people[0]?.['baseline-difference']).toEqual({ lower: 50, upper: 50 });
-    expect(result.comparison['comparison-eligible']).toBe(false);
+    expect(result.control.profile.sourceStatus).toBe('neutral');
+    expect(result.people[0]?.baselineDifference).toEqual({ lower: 50, upper: 50 });
+    expect(result.comparison.comparisonEligible).toBe(false);
     expect(result.trials.map((trial) => trial.status)).toEqual([
       'evaluated',
       'evaluated',
@@ -414,7 +414,7 @@ describe('controlled persona experiment', () => {
     };
     const result = await runExperiment(taskInput, createModelSettings(), adapters);
     expect(result.protocol.task).toBe(taskInput.task);
-    expect(result.protocol['prompt-version']).toBe('bsc-v2.3-source-identity');
+    expect(result.protocol.promptVersion).toBe('bsc-v2.4-camel-case');
     expect(result.protocol.task).toContain('https://standards.example/spec');
     for (const call of calls) {
       const data = payload(call);
@@ -426,13 +426,9 @@ describe('controlled persona experiment', () => {
         expect(data.evidence).toMatchObject([{ id: 'e1', status: 'hypothesis' }]);
       }
     }
-    expect(result.people.every((person) => person.profile['source-status'] === 'synthetic')).toBe(
-      true,
-    );
+    expect(result.people.every((person) => person.profile.sourceStatus === 'synthetic')).toBe(true);
     expect(result.people[0]?.profile.rules[0]?.limitations).toContain('User description only');
-    expect(result.people[0]?.profile['task-skills'][0]?.limitations).toContain(
-      'User description only',
-    );
+    expect(result.people[0]?.profile.taskSkills[0]?.limitations).toContain('User description only');
     expect(result.people[0]?.artifacts['AGENTS.md']).toContain('e1');
   });
 
@@ -453,7 +449,7 @@ describe('controlled persona experiment', () => {
     const adaptations = calls.filter((call) => call.stage === 'PERSON_FABRIC_ADAPT');
     expect(adaptations).toHaveLength(3);
     expect(adaptations.map((call) => call.request.effort)).toEqual(['medium', 'medium', 'medium']);
-    expect(result.trials.map((trial) => trial['person-id'])).toEqual([
+    expect(result.trials.map((trial) => trial.personId)).toEqual([
       'a',
       'b',
       'neutral',
@@ -476,9 +472,7 @@ describe('controlled persona experiment', () => {
       expect(solving.filter((call) => call.request.task === prompt)).toHaveLength(3);
     expect(result.people.every((person) => Object.isFrozen(person.profile))).toBe(true);
     expect(
-      result.people.every(
-        (person) => person.profile.archetype === person['base-profile'].archetype,
-      ),
+      result.people.every((person) => person.profile.archetype === person.baseProfile.archetype),
     ).toBe(true);
     expect(
       result.trials.every((trial) => trial.score?.interval.lower === trial.score?.interval.upper),
@@ -509,7 +503,7 @@ describe('controlled persona experiment', () => {
     let malformed = false;
     adapters.codex.run = async (request, signal) => {
       const result = await original(request, signal);
-      if (!malformed && request['system-prompt'].startsWith('PERSON\n')) {
+      if (!malformed && request.systemPrompt.startsWith('PERSON\n')) {
         malformed = true;
         return { ...result, answer: '{"answer":{},"summary":"bad format"}' };
       }
@@ -518,7 +512,7 @@ describe('controlled persona experiment', () => {
     const result = await runExperiment(input, createModelSettings(), adapters);
     expect(result.status).toBe('complete');
     expect(calls).toHaveLength(14);
-    expect(result.people[0]?.attempt?.trace['wall-time-ms']).toBe(120000);
+    expect(result.people[0]?.attempt?.trace.wallTimeMs).toBe(120000);
     expect(result.people[0]?.attempt?.trace.reasoning?.map((block) => block.id)).toEqual([
       '1:r',
       '2:r',
@@ -537,7 +531,7 @@ describe('controlled persona experiment', () => {
     let solving = 0;
     adapters.codex.run = async (request, signal) => {
       const result = await original(request, signal);
-      if (request['system-prompt'].startsWith('PERSON\n') && ++solving === 2)
+      if (request.systemPrompt.startsWith('PERSON\n') && ++solving === 2)
         throw new Error('CLI unavailable');
       return result;
     };
@@ -549,7 +543,7 @@ describe('controlled persona experiment', () => {
     expect(result.trials.slice(2).every((trial) => trial.status === 'skipped')).toBe(true);
     expect(result.people[0]?.attempt?.answer).toBe('Plan first');
     expect(result.control.attempt).toBeNull();
-    expect(result.comparison).toMatchObject({ difference: null, 'comparison-eligible': false });
+    expect(result.comparison).toMatchObject({ difference: null, comparisonEligible: false });
     expect(result.traces.at(-1)?.attempts.at(-1)?.status).toBe('failed');
   });
 
@@ -559,7 +553,7 @@ describe('controlled persona experiment', () => {
     let judging = 0;
     adapters.codex.run = async (request, signal) => {
       const result = await original(request, signal);
-      if (request['system-prompt'].startsWith('BRAIN_ANALYZATOR_EVALUATE\n') && ++judging === 2)
+      if (request.systemPrompt.startsWith('BRAIN_ANALYZATOR_EVALUATE\n') && ++judging === 2)
         throw new Error('Judge failed');
       return result;
     };
@@ -585,7 +579,7 @@ describe('controlled persona experiment', () => {
     expect(calls).toHaveLength(9);
     expect(result.people[0]?.attempt?.answer).toBe('Plan first');
     expect(result.control.attempt).toBeNull();
-    expect(result.comparison['comparison-eligible']).toBe(false);
+    expect(result.comparison.comparisonEligible).toBe(false);
   });
 
   it('stops before source collection if saving/reviewing the protocol fails', async () => {
@@ -611,7 +605,7 @@ describe('controlled persona experiment', () => {
     const { calls, adapters } = providers();
     await expect(
       runExperiment(
-        { ...input, people: [{ ...input.people[0], 'public-urls': [url] }, input.people[1]] },
+        { ...input, people: [{ ...input.people[0], publicUrls: [url] }, input.people[1]] },
         createModelSettings(),
         adapters,
       ),
@@ -624,7 +618,7 @@ describe('controlled persona experiment', () => {
     expect(() =>
       validateExperiment({
         ...input,
-        people: [{ label: 'A', context: '', 'public-urls': [] }, input.people[1]],
+        people: [{ label: 'A', context: '', publicUrls: [] }, input.people[1]],
       }),
     ).toThrow();
   });

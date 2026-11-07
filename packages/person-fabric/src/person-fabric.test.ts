@@ -4,11 +4,11 @@ import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import type { StalkerReport } from '@proteus-int/stalker';
 import { adaptPerson, fabricatePerson, neutralProfile } from './index';
 
-const input = { label: 'Ada', context: 'Checks assumptions', 'public-urls': [] };
+const input = { label: 'Ada', context: 'Checks assumptions', publicUrls: [] };
 const rule: PersonaRule = {
   id: 'r1',
   instruction: 'Ada asks Boris before choosing; consult @boris at https://example.org/ada',
-  'evidence-ids': ['e1'],
+  evidenceIds: ['e1'],
   status: 'hypothesis',
   limitations: ['User description only'],
 };
@@ -18,18 +18,18 @@ const report: StalkerReport = {
       id: 'e1',
       kind: 'hypothesis',
       summary: 'Ada checks assumptions',
-      'source-url': '',
+      sourceUrl: '',
       status: 'hypothesis',
       verification: 'unverified',
       excerpt: null,
-      'retrieved-at': null,
+      retrievedAt: null,
       limitations: ['User description only'],
     },
   ],
   character: 'unknown',
-  'thinking-style': 'Checks assumptions',
+  thinkingStyle: 'Checks assumptions',
   activity: 'unknown',
-  'behavior-summary': 'unknown',
+  behaviorSummary: 'unknown',
 };
 function provider(output: unknown, calls: IntelligenceRequest[] = []): IntelligenceProvider {
   return {
@@ -38,7 +38,7 @@ function provider(output: unknown, calls: IntelligenceRequest[] = []): Intellige
       calls.push(request);
       return {
         answer: JSON.stringify(output),
-        trace: { provider: 'codex', 'reasoning-ms': 1, 'terminal-ms': 0, summary: 'done' },
+        trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'done' },
       };
     },
   };
@@ -47,23 +47,23 @@ describe('frozen evidence-linked personas', () => {
   it('keeps exact samples in a separate channel and links observed style to them', async () => {
     const sample = {
       id: 'sample-1',
-      'document-id': 'doc-1',
+      documentId: 'doc-1',
       mode: 'dialogue' as const,
       text: '  ну...\n\nда?! 🤷',
       context: '',
       redactions: [],
-      'export-allowed': false,
+      exportAllowed: false,
     };
     const styleRule = {
       id: 'voice-1',
       instruction: 'Ada uses short replies to @boris',
-      'exemplar-ids': ['sample-1'],
+      exemplarIds: ['sample-1'],
       status: 'observed',
       limitations: ['Small sample'],
     };
     const calls: IntelligenceRequest[] = [];
     const result = await fabricatePerson(
-      { ...report, 'style-exemplars': [sample] },
+      { ...report, styleExemplars: [sample] },
       input,
       'a',
       'turquoise',
@@ -71,35 +71,35 @@ describe('frozen evidence-linked personas', () => {
         {
           rules: [rule],
           style: {
-            'reasoning-patterns': [],
-            'voice-rules': [styleRule],
-            'format-rules': [],
+            reasoningPatterns: [],
+            voiceRules: [styleRule],
+            formatRules: [],
             limitations: [],
           },
         },
         calls,
       ),
     );
-    expect(JSON.parse(calls[0]!.task)['style-exemplars']).toEqual([sample]);
-    expect(result.profile['style-exemplars']).toEqual([sample]);
-    expect(result.profile['style-profile']?.['voice-rules']).toEqual([styleRule]);
-    expect(result.profile['style-profile']?.['context-modes']).toContainEqual({
+    expect(JSON.parse(calls[0]!.task).styleExemplars).toEqual([sample]);
+    expect(result.profile.styleExemplars).toEqual([sample]);
+    expect(result.profile.styleProfile?.voiceRules).toEqual([styleRule]);
+    expect(result.profile.styleProfile?.contextModes).toContainEqual({
       mode: 'comment',
       status: 'insufficient',
       limitations: ['Нет собственных образцов для этого контекста.'],
     });
     await expect(
       fabricatePerson(
-        { ...report, 'style-exemplars': [sample] },
+        { ...report, styleExemplars: [sample] },
         input,
         'a',
         'turquoise',
         provider({
           rules: [],
           style: {
-            'reasoning-patterns': [],
-            'voice-rules': [{ ...styleRule, 'exemplar-ids': ['foreign'] }],
-            'format-rules': [],
+            reasoningPatterns: [],
+            voiceRules: [{ ...styleRule, exemplarIds: ['foreign'] }],
+            formatRules: [],
             limitations: [],
           },
         }),
@@ -112,7 +112,7 @@ describe('frozen evidence-linked personas', () => {
     await adaptPerson(
       neutralProfile(),
       task,
-      provider({ skills: [{ ...rule, id: 's1', 'evidence-ids': [] }] }, calls),
+      provider({ skills: [{ ...rule, id: 's1', evidenceIds: [] }] }, calls),
     );
     expect(JSON.parse(calls[0]!.task).task).toBe(task);
   });
@@ -131,7 +131,7 @@ describe('frozen evidence-linked personas', () => {
       evidence: report.evidence,
     });
     expect(profile.rules).toEqual([rule]);
-    expect(profile['source-status']).toBe('synthetic');
+    expect(profile.sourceStatus).toBe('synthetic');
     expect(profile.skills).toEqual([]);
   });
   it('rejects invented references and upgrades from hypotheses into supported rules', async () => {
@@ -141,7 +141,7 @@ describe('frozen evidence-linked personas', () => {
         input,
         'a',
         'turquoise',
-        provider({ rules: [{ ...rule, 'evidence-ids': ['e404'] }] }),
+        provider({ rules: [{ ...rule, evidenceIds: ['e404'] }] }),
       ),
     ).rejects.toThrow(/evidence/i);
     await expect(
@@ -163,7 +163,7 @@ describe('frozen evidence-linked personas', () => {
       provider({ rules: [] }),
     );
     expect(profile.rules).toEqual([]);
-    expect(profile['source-status']).toBe('synthetic');
+    expect(profile.sourceStatus).toBe('synthetic');
   });
   it('adapts neutral and personal profiles under the same effort while freezing the archetype', async () => {
     const base = (
@@ -176,16 +176,97 @@ describe('frozen evidence-linked personas', () => {
     await adaptPerson(
       neutral,
       'Design a room',
-      provider({ skills: [{ ...skill, 'evidence-ids': [] }] }, calls),
+      provider({ skills: [{ ...skill, evidenceIds: [] }] }, calls),
     );
     expect(adapted.profile.archetype).toBe(base.archetype);
     expect(adapted.profile.rules).toEqual(base.rules);
     expect(base.skills).toEqual([]);
     expect(adapted.profile.skills).toEqual([skill.instruction]);
     expect(calls.map((call) => call.effort)).toEqual(['medium', 'medium']);
-    expect(JSON.parse(calls[0]!.task)['persona-label']).toBe('Ada');
-    expect(JSON.parse(calls[1]!.task)['persona-label']).toBeNull();
-    expect(neutral['source-status']).toBe('neutral');
+    expect(JSON.parse(calls[0]!.task).personaLabel).toBe('Ada');
+    expect(JSON.parse(calls[1]!.task).personaLabel).toBeNull();
+    expect(neutral.sourceStatus).toBe('neutral');
     expect(neutral.rules).toEqual([]);
   });
+});
+
+it('decodes legacy evidence and style fields into canonical rules with exact sample text', async () => {
+  const sample = {
+    id: 'sample-1',
+    documentId: 'doc-1',
+    mode: 'dialogue' as const,
+    text: '  Анна → Борис: source-url\r\n👩🏽‍💻 ',
+    context: '',
+    redactions: [],
+    exportAllowed: false,
+  };
+  const { evidenceIds, ...ruleFields } = rule;
+  const styleRule = {
+    id: 'voice-1',
+    instruction: 'Short replies to Борис',
+    'exemplar-ids': ['sample-1'],
+    status: 'observed',
+    limitations: [],
+  };
+  const result = await fabricatePerson(
+    { ...report, styleExemplars: [sample] },
+    input,
+    'a',
+    'turquoise',
+    provider({
+      rules: [{ ...ruleFields, 'evidence-ids': evidenceIds }],
+      style: {
+        'reasoning-patterns': [],
+        'voice-rules': [styleRule],
+        'format-rules': [],
+        limitations: [],
+      },
+    }),
+  );
+  expect(result.profile.rules).toEqual([rule]);
+  expect(result.profile.styleExemplars).toEqual([sample]);
+  expect(result.profile.styleProfile?.version).toBe(2);
+  expect(result.profile.styleProfile?.voiceRules[0]?.exemplarIds).toEqual(['sample-1']);
+});
+
+it('rejects mixed rule aliases in fabrication and adaptation', async () => {
+  const mixed = { ...rule, 'evidence-ids': ['e1'] };
+  await expect(
+    fabricatePerson(report, input, 'a', 'turquoise', provider({ rules: [mixed] })),
+  ).rejects.toThrow(/Mixed legacy and canonical/);
+  const base = (await fabricatePerson(report, input, 'a', 'turquoise', provider({ rules: [rule] })))
+    .profile;
+  await expect(
+    adaptPerson(base, 'Task', provider({ skills: [{ ...mixed, id: 's1' }] })),
+  ).rejects.toThrow(/Mixed legacy and canonical/);
+});
+
+it('rejects mixed style field families instead of silently ignoring legacy fields', async () => {
+  const sample = {
+    id: 'sample-1',
+    documentId: 'doc-1',
+    mode: 'dialogue' as const,
+    text: 'Exact source',
+    context: '',
+    redactions: [],
+    exportAllowed: false,
+  };
+  await expect(
+    fabricatePerson(
+      { ...report, styleExemplars: [sample] },
+      input,
+      'a',
+      'turquoise',
+      provider({
+        rules: [rule],
+        style: {
+          reasoningPatterns: [],
+          voiceRules: [],
+          formatRules: [],
+          'voice-rules': [],
+          limitations: [],
+        },
+      }),
+    ),
+  ).rejects.toThrow(/Mixed legacy and canonical/);
 });

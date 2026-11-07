@@ -26,7 +26,7 @@ export function ModelSettingsPanel(props: {
           Общая модель
           <select
             aria-label="Общая модель"
-            value={props.settings['global-model']}
+            value={props.settings.globalModel}
             onChange={(event) => {
               const id = event.currentTarget.value;
               if (isProviderId(id)) props.onChange(setGlobalModel(props.settings, id));
@@ -37,9 +37,7 @@ export function ModelSettingsPanel(props: {
           </select>
         </label>
         <button
-          onClick={() =>
-            props.onChange(setGlobalModel(props.settings, props.settings['global-model']))
-          }
+          onClick={() => props.onChange(setGlobalModel(props.settings, props.settings.globalModel))}
         >
           Применить ко всем
         </button>

@@ -7,26 +7,26 @@ export function exportExperiment(result: ExperimentResult): string {
   const privateExcerpts: string[] = [];
   const connected = [...result.people, result.control].some(
     (person) =>
-      person.profile['source-context'] ||
-      person.report?.['source-coverage']?.length ||
+      person.profile.sourceContext ||
+      person.report?.sourceCoverage?.length ||
       person.report?.evidence.some((item) => item.verification === 'source-retrieved'),
   );
   const samples = (values: readonly StyleExemplar[] | undefined) =>
     values?.filter((sample) => {
-      if (sample['export-allowed']) return true;
+      if (sample.exportAllowed) return true;
       privateSamples.push(sample);
       return false;
     });
   const profile = (value: PersonProfile): PersonProfile => ({
     ...value,
-    ...(value['style-exemplars'] ? { 'style-exemplars': samples(value['style-exemplars'])! } : {}),
+    ...(value.styleExemplars ? { styleExemplars: samples(value.styleExemplars)! } : {}),
   });
   const participant = (value: ExperimentPerson): ExperimentPerson => {
     const cleanProfile = profile(value.profile);
     return {
       ...value,
       profile: cleanProfile,
-      'base-profile': profile(value['base-profile']),
+      baseProfile: profile(value.baseProfile),
       report: value.report
         ? {
             ...value.report,
@@ -39,8 +39,8 @@ export function exportExperiment(result: ExperimentResult): string {
                 limitations: [...item.limitations, 'Source excerpt omitted from export'],
               };
             }),
-            ...(value.report['style-exemplars']
-              ? { 'style-exemplars': samples(value.report['style-exemplars'])! }
+            ...(value.report.styleExemplars
+              ? { styleExemplars: samples(value.report.styleExemplars)! }
               : {}),
           }
         : null,
@@ -86,16 +86,16 @@ export function exportExperiment(result: ExperimentResult): string {
   return JSON.stringify(
     {
       ...exported,
-      'export-metadata': {
+      exportMetadata: {
         version: 1,
         redacted: connected || privateSamples.length > 0,
-        'omitted-style-exemplars': [
-          ...new Set(privateSamples.map((sample) => `${sample['document-id']}:${sample.id}`)),
+        omittedStyleExemplars: [
+          ...new Set(privateSamples.map((sample) => `${sample.documentId}:${sample.id}`)),
         ].length,
-        'omitted-source-excerpts': privateExcerpts.length,
-        'preparation-reasoning-omitted': connected || privateSamples.length > 0,
-        'answer-text-may-be-redacted': textRedacted,
-        'scores-reference-original-answers': true,
+        omittedSourceExcerpts: privateExcerpts.length,
+        preparationReasoningOmitted: connected || privateSamples.length > 0,
+        answerTextMayBeRedacted: textRedacted,
+        scoresReferenceOriginalAnswers: true,
         limitations:
           connected || privateSamples.length
             ? [

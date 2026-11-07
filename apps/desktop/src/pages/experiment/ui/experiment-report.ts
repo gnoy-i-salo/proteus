@@ -39,13 +39,13 @@ const sourceLabels = {
   neutral: 'Нейтральный контроль',
 };
 export function sourceLabel(person: ExperimentPerson | undefined): string {
-  return person ? sourceLabels[person.profile['source-status']] : '';
+  return person ? sourceLabels[person.profile.sourceStatus] : '';
 }
 function rulesText(rules: readonly PersonaRule[]): string {
   return rules
     .map(
       (rule) =>
-        `${rule.id} · ${rule.instruction}\nСтатус: ${rule.status}; основания: ${rule['evidence-ids'].join(', ') || 'общая стратегия задачи'}\nОграничения: ${rule.limitations.join('; ') || 'Не указаны; независимой проверки нет.'}`,
+        `${rule.id} · ${rule.instruction}\nСтатус: ${rule.status}; основания: ${rule.evidenceIds.join(', ') || 'общая стратегия задачи'}\nОграничения: ${rule.limitations.join('; ') || 'Не указаны; независимой проверки нет.'}`,
     )
     .join('\n\n');
 }
@@ -53,7 +53,7 @@ export function protocolText(protocol: ExperimentProtocol): string {
   return [
     'ПРОТОКОЛ BSC v2',
     `Общая задача: ${protocol.task}`,
-    `Прогонов: ${protocol.repetitions}. Участники: A, B и нейтральный контроль.\nПорядок: ${protocol['participant-order'].map((round) => round.join(' → ')).join('; ')}`,
+    `Прогонов: ${protocol.repetitions}. Участники: A, B и нейтральный контроль.\nПорядок: ${protocol.participantOrder.map((round) => round.join(' → ')).join('; ')}`,
     'Критерии фиксируются до создания персон и ответов. Оценка смотрит только задачу и анонимные ответы в двух порядках. Неизвестность сохраняется диапазоном; BSC не измеряет интеллект человека.',
     'КРИТЕРИИ\n' +
       protocol.rubric.criteria
@@ -63,13 +63,13 @@ export function protocolText(protocol: ExperimentProtocol): string {
         )
         .join('\n\n'),
     'НАСТРОЙКИ\n' +
-      Object.entries(protocol['model-settings'])
+      Object.entries(protocol.modelSettings)
         .map(
           ([component, model]) =>
-            `${component}: ${model.provider}; модель: ${model['requested-model'] || 'по умолчанию CLI'}; запрошенное усилие: ${model['requested-effort']}`,
+            `${component}: ${model.provider}; модель: ${model.requestedModel || 'по умолчанию CLI'}; запрошенное усилие: ${model.requestedEffort}`,
         )
         .join('\n'),
-    `Попыток формата: ${protocol['format-attempts']}. Лимит этапа: ${protocol['stage-timeout-ms'] / 60000} мин.\nВерсия промптов: ${protocol['prompt-version']}. Создан: ${protocol['created-at']}.`,
+    `Попыток формата: ${protocol.formatAttempts}. Лимит этапа: ${protocol.stageTimeoutMs / 60000} мин.\nВерсия промптов: ${protocol.promptVersion}. Создан: ${protocol.createdAt}.`,
     'Одинаковые настройки не гарантируют одинаковое фактическое время или полный контроль CLI. Активное время рассуждения недоступно. Источники, ограничения и наблюдаемые параметры сохраняются в результате.',
   ].join('\n\n');
 }
@@ -88,13 +88,13 @@ export function reportText(
 ): string {
   if (tab === 'answer') return answersText(person);
   if (tab === 'archetype')
-    return `${person.profile.archetype}\n\n${sourceLabel(person)}. Это поведенческая симуляция, не установленный характер реального человека.\n\nПРАВИЛА УСТОЙЧИВОГО ПРОФИЛЯ\n${rulesText(person.profile.rules) || 'Недостаточно данных для характерных черт.'}\n\nАДАПТАЦИЯ К ЗАДАЧЕ\n${rulesText(person.profile['task-skills'])}`;
+    return `${person.profile.archetype}\n\n${sourceLabel(person)}. Это поведенческая симуляция, не установленный характер реального человека.\n\nПРАВИЛА УСТОЙЧИВОГО ПРОФИЛЯ\n${rulesText(person.profile.rules) || 'Недостаточно данных для характерных черт.'}\n\nАДАПТАЦИЯ К ЗАДАЧЕ\n${rulesText(person.profile.taskSkills)}`;
   if (tab === 'sources')
     return [
       'Независимая проверка источников не выполнена. «supported» означает заявленную моделью опору на источник. Цитата не доказывает истинность утверждения.',
       ...(person.report?.evidence.map(
         (item) =>
-          `${item.id} · ${item.summary}\nСтатус: ${item.status}; тип утверждения: ${item.kind}; проверка: ${item.verification}\nИсточник: ${item['source-url'] || 'Контекст пользователя / источник отсутствует'}\nЦитата, сообщённая моделью: ${item.excerpt || 'не представлена'}\nНаблюдаемая дата получения: ${item['retrieved-at'] || 'не установлена'}\nОграничения: ${item.limitations.join('; ') || 'не указаны'}`,
+          `${item.id} · ${item.summary}\nСтатус: ${item.status}; тип утверждения: ${item.kind}; проверка: ${item.verification}\nИсточник: ${item.sourceUrl || 'Контекст пользователя / источник отсутствует'}\nЦитата, сообщённая моделью: ${item.excerpt || 'не представлена'}\nНаблюдаемая дата получения: ${item.retrievedAt || 'не установлена'}\nОграничения: ${item.limitations.join('; ') || 'не указаны'}`,
       ) ?? []),
       !person.report?.evidence.length
         ? 'Источников недостаточно. Используется синтетический профиль.'
@@ -107,26 +107,26 @@ export function reportText(
   const ownTraces = output.traces.filter((trace) => trace.person === ownIndex);
   const retries = ownTraces.reduce((sum, trace) => sum + Math.max(0, trace.attempts.length - 1), 0);
   const required = { passed: 'выполнены', failed: 'не выполнены', unknown: 'не установлено' }[
-    score['required-status']
+    score.requiredStatus
   ];
   const assessments = person.trials
     .map(
       (trial) =>
-        `ПРОГОН ${trial.round}: ${trial.status}; BSC ${formatInterval(trial.score?.interval)}\n${trial.evaluations.map((evaluation, pass) => `ПОРЯДОК ОЦЕНКИ ${pass + 1}\n${evaluation.criteria.map((criterion) => `${criterion['criterion-id']}: ${criterion.status}\nОснование: ${criterion.reason}\nЦитата ответа: ${criterion.quote || 'нет'}`).join('\n\n')}`).join('\n\n')}${trial.error ? `\nОшибка: ${trial.error}` : ''}`,
+        `ПРОГОН ${trial.round}: ${trial.status}; BSC ${formatInterval(trial.score?.interval)}\n${trial.evaluations.map((evaluation, pass) => `ПОРЯДОК ОЦЕНКИ ${pass + 1}\n${evaluation.criteria.map((criterion) => `${criterion.criterionId}: ${criterion.status}\nОснование: ${criterion.reason}\nЦитата ответа: ${criterion.quote || 'нет'}`).join('\n\n')}`).join('\n\n')}${trial.error ? `\nОшибка: ${trial.error}` : ''}`,
     )
     .join('\n\n');
   const observed = output.traces
     .map(
       (trace) =>
-        `${trace.label}: ${trace.trace.provider}; запрошено ${trace.trace['requested-model'] || 'по умолчанию CLI'}; наблюдаемая модель ${trace.trace['resolved-model'] ?? 'не раскрыта'}; запрошенное усилие ${trace.trace['requested-effort'] ?? 'не указано'}; применённое ${trace.trace['applied-effort'] ?? 'не раскрыто'}; версия CLI ${trace.trace['cli-version'] ?? 'не раскрыта'}`,
+        `${trace.label}: ${trace.trace.provider}; запрошено ${trace.trace.requestedModel || 'по умолчанию CLI'}; наблюдаемая модель ${trace.trace.resolvedModel ?? 'не раскрыта'}; запрошенное усилие ${trace.trace.requestedEffort ?? 'не указано'}; применённое ${trace.trace.appliedEffort ?? 'не раскрыто'}; версия CLI ${trace.trace.cliVersion ?? 'не раскрыта'}`,
     )
     .join('\n');
   return [
     output.comparison.summary,
-    `BSC v2: ${formatScore(score)} / 100.${score.point === null && score.interval ? ' Есть неопределённость или неполные прогоны.' : ''} Оценено ${score.evaluated} из ${score.planned} прогонов.\nРазброс: ${formatInterval(score.spread)}. Обязательные требования: ${required}.\nРасхождение оценок: ${score['judge-disagreement'] ? 'есть' : 'нет'}. Это оценка выполнения критериев, не интеллекта.`,
+    `BSC v2: ${formatScore(score)} / 100.${score.point === null && score.interval ? ' Есть неопределённость или неполные прогоны.' : ''} Оценено ${score.evaluated} из ${score.planned} прогонов.\nРазброс: ${formatInterval(score.spread)}. Обязательные требования: ${required}.\nРасхождение оценок: ${score.judgeDisagreement ? 'есть' : 'нет'}. Это оценка выполнения критериев, не интеллекта.`,
     `${sourceLabel(person)}. ${person.profile.rules.flatMap((rule) => rule.limitations).join('; ') || 'Достоверность персональных черт не установлена.'}`,
-    `НЕЙТРАЛЬНЫЙ КОНТРОЛЬ\nBSC v2: ${formatScore(output.control.score)} / 100. Оценено ${output.control.score.evaluated} из ${output.control.score.planned}.\nРазница с контролем: ${formatInterval(person['baseline-difference'])} п.п. Разность не доказывает причинное влияние персоны.`,
-    `ВРЕМЯ И ПОВТОРЫ\nПодготовка профиля и стратегии: ${formatNumber(person['preparation-wall-time-ms'] / 1000)} с.\nРешение: ${formatNumber(person['solution-wall-time-ms'] / 1000)} с; повторных запросов формата: ${retries}.\nВремя включает ожидание CLI/провайдера; активное время рассуждения не измерено. В BSC длительность не входит.`,
+    `НЕЙТРАЛЬНЫЙ КОНТРОЛЬ\nBSC v2: ${formatScore(output.control.score)} / 100. Оценено ${output.control.score.evaluated} из ${output.control.score.planned}.\nРазница с контролем: ${formatInterval(person.baselineDifference)} п.п. Разность не доказывает причинное влияние персоны.`,
+    `ВРЕМЯ И ПОВТОРЫ\nПодготовка профиля и стратегии: ${formatNumber(person.preparationWallTimeMs / 1000)} с.\nРешение: ${formatNumber(person.solutionWallTimeMs / 1000)} с; повторных запросов формата: ${retries}.\nВремя включает ожидание CLI/провайдера; активное время рассуждения не измерено. В BSC длительность не входит.`,
     'ОЦЕНКИ ПО КРИТЕРИЯМ\n' + assessments,
     'ОТВЕТЫ НЕЙТРАЛЬНОГО КОНТРОЛЯ\n' + answersText(output.control),
     protocolText(output.protocol),

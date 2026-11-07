@@ -9,17 +9,19 @@ import type {
 import { IntelligenceRunError } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { isDesktop } from './window-controls';
+import {
+  decodeLegacyCliEvent,
+  decodeLegacyCliResult,
+  encodeLegacyCliRequest,
+} from './cli-wire-codec';
+import type { CliWireEvent } from './cli-wire-codec';
 export interface CliStatus {
   provider: ProviderId;
   available: boolean;
   path: string | null;
 }
-export interface CliEvent {
-  id: string;
-  kind: string;
-  'elapsed-ms': number;
-  reasoning?: ReasoningBlock;
-}
+export type CliEvent = CliWireEvent;
+
 export async function cliStatus(): Promise<CliStatus[]> {
   return isDesktop() ? invoke('cli_status') : [];
 }
@@ -37,10 +39,42 @@ export function cliProviders(
       let returned: IntelligenceTrace | undefined;
       const reasoning: ReasoningBlock[] = [];
       let truncated = false;
-      const unlisten = await listen<CliEvent>('cli-progress', ({ payload }) => {
-        if (payload.id !== runId) return;
-        if (Number.isFinite(payload['elapsed-ms']))
-          elapsed = Math.max(elapsed, payload['elapsed-ms']);
+      let streamFailure: unknown;
+      const unlisten = await listen<unknown>('cli-progress', ({ payload: raw }) => {
+        if (!raw || typeof raw !== 'object' || !('id' in raw) || raw.id !== runId) return;
+        let payload: CliEvent;
+        try {
+          let bounded: unknown = raw;
+          // Preserve the existing public-text cap before strict wire validation.
+          // This only shortens the known reasoning text field; no other content is relabelled.
+          if (
+            'reasoning' in raw &&
+            raw.reasoning &&
+            typeof raw.reasoning === 'object' &&
+            'text' in raw.reasoning &&
+            typeof raw.reasoning.text === 'string'
+          ) {
+            const bytes = new TextEncoder().encode(raw.reasoning.text);
+            let end = Math.min(bytes.length, 48 * 1024);
+            while (end > 0 && end < bytes.length && (bytes[end]! & 0xc0) === 0x80) end--;
+            if (end < bytes.length) {
+              truncated = true;
+              bounded = {
+                ...raw,
+                reasoning: {
+                  ...raw.reasoning,
+                  text: new TextDecoder().decode(bytes.subarray(0, end)),
+                },
+              };
+            }
+          }
+          payload = decodeLegacyCliEvent(bounded);
+        } catch (failure) {
+          streamFailure = failure;
+          void invoke('cancel_cli', { id: runId }).catch(() => undefined);
+          return;
+        }
+        if (Number.isFinite(payload.elapsedMs)) elapsed = Math.max(elapsed, payload.elapsedMs);
         const block = payload.reasoning;
         if (
           block &&
@@ -72,33 +106,40 @@ export function cliProviders(
       signal?.addEventListener('abort', cancel, { once: true });
       try {
         signal?.throwIfAborted();
-        const result = await invoke<IntelligenceResult>('run_cli', {
-          request: { ...request, id: runId, provider: id, model: request.model ?? '' },
+        const rawResult = await invoke<unknown>('run_cli', {
+          request: encodeLegacyCliRequest({
+            ...request,
+            id: runId,
+            provider: id,
+            model: request.model ?? '',
+          }),
         });
+        if (streamFailure) throw streamFailure;
+        const result: IntelligenceResult = decodeLegacyCliResult(rawResult);
         returned = result.trace;
         signal?.throwIfAborted();
         return result;
       } catch (failure) {
         const message = failure instanceof Error ? failure.message : String(failure);
         const wallTime = returned
-          ? (returned['wall-time-ms'] ?? returned['reasoning-ms'])
+          ? (returned.wallTimeMs ?? returned.reasoningMs)
           : Math.max(elapsed, performance.now() - started);
         throw new IntelligenceRunError(
           message,
           {
             provider: id,
-            'requested-model': request.model ?? '',
-            'requested-effort': request.effort,
-            'resolved-model': null,
-            'applied-effort': null,
-            'cli-version': null,
-            'terminal-ms': 0,
+            requestedModel: request.model ?? '',
+            requestedEffort: request.effort,
+            resolvedModel: null,
+            appliedEffort: null,
+            cliVersion: null,
+            terminalMs: 0,
             reasoning,
-            'reasoning-truncated': truncated,
+            reasoningTruncated: truncated,
             ...returned,
-            'wall-time-ms': wallTime,
-            'reasoning-ms': wallTime,
-            'active-reasoning-ms': null,
+            wallTimeMs: wallTime,
+            reasoningMs: wallTime,
+            activeReasoningMs: null,
             summary: `Запрос не завершён: ${message}`,
           },
           { cause: failure },

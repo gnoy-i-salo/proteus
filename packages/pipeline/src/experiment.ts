@@ -31,7 +31,7 @@ import { validateExperiment } from './validation';
 export interface TrialResult {
   readonly id: string;
   readonly round: number;
-  readonly 'person-id': string;
+  readonly personId: string;
   readonly status: 'pending' | 'answered' | 'evaluated' | 'failed' | 'skipped';
   readonly attempt: IntelligenceResult | null;
   readonly score: TrialScore | null;
@@ -40,14 +40,14 @@ export interface TrialResult {
 }
 export interface ExperimentPerson {
   readonly report: StalkerReport | null;
-  readonly 'base-profile': PersonProfile;
+  readonly baseProfile: PersonProfile;
   readonly profile: PersonProfile;
   readonly attempt: IntelligenceResult | null;
   readonly score: ScoreSummary;
   readonly trials: readonly TrialResult[];
-  readonly 'preparation-wall-time-ms': number;
-  readonly 'solution-wall-time-ms': number;
-  readonly 'baseline-difference': ScoreInterval | null;
+  readonly preparationWallTimeMs: number;
+  readonly solutionWallTimeMs: number;
+  readonly baselineDifference: ScoreInterval | null;
   readonly artifacts: Readonly<Record<string, string>>;
 }
 export interface StageTrace {
@@ -59,8 +59,8 @@ export interface StageTrace {
   readonly attempts: readonly InvocationAttempt[];
 }
 export interface ExperimentResult {
-  readonly 'schema-version': 3;
-  readonly 'scoring-version': 2;
+  readonly schemaVersion: 4;
+  readonly scoringVersion: 2;
   readonly status: 'complete' | 'incomplete' | 'cancelled';
   readonly input: ExperimentInput;
   readonly protocol: ExperimentProtocol;
@@ -70,9 +70,9 @@ export interface ExperimentResult {
   readonly comparison: {
     readonly summary: string;
     readonly difference: ScoreInterval | null;
-    readonly 'comparison-eligible': boolean;
+    readonly comparisonEligible: boolean;
   };
-  readonly 'finished-at': string;
+  readonly finishedAt: string;
   readonly traces: readonly StageTrace[];
 }
 export interface ProgressEvent {
@@ -110,7 +110,7 @@ function freeze<T>(value: T): T {
   return value;
 }
 function duration(trace: IntelligenceTrace) {
-  return trace['wall-time-ms'] ?? trace['reasoning-ms'];
+  return trace.wallTimeMs ?? trace.reasoningMs;
 }
 async function reviewProtocol(protocol: ExperimentProtocol, options: RunOptions) {
   options.signal?.throwIfAborted();
@@ -196,9 +196,9 @@ export async function runExperiment(
           const last = attempts.at(-1)!;
           attempts[attempts.length - 1] = {
             ...last,
-            status: request['format-attempt'] === 2 ? 'format-rejected' : 'accepted',
+            status: request.formatAttempt === 2 ? 'format-rejected' : 'accepted',
           };
-          if (request['format-attempt'] === 2) emit(`${label} · исправление формата`);
+          if (request.formatAttempt === 2) emit(`${label} · исправление формата`);
         }
         const started = performance.now();
         try {
@@ -206,7 +206,7 @@ export async function runExperiment(
             {
               ...request,
               model: settings.aliases[component],
-              'source-context': selected.length > 0 || request['source-context'] === true,
+              sourceContext: selected.length > 0 || request.sourceContext === true,
             },
             signal,
           );
@@ -214,20 +214,20 @@ export async function runExperiment(
           attempts.push({
             index: attempts.length + 1,
             status: 'returned',
-            'wall-time-ms': elapsed,
+            wallTimeMs: elapsed,
             error: null,
           });
           const combined: IntelligenceTrace = {
             ...result.trace,
-            'requested-model': settings.aliases[component],
-            'requested-effort': request.effort,
-            'resolved-model': result.trace['resolved-model'] ?? null,
-            'applied-effort': result.trace['applied-effort'] ?? null,
-            'cli-version': result.trace['cli-version'] ?? null,
-            'active-reasoning-ms': null,
-            'reasoning-ms': (previous ? duration(previous) : 0) + elapsed,
-            'wall-time-ms': (previous ? duration(previous) : 0) + elapsed,
-            'terminal-ms': (previous?.['terminal-ms'] ?? 0) + result.trace['terminal-ms'],
+            requestedModel: settings.aliases[component],
+            requestedEffort: request.effort,
+            resolvedModel: result.trace.resolvedModel ?? null,
+            appliedEffort: result.trace.appliedEffort ?? null,
+            cliVersion: result.trace.cliVersion ?? null,
+            activeReasoningMs: null,
+            reasoningMs: (previous ? duration(previous) : 0) + elapsed,
+            wallTimeMs: (previous ? duration(previous) : 0) + elapsed,
+            terminalMs: (previous?.terminalMs ?? 0) + result.trace.terminalMs,
             reasoning: [
               ...(previous?.reasoning ?? []),
               ...(result.trace.reasoning ?? []).map((block) => ({
@@ -235,8 +235,8 @@ export async function runExperiment(
                 id: `${attempts.length}:${block.id}`,
               })),
             ],
-            'reasoning-truncated': Boolean(
-              previous?.['reasoning-truncated'] || result.trace['reasoning-truncated'],
+            reasoningTruncated: Boolean(
+              previous?.reasoningTruncated || result.trace.reasoningTruncated,
             ),
           };
           previous = combined;
@@ -249,21 +249,21 @@ export async function runExperiment(
           attempts.push({
             index: attempts.length + 1,
             status: 'failed',
-            'wall-time-ms': elapsed,
+            wallTimeMs: elapsed,
             error: message,
           });
           previous = {
             ...partial,
             provider: adapter.id,
-            'reasoning-ms': (previous ? duration(previous) : 0) + elapsed,
-            'wall-time-ms': (previous ? duration(previous) : 0) + elapsed,
-            'active-reasoning-ms': null,
-            'requested-model': settings.aliases[component],
-            'requested-effort': request.effort,
-            'resolved-model': partial?.['resolved-model'] ?? null,
-            'applied-effort': partial?.['applied-effort'] ?? null,
-            'cli-version': partial?.['cli-version'] ?? null,
-            'terminal-ms': (previous?.['terminal-ms'] ?? 0) + (partial?.['terminal-ms'] ?? 0),
+            reasoningMs: (previous ? duration(previous) : 0) + elapsed,
+            wallTimeMs: (previous ? duration(previous) : 0) + elapsed,
+            activeReasoningMs: null,
+            requestedModel: settings.aliases[component],
+            requestedEffort: request.effort,
+            resolvedModel: partial?.resolvedModel ?? null,
+            appliedEffort: partial?.appliedEffort ?? null,
+            cliVersion: partial?.cliVersion ?? null,
+            terminalMs: (previous?.terminalMs ?? 0) + (partial?.terminalMs ?? 0),
             reasoning: [
               ...(previous?.reasoning ?? []),
               ...(partial?.reasoning ?? []).map((block) => ({
@@ -271,8 +271,8 @@ export async function runExperiment(
                 id: `${attempts.length}:${block.id}`,
               })),
             ],
-            'reasoning-truncated': Boolean(
-              previous?.['reasoning-truncated'] || partial?.['reasoning-truncated'],
+            reasoningTruncated: Boolean(
+              previous?.reasoningTruncated || partial?.reasoningTruncated,
             ),
             summary: `Запрос не завершён: ${message}`,
           };
@@ -309,29 +309,29 @@ export async function runExperiment(
     createRubric(task, provider, options.signal),
   );
   const protocol: ExperimentProtocol = freeze({
-    version: 2,
+    version: 3,
     task,
     rubric: generated.rubric,
     repetitions,
-    'participant-order': order,
-    'model-settings': Object.fromEntries(
+    participantOrder: order,
+    modelSettings: Object.fromEntries(
       componentIds.map((component) => [
         component,
         {
           provider: settings.components[component],
-          'requested-model': settings.aliases[component],
-          'requested-effort':
+          requestedModel: settings.aliases[component],
+          requestedEffort:
             component === 'stalker' || component === 'person-fabric' ? 'medium' : 'high',
         },
       ]),
     ),
-    'format-attempts': 2,
-    'stage-timeout-ms': 600000,
-    'prompt-version': 'bsc-v2.3-source-identity',
-    'created-at': new Date().toISOString(),
-    'source-snapshots': [
-      sourceGrants[0].map((grant) => grant['snapshot-id']),
-      sourceGrants[1].map((grant) => grant['snapshot-id']),
+    formatAttempts: 2,
+    stageTimeoutMs: 600000,
+    promptVersion: 'bsc-v2.4-camel-case',
+    createdAt: new Date().toISOString(),
+    sourceSnapshots: [
+      sourceGrants[0].map((grant) => grant.snapshotId),
+      sourceGrants[1].map((grant) => grant.snapshotId),
     ],
   });
   await reviewProtocol(protocol, options);
@@ -397,7 +397,7 @@ export async function runExperiment(
     ids.map((id) => ({
       id: `${round + 1}-${id}`,
       round: round + 1,
-      'person-id': id,
+      personId: id,
       status: 'pending',
       attempt: null,
       score: null,
@@ -414,7 +414,7 @@ export async function runExperiment(
     for (let round = 1; round <= repetitions; round++) {
       for (const planned of trials.filter((item) => item.round === round)) {
         activeTrial = planned;
-        const index = prepared.findIndex((person) => person.profile.id === planned['person-id']);
+        const index = prepared.findIndex((person) => person.profile.id === planned.personId);
         const participant = prepared[index]!;
         const attempt = await stage(
           `solve-${planned.id}`,
@@ -429,7 +429,7 @@ export async function runExperiment(
       const answers = trials
         .filter((item) => item.round === round)
         .map((item) => ({
-          id: item['person-id'],
+          id: item.personId,
           answer: item.attempt!.answer,
         }));
       for (const [pass, ordered] of [answers, [...answers].reverse()].entries()) {
@@ -442,7 +442,7 @@ export async function runExperiment(
         );
         for (const evaluation of evaluations) {
           const trial = trials.find(
-            (item) => item.round === round && item['person-id'] === evaluation['person-id'],
+            (item) => item.round === round && item.personId === evaluation.personId,
           )!;
           replace({ ...trial, evaluations: [...trial.evaluations, evaluation] });
         }
@@ -451,7 +451,7 @@ export async function runExperiment(
         replace({
           ...trial,
           status: 'evaluated',
-          score: scoreTrial(trial['person-id'], protocol.rubric, trial.evaluations),
+          score: scoreTrial(trial.personId, protocol.rubric, trial.evaluations),
         });
       }
     }
@@ -465,10 +465,10 @@ export async function runExperiment(
     }
   }
   const participants = prepared.map((person, index): ExperimentPerson => {
-    const ownTrials = trials.filter((trial) => trial['person-id'] === person.profile.id);
+    const ownTrials = trials.filter((trial) => trial.personId === person.profile.id);
     return {
       report: person.report,
-      'base-profile': person.base,
+      baseProfile: person.base,
       profile: person.profile,
       attempt: ownTrials.find((trial) => trial.attempt)?.attempt ?? null,
       score: summarizeScores(
@@ -478,11 +478,11 @@ export async function runExperiment(
       ),
       trials: ownTrials,
       artifacts: personaArtifacts(person.profile),
-      'baseline-difference': null,
-      'preparation-wall-time-ms': traces
+      baselineDifference: null,
+      preparationWallTimeMs: traces
         .filter((item) => item.person === index && item.stage !== 'person')
         .reduce((sum, item) => sum + duration(item.trace), 0),
-      'solution-wall-time-ms': traces
+      solutionWallTimeMs: traces
         .filter((item) => item.person === index && item.stage === 'person')
         .reduce((sum, item) => sum + duration(item.trace), 0),
     };
@@ -490,7 +490,7 @@ export async function runExperiment(
   const control = participants[2]!;
   const people = participants.slice(0, 2).map((person) => ({
     ...person,
-    'baseline-difference':
+    baselineDifference:
       person.score.interval && control.score.interval
         ? difference(person.score.interval, control.score.interval)
         : null,
@@ -500,7 +500,7 @@ export async function runExperiment(
   const eligible =
     status === 'complete' &&
     repetitions === 3 &&
-    participants.every((person) => person.score['comparison-eligible']);
+    participants.every((person) => person.score.comparisonEligible);
   const summary =
     status !== 'complete'
       ? 'Серия не завершена. Баллы относятся только к оценённым ответам; итоговое сравнение недоступно.'
@@ -510,8 +510,8 @@ export async function runExperiment(
           ? 'Описательное сравнение трёх прогонов в одинаковых условиях. Это не доказательство статистического превосходства.'
           : 'Сравнение ограничено: есть непроверенные критерии, расхождение оценок или невыполненные обязательные требования.';
   const result: ExperimentResult = {
-    'schema-version': 3,
-    'scoring-version': 2,
+    schemaVersion: 4,
+    scoringVersion: 2,
     status,
     input,
     protocol,
@@ -520,11 +520,11 @@ export async function runExperiment(
     trials,
     comparison: {
       summary,
-      'comparison-eligible': eligible,
+      comparisonEligible: eligible,
       difference: a.interval && b.interval ? difference(a.interval, b.interval) : null,
     },
     traces,
-    'finished-at': new Date().toISOString(),
+    finishedAt: new Date().toISOString(),
   };
   people.forEach((person) => options.onPerson?.(person));
   options.onProgress?.({

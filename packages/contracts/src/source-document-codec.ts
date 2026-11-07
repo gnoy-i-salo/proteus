@@ -1,24 +1,6 @@
 import type { SourceDocument } from './sources';
 
-export interface StoredSourceDocument {
-  readonly id: string;
-  readonly provider: SourceDocument['provider'];
-  readonly resourceId: string;
-  readonly authorId: string | null;
-  readonly authorship: SourceDocument['authorship'];
-  readonly authorLabel: string | null;
-  readonly kind: SourceDocument['kind'];
-  readonly mode: SourceDocument['mode'];
-  readonly text: string;
-  readonly sourceUrl: string | null;
-  readonly createdAt: string | null;
-  readonly retrievedAt: string | null;
-  readonly contentHash: string;
-  readonly replyTo: string | null;
-  readonly isForwarded: boolean;
-  readonly truncated: boolean;
-  readonly partition: SourceDocument['partition'];
-}
+export type StoredSourceDocument = SourceDocument;
 
 function fields(value: unknown, allowed: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))

@@ -18,7 +18,7 @@ import type {
   SourceGrant,
   SourceProvider,
 } from '@proteus-int/contracts';
-import { createModelSettings, parseModelSettings } from '@proteus-int/intelligence';
+import { createModelSettings, encodeModelSettings } from '@proteus-int/intelligence';
 import type { ModelSettings } from '@proteus-int/intelligence';
 import {
   runExperiment,
@@ -47,6 +47,10 @@ import { paginateText, paginateInput, locateTextOffset } from '../../../shared/l
 import { importPreset, exportPreset, listenPresets } from '../../../shared/lib/presets';
 import { isDesktop } from '../../../shared/lib/window-controls';
 import {
+  migrateModelSettings,
+  modelSettingsKeys,
+} from '../../../shared/lib/model-settings-storage';
+import {
   formatInterval,
   formatScore,
   protocolText,
@@ -55,14 +59,24 @@ import {
   traceMarker,
 } from './experiment-report';
 import styles from './experiment-page.module.scss';
-const storageKey = 'proteus-model-settings';
 function readSettings() {
   try {
-    return parseModelSettings(localStorage.getItem(storageKey));
+    const restored = migrateModelSettings(localStorage);
+    return {
+      settings: restored?.settings ?? createModelSettings(),
+      error: restored?.cleanupPending
+        ? 'Настройки восстановлены, но очистка временной записи не завершена.'
+        : '',
+    };
   } catch {
-    return createModelSettings();
+    return {
+      settings: createModelSettings(),
+      error:
+        'Не удалось восстановить настройки моделей. Исходная запись сохранена; проверьте настройки.',
+    };
   }
 }
+
 function PagedField(props: {
   label: string;
   pages: string[];
@@ -303,17 +317,14 @@ function TraceReader(props: { stages: StageTrace[]; running: boolean; person: nu
                   <strong>{label()}</strong>
                   <small>
                     {item().trace.provider} ·{' '}
-                    {(
-                      (item().trace['wall-time-ms'] ?? item().trace['reasoning-ms']) / 1000
-                    ).toFixed(1)}{' '}
-                    с
+                    {((item().trace.wallTimeMs ?? item().trace.reasoningMs) / 1000).toFixed(1)} с
                   </small>
                   <span>{traceMarker(item(), props.running)}</span>
                 </button>
                 <Show when={active() === id}>
                   <p class={styles['experiment__reasoning-note']}>
                     {item().trace.summary || (props.running ? 'Выполняется…' : 'Этап не завершён')}
-                    {item().trace['reasoning-truncated']
+                    {item().trace.reasoningTruncated
                       ? ' · Текст сокращён до лимита сохранения.'
                       : ''}
                   </p>
@@ -488,7 +499,8 @@ export function ExperimentPage() {
       void deleteSourceGrant(grant.id).catch(() => undefined);
     setSourceGrants([[], []]);
   };
-  const [settings, setSettings] = createSignal(readSettings());
+  const restoredSettings = readSettings();
+  const [settings, setSettings] = createSignal(restoredSettings.settings);
   const sourceModelsAvailable = () =>
     Object.values(settings().components).every((provider) => provider === 'codex');
   const [available, setAvailable] = createSignal<CliStatus[]>([]);
@@ -502,7 +514,7 @@ export function ExperimentPage() {
   const [events, setEvents] = createSignal<ProgressEvent[]>([]);
   const [result, setResult] = createSignal<ExperimentResult>();
   const [running, setRunning] = createSignal(false);
-  const [error, setError] = createSignal('');
+  const [error, setError] = createSignal(restoredSettings.error);
   const [savedPath, setSavedPath] = createSignal('');
   const [activity, setActivity] = createSignal('Ожидаем запуск');
   const [detail, setDetail] = createSignal('analysis');
@@ -540,9 +552,7 @@ export function ExperimentPage() {
     batch(() => {
       setNames(input.people.map((person) => person.label));
       setUrls(
-        input.people.map((person) =>
-          person['public-urls'].length ? [...person['public-urls']] : [''],
-        ),
+        input.people.map((person) => (person.publicUrls.length ? [...person.publicUrls] : [''])),
       );
       setContexts(input.people.map((person) => [person.context]));
       setTask([input.task]);
@@ -579,7 +589,7 @@ export function ExperimentPage() {
     const person = (index: number): PersonInput => ({
       label: names()[index] ?? '',
       context: contexts()[index]?.join('') ?? '',
-      'public-urls': (urls()[index] ?? []).map((url) => url.trim()).filter(Boolean),
+      publicUrls: (urls()[index] ?? []).map((url) => url.trim()).filter(Boolean),
     });
     return { task: task().join(''), people: [person(0), person(1)] };
   };
@@ -610,7 +620,7 @@ export function ExperimentPage() {
       clearSourceGrants();
     setSettings(value);
     try {
-      localStorage.setItem(storageKey, JSON.stringify(value));
+      localStorage.setItem(modelSettingsKeys.current, encodeModelSettings(value));
     } catch {
       setError('Настройки применены, но не сохранены.');
     }
@@ -651,7 +661,7 @@ export function ExperimentPage() {
         cliProviders((event) =>
           untrack(() => {
             setActivity(
-              `${event.kind === 'reasoning' ? 'Модель рассуждает' : event.kind === 'search' ? 'Поиск источников' : event.kind === 'answer' ? 'Ответ получен' : 'CLI работает'} · ${(event['elapsed-ms'] / 1000).toFixed(1)} с`,
+              `${event.kind === 'reasoning' ? 'Модель рассуждает' : event.kind === 'search' ? 'Поиск источников' : event.kind === 'answer' ? 'Ответ получен' : 'CLI работает'} · ${(event.elapsedMs / 1000).toFixed(1)} с`,
             );
             const current = events().at(-1);
             if (event.reasoning && current && current.stage !== 'complete') {
@@ -669,12 +679,12 @@ export function ExperimentPage() {
                   ...previous,
                   trace: {
                     ...previous.trace,
-                    'reasoning-ms':
-                      previous.attempts.reduce((sum, attempt) => sum + attempt['wall-time-ms'], 0) +
-                      event['elapsed-ms'],
-                    'wall-time-ms':
-                      previous.attempts.reduce((sum, attempt) => sum + attempt['wall-time-ms'], 0) +
-                      event['elapsed-ms'],
+                    reasoningMs:
+                      previous.attempts.reduce((sum, attempt) => sum + attempt.wallTimeMs, 0) +
+                      event.elapsedMs,
+                    wallTimeMs:
+                      previous.attempts.reduce((sum, attempt) => sum + attempt.wallTimeMs, 0) +
+                      event.elapsedMs,
                     reasoning,
                   },
                 });
@@ -725,9 +735,9 @@ export function ExperimentPage() {
                 attempts: [],
                 trace: {
                   provider: settings().components[event.stage],
-                  'reasoning-ms': 0,
-                  'wall-time-ms': 0,
-                  'terminal-ms': 0,
+                  reasoningMs: 0,
+                  wallTimeMs: 0,
+                  terminalMs: 0,
                   summary: '',
                   reasoning: [],
                 },

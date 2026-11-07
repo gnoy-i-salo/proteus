@@ -5,6 +5,7 @@ import {
   setComponentModel,
   setGlobalModel,
   parseModelSettings,
+  encodeModelSettings,
 } from './index';
 describe('model settings', () => {
   it('changes one component without affecting others or mutating the previous state', () => {
@@ -21,9 +22,19 @@ describe('model settings', () => {
   });
   it('round-trips persisted settings and rejects corrupt or incomplete data', () => {
     const settings = setComponentModel(createModelSettings('kimi'), 'person-fabric', 'codex');
-    expect(parseModelSettings(JSON.stringify(settings))).toEqual(settings);
+    expect(parseModelSettings(encodeModelSettings(settings))).toEqual(settings);
     for (const value of ['{', '{}', 'null', '{"global-model":"other"}']) {
       expect(parseModelSettings(value)).toEqual(createModelSettings());
     }
   });
+});
+
+it('loads legacy settings through the explicit boundary with exact alias text', () => {
+  const settings = createModelSettings('kimi');
+  const aliases = { ...settings.aliases, stalker: '  alias 👩🏽‍💻\r\n  ' };
+  expect(
+    parseModelSettings(
+      JSON.stringify({ 'global-model': 'kimi', components: settings.components, aliases }),
+    ),
+  ).toEqual({ ...settings, aliases });
 });

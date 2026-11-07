@@ -22,12 +22,12 @@ export function ConfigurationForm(props: {
           provider === 'telegram'
             ? {
                 provider,
-                'api-id': Number(fields.get('api-id')),
-                'api-hash': String(fields.get('api-hash') ?? ''),
+                apiId: Number(fields.get('api-id')),
+                apiHash: String(fields.get('api-hash') ?? ''),
               }
             : provider === 'instagram'
               ? { provider, token: String(fields.get('token') ?? '') }
-              : { provider, 'client-id': String(fields.get('client-id') ?? '').trim() };
+              : { provider, clientId: String(fields.get('client-id') ?? '').trim() };
         form.reset();
         props.onSubmit(request);
       }}
@@ -42,7 +42,7 @@ export function ConfigurationForm(props: {
             min="1"
             max="2147483647"
             required
-            value={untrack(() => props.status['api-id'] ?? '')}
+            value={untrack(() => props.status.apiId ?? '')}
             disabled={props.busy}
           />
         </label>
@@ -68,7 +68,7 @@ export function ConfigurationForm(props: {
             maxLength={128}
             required
             value={untrack(
-              () => props.status['client-id'] ?? (props.provider === 'vk' ? '54881156' : ''),
+              () => props.status.clientId ?? (props.provider === 'vk' ? '54881156' : ''),
             )}
             disabled={props.busy}
           />

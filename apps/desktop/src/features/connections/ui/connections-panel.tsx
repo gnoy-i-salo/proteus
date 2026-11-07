@@ -51,7 +51,7 @@ export function ConnectionsPanel(props: {
   const challenge = () => challenges[current().status];
   const configurationVisible = () => editing() || current().status === 'unconfigured';
   const qrCode = () => {
-    const value = current()['qr-code'];
+    const value = current().qrCode;
     return selected() === 'telegram' &&
       current().status === 'qr-required' &&
       !busy() &&
@@ -64,7 +64,7 @@ export function ConnectionsPanel(props: {
   };
   const withoutQr = (status: ConnectionStatus): ConnectionStatus => {
     const result = { ...status };
-    delete result['qr-code'];
+    delete result.qrCode;
     return result;
   };
   const visibleStatus = (status: ConnectionStatus): ConnectionStatus =>
@@ -86,7 +86,7 @@ export function ConnectionsPanel(props: {
           (item) => item.provider === 'github' && item.status === 'pending',
         );
         if (pending && nextPoll === 0)
-          nextPoll = Date.now() + Math.max(1000, pending['poll-after-ms'] ?? 5000);
+          nextPoll = Date.now() + Math.max(1000, pending.pollAfterMs ?? 5000);
       }
     } catch {
       if (!disposed && version === revision) {
@@ -115,7 +115,7 @@ export function ConnectionsPanel(props: {
             ...items.filter((item) => item.provider !== result.provider),
             visibleStatus(result),
           ]);
-          nextPoll = Date.now() + Math.max(1000, result['poll-after-ms'] ?? 5000);
+          nextPoll = Date.now() + Math.max(1000, result.pollAfterMs ?? 5000);
         }
         setEditing(false);
       }
@@ -383,9 +383,9 @@ export function ConnectionsPanel(props: {
               </p>
             </Show>
             <Show when={current().status === 'pending' && selected() !== 'telegram'}>
-              <Show when={current()['user-code']}>
+              <Show when={current().userCode}>
                 <p class={styles['connections-panel__device-code']}>
-                  Код для страницы подтверждения: <strong>{current()['user-code']}</strong>
+                  Код для страницы подтверждения: <strong>{current().userCode}</strong>
                 </p>
               </Show>
               <p class={styles['connections-panel__note']}>
@@ -487,7 +487,7 @@ export function ConnectionsPanel(props: {
             <Show when={imported()} keyed>
               {(source) => (
                 <p class={styles['connections-panel__imported']}>
-                  {source.label} · {source['document-count']} объекта
+                  {source.label} · {source.documentCount} объекта
                 </p>
               )}
             </Show>

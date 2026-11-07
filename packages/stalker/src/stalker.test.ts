@@ -5,17 +5,17 @@ import { collectPerson } from './index';
 const input = {
   label: 'Ada Lovelace',
   context: 'Prefers checking assumptions; contact ada@example.org',
-  'public-urls': ['https://example.org/people/ada-lovelace'],
+  publicUrls: ['https://example.org/people/ada-lovelace'],
 };
 const evidence = {
   id: 'e1',
   kind: 'fact',
-  'source-url': 'https://example.org/people/ada-lovelace',
+  sourceUrl: 'https://example.org/people/ada-lovelace',
   summary: 'Ada Lovelace checks assumptions',
   status: 'supported',
   verification: 'verified',
   excerpt: 'Checks assumptions before choosing',
-  'retrieved-at': '2026-01-01T00:00:00Z',
+  retrievedAt: '2026-01-01T00:00:00Z',
   limitations: ['One reported example'],
 };
 function provider(items: unknown[]): IntelligenceProvider {
@@ -26,11 +26,11 @@ function provider(items: unknown[]): IntelligenceProvider {
         answer: JSON.stringify({
           evidence: items,
           character: 'unknown',
-          'thinking-style': 'unknown',
+          thinkingStyle: 'unknown',
           activity: 'unknown',
-          'behavior-summary': 'unknown',
+          behaviorSummary: 'unknown',
         }),
-        trace: { provider: 'codex', 'reasoning-ms': 1, 'terminal-ms': 0, summary: 'done' },
+        trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'done' },
       };
     },
   };
@@ -41,7 +41,7 @@ describe('honest evidence provenance', () => {
     expect(report).not.toHaveProperty('estimated-bsc');
     expect(report.evidence[0]).toMatchObject({
       verification: 'model-reported',
-      'retrieved-at': null,
+      retrievedAt: null,
       status: 'supported',
     });
     const empty = await collectPerson(input, provider([]));
@@ -64,7 +64,7 @@ describe('honest evidence provenance', () => {
     const { report } = await collectPerson(input, provider([evidence]));
     expect(report.evidence[0]).toMatchObject({
       summary: evidence.summary,
-      'source-url': evidence['source-url'],
+      sourceUrl: evidence.sourceUrl,
       excerpt: evidence.excerpt,
       verification: 'model-reported',
     });

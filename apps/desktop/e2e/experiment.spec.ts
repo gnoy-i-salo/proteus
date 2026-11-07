@@ -102,7 +102,7 @@ async function nativeFixture(
           const rule = (id: string, instruction: string, evidenceIds: string[]) => ({
             id,
             instruction,
-            'evidence-ids': evidenceIds,
+            evidenceIds: evidenceIds,
             status: 'hypothesis',
             limitations: ['Unverified user context'],
           });
@@ -126,7 +126,7 @@ async function nativeFixture(
               evidence: [
                 {
                   id: 'e1',
-                  'source-url': '',
+                  sourceUrl: '',
                   kind: 'hypothesis',
                   summary: actor === 'A' ? 'Careful planner' : 'Fast improviser',
                   status: 'hypothesis',
@@ -135,9 +135,9 @@ async function nativeFixture(
                 },
               ],
               character: 'Unknown',
-              'thinking-style': 'Unknown',
+              thinkingStyle: 'Unknown',
               activity: 'Unknown',
-              'behavior-summary': 'Unknown',
+              behaviorSummary: 'Unknown',
             };
           else if (stage === 'PERSON_FABRIC')
             data = {
@@ -157,7 +157,7 @@ async function nativeFixture(
               evaluations: input.answers.map((answer: { label: string; answer: string }) => ({
                 label: answer.label,
                 criteria: input.rubric.criteria.map((criterion: { id: string }, index: number) => ({
-                  'criterion-id': criterion.id,
+                  criterionId: criterion.id,
                   status:
                     options.unknownOnce && answer.answer.startsWith('Ответ A.')
                       ? evaluations <= 2
@@ -182,7 +182,7 @@ async function nativeFixture(
                       `Ответ ${actor}.  Первая строка\n\n  отступ`,
                       '<b>Второе сообщение</b> 🙂',
                     ],
-                    'style-conflicts': [],
+                    styleConflicts: [],
                   }
                 : {}),
               summary: 'Three-zone plan',
@@ -304,9 +304,7 @@ test('unknown criteria retain their weight and display a BSC interval', async ({
     await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].score.interval),
   ).toEqual({ lower: 65, upper: 85 });
   expect(
-    await page.evaluate(
-      () => Reflect.get(window, 'savedExperiment').comparison['comparison-eligible'],
-    ),
+    await page.evaluate(() => Reflect.get(window, 'savedExperiment').comparison.comparisonEligible),
   ).toBe(false);
 });
 
@@ -326,9 +324,7 @@ test('failed solution remains incomplete and unscored instead of receiving zero'
     await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].score.evaluated),
   ).toBe(0);
   expect(
-    await page.evaluate(
-      () => Reflect.get(window, 'savedExperiment').comparison['comparison-eligible'],
-    ),
+    await page.evaluate(() => Reflect.get(window, 'savedExperiment').comparison.comparisonEligible),
   ).toBe(false);
   await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
   const logs = page.getByRole('region', { name: 'Текст Intelligence traces' });
@@ -345,7 +341,7 @@ test('a collapsed median still displays uncertainty from an unknown trial', asyn
   const score = await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].score);
   expect(score.interval).toEqual({ lower: 50, upper: 50 });
   expect(score.point).toBeNull();
-  expect(score['comparison-eligible']).toBe(false);
+  expect(score.comparisonEligible).toBe(false);
 });
 
 test('three repetitions preserve the frozen profiles and include matched neutral answers', async ({
@@ -360,14 +356,10 @@ test('three repetitions preserve the frozen profiles and include matched neutral
     await page.evaluate(() => Reflect.get(window, 'savedExperiment').control.score.evaluated),
   ).toBe(3);
   expect(
-    await page.evaluate(
-      () => Reflect.get(window, 'savedExperiment').people[0]['baseline-difference'],
-    ),
+    await page.evaluate(() => Reflect.get(window, 'savedExperiment').people[0].baselineDifference),
   ).toEqual({ lower: 50, upper: 50 });
   expect(
-    await page.evaluate(
-      () => Reflect.get(window, 'savedExperiment').comparison['comparison-eligible'],
-    ),
+    await page.evaluate(() => Reflect.get(window, 'savedExperiment').comparison.comparisonEligible),
   ).toBe(true);
 });
 for (const [width, height] of [
@@ -508,7 +500,7 @@ for (const [width, height] of [
     expect(
       await page.evaluate(() =>
         Reflect.get(window, 'savedExperiment').input.people.map(
-          (person: { 'public-urls': string[] }) => person['public-urls'],
+          (person: { publicUrls: string[] }) => person.publicUrls,
         ),
       ),
     ).toEqual([

@@ -80,17 +80,17 @@ export function SourceSelection(props: {
     try {
       const grant = await createSourceGrant({
         provider: provider(),
-        'resource-id': resource().trim(),
-        'author-id': String(fields.get('author') ?? '').trim() || null,
+        resourceId: resource().trim(),
+        authorId: String(fields.get('author') ?? '').trim() || null,
         from: date('from', false),
         to: date('to', true),
-        'allow-model-processing': true,
+        allowModelProcessing: true,
         operations: ['describe', 'search', 'collect', 'read', 'coverage'],
         budget: {
-          'max-steps': 40,
-          'max-documents': 1000,
-          'max-bytes': 1048576,
-          'max-duration-ms': 300000,
+          maxSteps: 40,
+          maxDocuments: 1000,
+          maxBytes: 1048576,
+          maxDurationMs: 300000,
         },
       });
       if (!disposed) {
@@ -240,7 +240,7 @@ export function SourceSelection(props: {
                     <For each={props.imports.filter((item) => item.provider === provider())}>
                       {(item) => (
                         <option value={item.source.id}>
-                          {item.source.label} · {item.source['document-count']}
+                          {item.source.label} · {item.source.documentCount}
                         </option>
                       )}
                     </For>
@@ -335,7 +335,7 @@ export function SourceSelection(props: {
           {(grant) => (
             <div class={styles['source-selection__attached']}>
               <p>
-                {providers[grant().provider].name} · {grant()['resource-id']}
+                {providers[grant().provider].name} · {grant().resourceId}
               </p>
               <nav aria-label="Подключённые источники">
                 <button

@@ -14,9 +14,9 @@ const rubric: EvaluationRubric = {
 };
 function pass(statuses: ('unmet' | 'partial' | 'met' | 'unknown')[]): AnswerEvaluation {
   return {
-    'person-id': 'a',
+    personId: 'a',
     criteria: statuses.map((status, index) => ({
-      'criterion-id': `c-${index}`,
+      criterionId: `c-${index}`,
       status,
       reason: 'Observable evidence',
       quote: status === 'met' || status === 'partial' ? 'An answer passage' : '',
@@ -48,13 +48,13 @@ describe('BSC v2 criterion attainment', () => {
     const score = scoreTrial('a', uneven, [evaluation, evaluation]);
     expect(summarizeScores('a', [score], 1)).toMatchObject({
       point: null,
-      'comparison-eligible': false,
+      comparisonEligible: false,
     });
   });
   it('retains unknown weight in a 65–85 interval instead of renormalizing', () => {
     const score = exact(['met', 'partial', 'unknown']);
     expect(score.interval).toEqual({ lower: 65, upper: 85 });
-    expect(score['required-status']).toBe('passed');
+    expect(score.requiredStatus).toBe('passed');
   });
   it('keeps judge disagreement and required eligibility separate from arithmetic', () => {
     const score = scoreTrial('a', rubric, [
@@ -62,9 +62,9 @@ describe('BSC v2 criterion attainment', () => {
       pass(['partial', 'met', 'met']),
     ]);
     expect(score.interval).toEqual({ lower: 75, upper: 100 });
-    expect(score['judge-disagreement']).toBe(true);
-    expect(score['required-status']).toBe('unknown');
-    expect(exact(['unmet', 'met', 'met'])['required-status']).toBe('failed');
+    expect(score.judgeDisagreement).toBe(true);
+    expect(score.requiredStatus).toBe('unknown');
+    expect(exact(['unmet', 'met', 'met']).requiredStatus).toBe('failed');
   });
   it('validates IDs, positive finite weights, statuses and both complete passes', () => {
     const valid = pass(['met', 'met', 'met']);
@@ -89,9 +89,7 @@ describe('BSC v2 criterion attainment', () => {
       ]),
     ).toThrow(/id/i);
     expect(() => scoreTrial('a', rubric, [valid])).toThrow(/two/i);
-    expect(() => scoreTrial('a', rubric, [valid, { ...valid, 'person-id': 'b' }])).toThrow(
-      /person/i,
-    );
+    expect(() => scoreTrial('a', rubric, [valid, { ...valid, personId: 'b' }])).toThrow(/person/i);
     expect(() =>
       scoreTrial('a', rubric, [valid, { ...valid, criteria: valid.criteria.slice(1) }]),
     ).toThrow(/criteria/i);
@@ -124,12 +122,12 @@ describe('BSC v2 criterion attainment', () => {
       planned: 3,
       complete: true,
       spread: { lower: 50, upper: 100 },
-      'comparison-eligible': false,
+      comparisonEligible: false,
     });
     expect(summarizeScores('a', scores, 4)).toMatchObject({
       complete: false,
       evaluated: 3,
-      'comparison-eligible': false,
+      comparisonEligible: false,
     });
     expect(summarizeScores('a', [], 3)).toMatchObject({
       interval: null,
@@ -137,9 +135,9 @@ describe('BSC v2 criterion attainment', () => {
       evaluated: 0,
       complete: false,
       spread: null,
-      'required-status': 'unknown',
+      requiredStatus: 'unknown',
     });
-    expect(summarizeScores('a', [exact(['unmet', 'met', 'met'])], 1)['comparison-eligible']).toBe(
+    expect(summarizeScores('a', [exact(['unmet', 'met', 'met'])], 1).comparisonEligible).toBe(
       false,
     );
     expect(() => summarizeScores('a', scores, 2)).toThrow();
@@ -160,11 +158,9 @@ describe('BSC v2 criterion attainment', () => {
     ]);
     expect(summarizeScores('a', [certain, certain, unknown], 3)).toMatchObject({
       interval: { lower: 100, upper: 100 },
-      'comparison-eligible': false,
+      comparisonEligible: false,
     });
-    expect(summarizeScores('a', [certain, certain, disputed], 3)['comparison-eligible']).toBe(
-      false,
-    );
-    expect(summarizeScores('a', [certain, certain, certain], 3)['comparison-eligible']).toBe(true);
+    expect(summarizeScores('a', [certain, certain, disputed], 3).comparisonEligible).toBe(false);
+    expect(summarizeScores('a', [certain, certain, certain], 3).comparisonEligible).toBe(true);
   });
 });

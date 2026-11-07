@@ -102,6 +102,7 @@ async function nativeConnections(page: Page) {
           };
         }
         if (command === 'begin_connection') {
+          if (provider === 'telegram') delete states[provider]?.['qr-code'];
           states[provider] = {
             ...states[provider],
             status:
@@ -110,8 +111,8 @@ async function nativeConnections(page: Page) {
                   ? 'phone-required'
                   : 'qr-required'
                 : 'pending',
-            ...(provider === 'telegram'
-              ? { 'qr-code': args['telegramMethod'] === 'phone' ? undefined : qrCode() }
+            ...(provider === 'telegram' && args['telegramMethod'] !== 'phone'
+              ? { 'qr-code': qrCode() }
               : {}),
             ...(provider === 'github' ? { 'user-code': 'TEST-CODE', 'poll-after-ms': 60000 } : {}),
           };

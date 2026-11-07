@@ -15,6 +15,47 @@ export {
   encodeStoredSourceDocument,
 } from './source-document-codec';
 export type { StoredSourceDocument } from './source-document-codec';
+export { projectBoundRevision } from './corpus';
+export type {
+  CorpusProvider,
+  SourceRole,
+  SourceBinding,
+  RevisionReference,
+  SourceSpan,
+  SourceAuthor,
+  DocumentRelation,
+  AttachmentMetadata,
+  DocumentRevision,
+  Episode,
+  SearchChunk,
+  CorpusCoverage,
+  CorpusSnapshot,
+  CorpusReadBudget,
+  CorpusPort,
+  ModelSourceDocument,
+} from './corpus';
+export type {
+  IngestionBudget,
+  IngestionSelection,
+  IngestionPreview,
+  IngestionJob,
+  IngestionPort,
+} from './ingestion';
+export type {
+  EmbeddingFingerprint,
+  EmbeddingRecord,
+  EmbeddingBudget,
+  EmbeddingPort,
+  RecallBudget,
+  RetrievalReceipt,
+  MemoryItem,
+  SkillDefinition,
+  MemorySnapshot,
+  PersonaManifest,
+  RecallResult,
+  MemoryPort,
+  SimulationMemoryEntry,
+} from './memory';
 export * from './style';
 export type IntelligenceOperation =
   'generation' | 'public-research' | 'source-plan' | 'corpus-analysis' | 'persona-reply';

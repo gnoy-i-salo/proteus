@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { workspaces, walk, readJson } from './workspace.mjs';
 import { checkImport, hasCycle, importsOf } from './architecture-rules.mjs';
+import { publicEntryErrors, uiBoundaryErrors } from './code-rules.mjs';
 const packages = workspaces();
 const model = readJson('.cache/architecture.json');
 const elements = Object.values(model.elements).filter((element) => element.kind === 'module');
@@ -41,7 +42,9 @@ for (const pkg of packages) {
       errors.push(`${pkg.name}: illegal manifest dependency ${dep}`);
   }
   for (const file of walk(`${pkg.path}/src`).filter((path) => /\.(?:[cm]?[jt]sx?)$/.test(path))) {
-    for (const specifier of importsOf(readFileSync(file, 'utf8'), file)) {
+    const source = readFileSync(file, 'utf8');
+    errors.push(...publicEntryErrors(source, file), ...uiBoundaryErrors(source, file));
+    for (const specifier of importsOf(source, file)) {
       const error = checkImport(file, specifier, packages, edges);
       if (error) errors.push(`${file}: ${specifier}: ${error}`);
     }
@@ -59,5 +62,5 @@ if (errors.length) {
   process.exitCode = 1;
 } else
   console.log(
-    `Architecture OK: ${packages.length} packages; LikeC4 dependencies, public APIs and FSD layers verified.`,
+    `Architecture OK: ${packages.length} packages; LikeC4 dependencies, explicit public APIs, UI model boundaries and FSD layers verified.`,
   );

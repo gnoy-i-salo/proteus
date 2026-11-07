@@ -1,0 +1,252 @@
+{
+  "packages/brain-analyzator/src/evaluation.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["criterion-id"]
+  },
+  "packages/contracts/src/auth-callback.test.ts": {
+    "reason": "External VK OAuth callback schema; spelling is required by the provider.",
+    "fields": ["device_id"]
+  },
+  "packages/contracts/src/auth-callback.ts": {
+    "reason": "External VK OAuth callback schema; spelling is required by the provider.",
+    "fields": ["device_id", "expires_in", "ext_id", "error_description"]
+  },
+  "packages/contracts/src/execution-metadata.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["run-id"]
+  },
+  "packages/contracts/src/memory-validation.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["snapshot-id"]
+  },
+  "packages/contracts/src/source-document-codec.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": [
+      "resource-id",
+      "author-id",
+      "author-label",
+      "source-url",
+      "created-at",
+      "retrieved-at",
+      "content-hash",
+      "reply-to",
+      "is-forwarded"
+    ]
+  },
+  "packages/intelligence/src/model-settings-codec.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["person-fabric", "brain-analyzator", "global-model", "brain-scoring"]
+  },
+  "packages/intelligence/src/model-settings-codec.ts": {
+    "reason": "Stable component IDs used as keys in the component model map.",
+    "fields": ["person-fabric", "brain-analyzator"]
+  },
+  "packages/intelligence/src/model-settings.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["global-model"]
+  },
+  "packages/intelligence/src/model-settings.ts": {
+    "reason": "Stable component IDs used as keys in the component model map.",
+    "fields": ["person-fabric", "brain-analyzator"]
+  },
+  "packages/intelligence/src/response-fields-codec.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": [
+      "evidence-ids",
+      "source-status",
+      "access_token",
+      "file-name.json",
+      "external-field",
+      "voice-rules",
+      "raw-key",
+      "public-urls"
+    ]
+  },
+  "packages/person/src/person.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["style-conflicts"]
+  },
+  "packages/person/src/persona-artifacts.ts": {
+    "reason": "Exact artifact filename map, not an owned DTO field.",
+    "fields": ["AGENTS.md"]
+  },
+  "packages/person-fabric/src/person-fabric.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["exemplar-ids", "evidence-ids", "reasoning-patterns", "voice-rules", "format-rules"]
+  },
+  "packages/pipeline/src/experiment/run-experiment.test.ts": {
+    "reason": "Exact artifact filename map, not an owned DTO field.",
+    "fields": ["style-exemplars.json"]
+  },
+  "packages/pipeline/src/presets/persona-preset-codec.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["public-urls"]
+  },
+  "packages/pipeline/src/presets/persona-preset.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["public-urls"]
+  },
+  "packages/stalker/src/model-response-compatibility.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["source-url", "thinking-style", "behavior-summary", "document-ids", "retrieved-at"]
+  },
+  "apps/desktop/src/features/connections/model/connection-labels.ts": {
+    "reason": "Existing connection-status/capability enum values used as lookup keys.",
+    "fields": [
+      "qr-required",
+      "phone-required",
+      "code-required",
+      "password-required",
+      "email-required",
+      "email-code-required",
+      "archive-import"
+    ]
+  },
+  "apps/desktop/src/features/model-settings/ui/model-settings.tsx": {
+    "reason": "Stable component IDs used as keys in the component model map.",
+    "fields": ["person-fabric", "brain-analyzator"]
+  },
+  "apps/desktop/src/pages/experiment/ui/experiment-report.ts": {
+    "reason": "Existing protocol-mode enum value used as a display lookup key.",
+    "fields": ["evidence-informed"]
+  },
+  "apps/desktop/src/shared/lib/cli-status.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["source-url"]
+  },
+  "apps/desktop/src/shared/lib/cli-wire-codec.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": [
+      "wall-time-ms",
+      "reasoning-ms",
+      "active-reasoning-ms",
+      "requested-model",
+      "resolved-model",
+      "requested-effort",
+      "applied-effort",
+      "cli-version",
+      "terminal-ms",
+      "reasoning-truncated",
+      "elapsed-ms",
+      "system-prompt",
+      "source-context"
+    ]
+  },
+  "apps/desktop/src/shared/lib/cli-wire-codec.ts": {
+    "reason": "Explicit legacy v1 native wire DTO/encoder retained at its compatibility boundary.",
+    "fields": ["system-prompt", "source-context"]
+  },
+  "apps/desktop/src/shared/lib/connection-wire-codec.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": [
+      "client-id",
+      "api-id",
+      "user-code",
+      "qr-code",
+      "poll-after-ms",
+      "api-hash",
+      "document-count"
+    ]
+  },
+  "apps/desktop/src/shared/lib/connection-wire-codec.ts": {
+    "reason": "Explicit legacy v1 native wire DTO/encoder retained at its compatibility boundary.",
+    "fields": ["client-id", "api-id", "api-hash"]
+  },
+  "apps/desktop/src/shared/lib/connections.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["snapshot-id"]
+  },
+  "apps/desktop/src/shared/lib/model-settings-storage.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["global-model", "person-fabric", "brain-analyzator"]
+  },
+  "apps/desktop/src/shared/lib/native-wire-codecs.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": [
+      "system-prompt",
+      "source-context",
+      "reasoning-ms",
+      "elapsed-ms",
+      "qr-code",
+      "api-hash",
+      "document-count",
+      "resource-id",
+      "max-steps",
+      "account-id",
+      "document-ids",
+      "snapshot-id",
+      "not-analyzed",
+      "author-id"
+    ]
+  },
+  "apps/desktop/src/shared/lib/presets.test.ts": {
+    "reason": "Native serde Result Ok/Err envelope and explicit legacy preset regression fixtures.",
+    "fields": ["Ok", "Err"]
+  },
+  "apps/desktop/src/shared/lib/source-bindings.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["persona-id", "target-author-id", "author-id"]
+  },
+  "apps/desktop/src/shared/lib/source-wire-codec.test.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": [
+      "resource-id",
+      "author-id",
+      "allow-model-processing",
+      "max-steps",
+      "max-documents",
+      "max-bytes",
+      "max-duration-ms",
+      "total-documents",
+      "not-analyzed",
+      "author-label",
+      "source-url",
+      "created-at",
+      "retrieved-at",
+      "content-hash",
+      "reply-to",
+      "is-forwarded",
+      "account-id",
+      "snapshot-id",
+      "expires-at",
+      "document-ids"
+    ]
+  },
+  "apps/desktop/src/shared/lib/source-wire-codec.ts": {
+    "reason": "Explicit legacy v1 native wire DTO/encoder retained at its compatibility boundary.",
+    "fields": [
+      "resource-id",
+      "author-id",
+      "allow-model-processing",
+      "max-steps",
+      "max-documents",
+      "max-bytes",
+      "max-duration-ms",
+      "document-ids"
+    ]
+  },
+  "apps/desktop/e2e/connections.spec.ts": {
+    "reason": "Existing connection-status/capability enum values used as lookup keys.",
+    "fields": ["phone-required", "code-required", "password-required"]
+  },
+  "apps/desktop/e2e/experiment.spec.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["Ok", "public-urls"]
+  },
+  "apps/desktop/e2e/presets.spec.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["public-urls", "Ok"]
+  },
+  "apps/desktop/e2e/settings.spec.ts": {
+    "reason": "Explicit legacy, external or malformed boundary fixture; decoder tests must keep original keys.",
+    "fields": ["global-model", "person-fabric", "brain-analyzator"]
+  },
+  "tests/e2e/auth.spec.ts": {
+    "reason": "External VK OAuth callback schema; spelling is required by the provider.",
+    "fields": ["device_id", "error_description"]
+  },
+  "apps/desktop/src/pages/experiment/ui/protocol-review.tsx": {
+    "reason": "Stable component IDs used as keys in the frozen protocol display label map.",
+    "fields": ["person-fabric", "brain-analyzator"]
+  }
+}

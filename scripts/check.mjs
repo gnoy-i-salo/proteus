@@ -69,7 +69,7 @@ run('check:naming');
 if (all || selected.length) {
   run('check:architecture');
   run('test:harness');
-  const lintTargets = all ? ['.'] : selected.map((pkg) => `${pkg.path}/src`);
+  const lintTargets = all ? ['.'] : selected.map((pkg) => pkg.path);
   run('exec', 'eslint', '--max-warnings=0', ...lintTargets);
   const frontends = selected.filter((pkg) => pkg.path.startsWith('apps/'));
   if (all || frontends.length) run('lint:styles');
@@ -79,6 +79,7 @@ if (all || selected.length) {
     run('build');
   } else {
     for (const pkg of selected) run('--filter', pkg.name, 'typecheck');
+    if (frontends.length) run('exec', 'tsc', '-p', 'tooling/tsconfig.json');
     run('exec', 'vitest', 'run', '--passWithNoTests', ...selected.map((pkg) => pkg.path));
     for (const pkg of frontends) run('--filter', pkg.name, 'build');
   }

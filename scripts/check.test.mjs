@@ -74,3 +74,17 @@ test('a shared contract change builds every affected frontend', () => {
       `${name} must be built`,
     );
 });
+
+test('selective frontend checks include e2e/config lint and the actual tooling type project', () => {
+  for (const name of ['desktop', 'auth']) {
+    const commands = selectiveCommands(name);
+    assert(
+      commands.some((command) => command.join(' ') === `exec eslint --max-warnings=0 apps/${name}`),
+      `${name} must lint the complete package including its test/config files`,
+    );
+    assert(
+      commands.some((command) => command.join(' ') === 'exec tsc -p tooling/tsconfig.json'),
+      `${name} must check browser fixture and runner types`,
+    );
+  }
+});

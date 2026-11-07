@@ -1,6 +1,6 @@
 //! Versioned own schemas over the unchanged encrypted corpus container.
 //! Provider checkpoint payloads are opaque values, never recursively renamed.
-use super::{
+use super::model::{
     Checkpoint, ImportedRecord, Record, SourceBudget, SourceCoverage, SourceDocument, SourceGrant,
     SourceGrantRequest,
 };
@@ -120,8 +120,8 @@ impl SourceStore {
         // reactivate the preserved legacy generation after restart.
         let provider = self.owner(legacy)?;
         self.write(legacy, &Deleted { provider })?;
-        super::remove_file(legacy)?;
-        super::remove_file(&current_path(legacy)?)
+        super::corpus::remove_file(legacy)?;
+        super::corpus::remove_file(&current_path(legacy)?)
     }
 }
 #[derive(Deserialize, Serialize)]

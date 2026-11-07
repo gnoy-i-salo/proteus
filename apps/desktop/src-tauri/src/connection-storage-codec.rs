@@ -1,5 +1,8 @@
 //! Native-only persistence. Legacy spellings never become accepted IPC aliases.
-use super::{oauth::VkPending, ConnectionConfig, DevicePending, Provider, Token};
+use super::{
+    model::{ConnectionConfig, DevicePending, Provider, Token},
+    oauth::VkPending,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 

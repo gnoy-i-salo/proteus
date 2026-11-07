@@ -30,8 +30,9 @@ export function TextWorkspace(props: {
   let toggle!: HTMLButtonElement;
   let restoreInert: (() => void) | undefined;
   let focused = false;
+  let composing = false;
   const restoreSelection = () => {
-    if (!editor) return;
+    if (!editor || composing) return;
     const range = model.projected();
     editor.setSelectionRange(
       domOffset(model.visible(), range.start),
@@ -43,7 +44,7 @@ export function TextWorkspace(props: {
     editor.scrollLeft = 0;
   };
   const captureSelection = () => {
-    if (!editor) return;
+    if (!editor || composing) return;
     const current = model.projected();
     const start = sourceOffset(model.visible(), editor.selectionStart);
     const end = sourceOffset(model.visible(), editor.selectionEnd);
@@ -61,6 +62,7 @@ export function TextWorkspace(props: {
     });
   };
   const measure = () => {
+    if (composing) return;
     const css = getComputedStyle(content);
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
@@ -311,7 +313,18 @@ export function TextWorkspace(props: {
           onSelect={captureSelection}
           onKeyUp={captureSelection}
           onClick={captureSelection}
+          onCompositionStart={() => {
+            captureSelection();
+            composing = true;
+          }}
+          onCompositionEnd={(event) => {
+            composing = false;
+            if (event.data) model.replace(event.data);
+            measure();
+            queueMicrotask(restoreSelection);
+          }}
           onInput={(event) => {
+            if (composing) return;
             model.editPage(
               event.currentTarget.value,
               event.currentTarget.selectionStart,
@@ -321,6 +334,7 @@ export function TextWorkspace(props: {
             queueMicrotask(restoreSelection);
           }}
           onBeforeInput={(event) => {
+            if (composing) return;
             captureSelection();
             if (!model.projected().continues) return;
             const input = event;
@@ -347,6 +361,7 @@ export function TextWorkspace(props: {
           onCopy={(event) => copy(event, false)}
           onCut={(event) => copy(event, true)}
           onKeyDown={(event) => {
+            if (event.isComposing) return;
             if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
               event.preventDefault();
               model.select({ start: 0, end: props.value.length, direction: 'forward' });

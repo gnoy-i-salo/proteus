@@ -220,3 +220,39 @@ test('native IME composition survives candidate updates and resize before commit
   );
   await session.detach();
 });
+test('cancelling native IME restores the original selected text and permits another composition', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  await page.goto('/');
+  const original = 'До  👩🏽‍🔬 точный выбор  после';
+  const editor = page.getByRole('textbox', { name: 'Контекст A', exact: true });
+  await editor.fill(original);
+  await editor.evaluate((element: HTMLTextAreaElement) => {
+    element.focus();
+    element.setSelectionRange(4, 22, 'backward');
+    element.dispatchEvent(new Event('select', { bubbles: true }));
+  });
+  const session = await page.context().newCDPSession(page);
+  await session.send('Input.imeSetComposition', { text: 'に', selectionStart: 1, selectionEnd: 1 });
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  await session.send('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 });
+  await expect(editor).toHaveValue(original);
+  expect(
+    await editor.evaluate((element: HTMLTextAreaElement) => ({
+      start: element.selectionStart,
+      end: element.selectionEnd,
+      direction: element.selectionDirection,
+    })),
+  ).toEqual({ start: 4, end: 22, direction: 'backward' });
+  await session.send('Input.imeSetComposition', {
+    text: '日本',
+    selectionStart: 2,
+    selectionEnd: 2,
+  });
+  await session.send('Input.insertText', { text: '日本語' });
+  expect((await exported(page)).people[0].context).toBe(
+    original.slice(0, 4) + '日本語' + original.slice(22),
+  );
+  await session.detach();
+});

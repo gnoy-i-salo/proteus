@@ -1,0 +1,52 @@
+{
+  "about": "Example export with left chats",
+  "personal_information": {
+    "user_id": 424242,
+    "first_name": "Self",
+    "last_name": null,
+    "phone_number": "+00000000000",
+    "username": null
+  },
+  "chats": {
+    "about": "Example chats",
+    "list": [
+      {
+        "name": "Active Chat",
+        "type": "personal_chat",
+        "id": 100001,
+        "messages": [
+          {
+            "id": 20,
+            "type": "message",
+            "date": "2023-03-01T00:00:00",
+            "date_unixtime": "1677628800",
+            "from": "Friend",
+            "from_id": "user100001",
+            "text": "still here"
+          }
+        ]
+      }
+    ]
+  },
+  "left_chats": {
+    "about": "Example left chats",
+    "list": [
+      {
+        "name": "Left Channel",
+        "type": "private_channel",
+        "id": 100002,
+        "messages": [
+          {
+            "id": 30,
+            "type": "message",
+            "date": "2023-03-02T00:00:00",
+            "date_unixtime": "1677715200",
+            "from": null,
+            "from_id": "channel100002",
+            "text": "before leaving"
+          }
+        ]
+      }
+    ]
+  }
+}

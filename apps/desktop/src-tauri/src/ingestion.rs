@@ -1,5 +1,15 @@
+#[path = "ingestion-fingerprint.rs"]
+pub mod fingerprint;
 #[path = "ingestion-input.rs"]
 mod input;
+#[path = "ingestion-preview.rs"]
+pub mod preview;
+#[path = "ingestion-preview-scan.rs"]
+pub mod preview_scan;
+#[path = "ingestion-preview-store.rs"]
+pub mod preview_store;
+#[path = "telegram-archive-json.rs"]
+pub mod telegram_archive_json;
 pub use input::SelectedInputs;
 use serde::Serialize;
 use tauri_plugin_dialog::DialogExt;

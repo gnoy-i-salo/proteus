@@ -1,0 +1,25 @@
+{
+  "name": "Example Contact",
+  "type": "personal_chat",
+  "id": 123456789,
+  "messages": [
+    {
+      "id": 1,
+      "type": "message",
+      "date": "2023-01-02T03:04:05",
+      "date_unixtime": "1672626245",
+      "from": "Example Contact",
+      "from_id": "user123456789",
+      "text": "привет\nemoji 😀\t\u2028"
+    },
+    {
+      "id": 2,
+      "type": "message",
+      "date": "2023-01-02T03:05:06",
+      "date_unixtime": "1672626306",
+      "from": "Self",
+      "from_id": "user987654321",
+      "text": "CRLF line\r\nand \"quotes\" and \\ backslash"
+    }
+  ]
+}

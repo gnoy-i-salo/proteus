@@ -1,0 +1,98 @@
+{
+  "about": "Example export",
+  "personal_information": {
+    "user_id": 424242,
+    "first_name": "Self",
+    "last_name": null,
+    "phone_number": "+00000000000",
+    "username": null
+  },
+  "contacts": {
+    "about": "Example contacts section that the reader must stream past without collecting",
+    "list": [
+      {
+        "first_name": "Contact One",
+        "last_name": null,
+        "phone_number": "+111",
+        "date": "2020-01-01",
+        "date_unixtime": "1577836800"
+      },
+      {
+        "first_name": "Contact Two",
+        "last_name": "Family",
+        "phone_number": "+222",
+        "date": "2020-01-02",
+        "date_unixtime": "1577923200"
+      },
+      {
+        "first_name": "Contact Three",
+        "last_name": null,
+        "phone_number": "+333",
+        "date": "2020-01-03",
+        "date_unixtime": "1578009600"
+      },
+      {
+        "first_name": "Contact Four",
+        "last_name": null,
+        "phone_number": "+444",
+        "date": "2020-01-04",
+        "date_unixtime": "1578096000"
+      }
+    ]
+  },
+  "sessions": {
+    "about": "Example sessions",
+    "list": [
+      {
+        "hash": "abcd",
+        "device_model": "Browser",
+        "platform": "",
+        "system_version": "",
+        "api_id": 1,
+        "application_name": "",
+        "application_version": "",
+        "date_created": "2020-01-01",
+        "date_active": "2020-01-01",
+        "ip": "127.0.0.1",
+        "country": "",
+        "region": ""
+      }
+    ]
+  },
+  "chats": {
+    "about": "Example chats",
+    "list": [
+      {
+        "name": "Group Chat",
+        "type": "private_supergroup",
+        "id": 555000111,
+        "messages": [
+          {
+            "id": 10,
+            "type": "message",
+            "date": "2023-02-01T00:00:01",
+            "date_unixtime": "1675200001",
+            "from": "Member A",
+            "from_id": "user111",
+            "text": "group hello"
+          },
+          {
+            "id": 11,
+            "type": "service",
+            "date": "2023-02-01T00:00:02",
+            "date_unixtime": "1675200002",
+            "from": "Member B",
+            "from_id": "user222",
+            "text": "pinned message"
+          }
+        ]
+      },
+      {
+        "name": "Empty Channel",
+        "type": "public_channel",
+        "id": 777000222,
+        "messages": []
+      }
+    ]
+  }
+}

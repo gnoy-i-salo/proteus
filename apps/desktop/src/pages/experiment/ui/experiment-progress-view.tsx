@@ -2,11 +2,17 @@ import { Show } from 'solid-js';
 import type { ExperimentRunModel } from '../model/experiment-run';
 import { TraceReader } from './trace-reader';
 import { ProtocolReview } from './protocol-review';
+import { ExecutionStatus } from './execution-status';
 import styles from './experiment-page.module.scss';
 
 export function ExperimentProgressView(props: {
   readonly run: Pick<
     ExperimentRunModel,
+    | 'runStatus'
+    | 'displayStage'
+    | 'elapsedMs'
+    | 'lastCliEventAgeMs'
+    | 'failureReason'
     | 'activity'
     | 'progress'
     | 'total'
@@ -19,21 +25,14 @@ export function ExperimentProgressView(props: {
     | 'stop'
   >;
   readonly selected: number;
+  readonly names: readonly string[];
 }) {
   return (
     <Show
       when={props.run.pendingProtocol()}
       fallback={
         <>
-          <header class={styles['experiment__progressHeading']}>
-            <span>
-              LIVE EXPERIMENT / {props.run.progress()} OF {props.run.total()}
-            </span>
-            <h2>
-              Intelligence traces<span class={styles['experiment__blink']}>_</span>
-            </h2>
-            <p>{props.run.activity()}</p>
-          </header>
+          <ExecutionStatus run={props.run} names={props.names} />
           <div class={styles['experiment__traces']}>
             <TraceReader
               stages={props.run.reasoningStages()}
@@ -48,7 +47,9 @@ export function ExperimentProgressView(props: {
             </button>
           </nav>
           <footer class={styles['experiment__progress']}>
-            <span>PROGRESS {Math.round((props.run.progress() / props.run.total()) * 100)}%</span>
+            <span>
+              Завершено этапов: {props.run.progress()} / {props.run.total()}
+            </span>
             <progress max={props.run.total()} value={props.run.progress()} />
           </footer>
         </>

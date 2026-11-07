@@ -13,6 +13,7 @@ import type { CliStatus } from '../../../shared/lib/cli';
 import { downloadFile } from '../../../shared/lib/download-file';
 import { isDesktop } from '../../../shared/lib/window-controls';
 import { mergeLiveReasoning } from './live-trace';
+import { createExecutionState } from './execution-state';
 
 export interface ExperimentRunPort {
   readonly cliStatus: typeof cliStatus;
@@ -50,6 +51,7 @@ export function createExperimentRun(
     downloadFile,
   },
 ) {
+  const executionState = createExecutionState();
   const [screen, setScreen] = createSignal<'start' | 'progress' | 'result'>('start');
   const [available, setAvailable] = createSignal<CliStatus[]>([]);
   const [pendingProtocol, setPendingProtocol] = createSignal<ExperimentProtocol>();
@@ -58,6 +60,7 @@ export function createExperimentRun(
   const [result, setResult] = createSignal<ExperimentResult>();
   const [running, setRunning] = createSignal(false);
   const [savedPath, setSavedPath] = createSignal('');
+  const [failureNotification, setFailureNotification] = createSignal('');
   const [activity, setActivity] = createSignal('Ожидаем запуск');
   const [reasoningStages, setReasoningStages] = createSignal<StageTrace[]>([]);
   const recordTrace = (next: StageTrace) =>
@@ -67,6 +70,7 @@ export function createExperimentRun(
     });
   let controller: AbortController | undefined;
   let returningToInput = false;
+  let disposed = false;
   onMount(() => {
     void port
       .cliStatus()
@@ -92,7 +96,10 @@ export function createExperimentRun(
       });
     }
   });
-  onCleanup(() => controller?.abort());
+  onCleanup(() => {
+    disposed = true;
+    controller?.abort();
+  });
   const readinessError = () => {
     if (!available().length) return '';
     const missing = [...new Set(Object.values(options.settings().components))].filter(
@@ -103,7 +110,9 @@ export function createExperimentRun(
       : '';
   };
   const start = async () => {
+    if (running() || disposed) return;
     options.reportError('');
+    setFailureNotification('');
     setSavedPath('');
     const notReady = readinessError();
     if (notReady) {
@@ -130,45 +139,59 @@ export function createExperimentRun(
       return;
     }
     returningToInput = false;
-    controller = new AbortController();
+    executionState.begin();
+    setActivity('Подготовка запуска');
+    const runController = new AbortController();
+    controller = runController;
     setRunning(true);
     setEvents([]);
-    options.onStarted();
     setReasoningStages([]);
     setPendingProtocol(undefined);
     setResult(undefined);
     setScreen('progress');
     try {
+      options.onStarted();
       for (const grant of options.sourceGrants().flat()) {
-        controller.signal.throwIfAborted();
+        runController.signal.throwIfAborted();
         await port.resumeSourceGrant(grant.id);
       }
-      controller.signal.throwIfAborted();
+      runController.signal.throwIfAborted();
+      executionState.setRunStatus('running');
       const output = await port.runExperiment(
         input,
         options.settings(),
         port.cliProviders((event) =>
           untrack(() => {
+            if (disposed || runController.signal.aborted) return;
+            const received = executionState.receive(event.id);
+            if (!received) return;
             setActivity(
-              `${event.kind === 'reasoning' ? 'Модель рассуждает' : event.kind === 'search' ? 'Поиск источников' : event.kind === 'answer' ? 'Ответ получен' : 'CLI работает'} · ${(event.elapsedMs / 1000).toFixed(1)} с`,
+              event.kind === 'reasoning'
+                ? 'CLI передал опубликованное рассуждение'
+                : event.kind === 'search'
+                  ? 'CLI сообщил о поиске источников'
+                  : event.kind === 'answer'
+                    ? 'CLI передал ответ'
+                    : 'Получено событие CLI',
             );
-            const current = events().at(-1);
-            if (event.reasoning && current && current.stage !== 'complete') {
-              const previous = reasoningStages().find((item) => item.id === current.id);
-              if (previous) {
-                recordTrace(mergeLiveReasoning(previous, event.reasoning, event.elapsedMs));
-              }
+            const previous = reasoningStages().find(
+              (item) => item.id === received.stage.logicalStageId,
+            );
+            if (event.reasoning && previous) {
+              recordTrace(
+                mergeLiveReasoning(previous, event.reasoning, event.elapsedMs, received.callIndex),
+              );
             }
           }),
         ),
         {
-          signal: controller.signal,
+          signal: runController.signal,
           repetitions: options.repetitions(),
           sourcePort: port.nativeSourcePort,
           sourceGrants: options.sourceGrants(),
           onProtocol: (protocol) =>
             new Promise<void>((resolve, reject) => {
-              const signal = controller!.signal;
+              const signal = runController.signal;
               if (signal.aborted) {
                 reject(
                   signal.reason instanceof Error
@@ -193,23 +216,38 @@ export function createExperimentRun(
               signal.addEventListener('abort', abort, { once: true });
               acceptProtocol = () => {
                 cleanup();
+                executionState.setRunStatus('running');
                 resolve();
               };
+              executionState.setRunStatus('waitingForProtocol');
               setPendingProtocol(protocol);
               setActivity('Проверьте критерии и условия до создания персон.');
             }),
-          onTrace: recordTrace,
+          onExecution: (stage) => {
+            if (disposed) return;
+            executionState.record(stage);
+            const existing = reasoningStages().find((item) => item.id === stage.logicalStageId);
+            if (existing) recordTrace({ ...existing, lifecycle: stage });
+          },
+          onTrace: (trace) => {
+            if (!disposed) recordTrace(trace);
+          },
           onProgress: (event) => {
+            if (disposed) return;
             if (
               event.stage !== 'complete' &&
               !reasoningStages().some((item) => item.id === event.id)
             ) {
+              const lifecycle = executionState
+                .execution()
+                .find((item) => item.logicalStageId === event.id);
               recordTrace({
                 id: event.id,
                 stage: event.stage,
                 person: event.person,
                 label: event.message,
                 attempts: [],
+                ...(lifecycle ? { lifecycle } : {}),
                 trace: {
                   provider: options.settings().components[event.stage],
                   reasoningMs: 0,
@@ -224,6 +262,13 @@ export function createExperimentRun(
           },
         },
       );
+      if (disposed) return;
+      const failure =
+        output.execution?.stages
+          .slice()
+          .reverse()
+          .find((stage) => stage.status === 'failed' || stage.status === 'cancelled')?.error ?? '';
+      executionState.finish(output.status === 'complete' ? 'completed' : output.status, failure);
       setResult(output);
       setScreen('result');
       options.onCompleted();
@@ -233,19 +278,22 @@ export function createExperimentRun(
         options.reportError('Результат готов, но не удалось сохранить его на диск. Скачайте JSON.');
       }
     } catch (failure) {
-      if (!returningToInput) {
-        setActivity(controller.signal.aborted ? 'Эксперимент остановлен' : 'Ошибка этапа');
-        options.reportError(
-          controller.signal.aborted
-            ? 'Эксперимент остановлен. Можно вернуться к вводу и запустить заново.'
-            : String(failure),
-        );
+      if (!returningToInput && !disposed) {
+        const message = failure instanceof Error ? failure.message : String(failure);
+        executionState.finish(runController.signal.aborted ? 'cancelled' : 'failed', message);
+        setActivity(runController.signal.aborted ? 'Эксперимент остановлен' : 'Ошибка этапа');
+        const notification = runController.signal.aborted
+          ? `Выполнение остановлено в PROTEUS. ${message} Можно вернуться к вводу и запустить заново.`
+          : String(failure);
+        setFailureNotification(notification);
+        options.reportError(notification);
       }
     } finally {
       setRunning(false);
       acceptProtocol = undefined;
       setPendingProtocol(undefined);
       if (returningToInput) {
+        executionState.finish('idle');
         setScreen('start');
         setActivity('Ожидаем запуск');
         options.reportError('');
@@ -257,10 +305,21 @@ export function createExperimentRun(
   const total = () => events().at(-1)?.total ?? 8 + options.repetitions() * 5;
 
   const stop = () => {
+    if (!running()) return;
+    executionState.setRunStatus('stopping');
     controller?.abort();
     setActivity('Останавливаем CLI…');
   };
   return {
+    execution: executionState.execution,
+    runStatus: executionState.runStatus,
+    activeStageId: executionState.activeStageId,
+    failedStageId: executionState.failedStageId,
+    displayStage: executionState.displayStage,
+    elapsedMs: executionState.elapsedMs,
+    lastCliEventAgeMs: executionState.lastCliEventAgeMs,
+    failureReason: executionState.failureReason,
+    failureNotification,
     screen,
     setScreen,
     available,

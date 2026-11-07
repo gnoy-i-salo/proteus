@@ -21,6 +21,10 @@ async function nativeFixture(
     unknownOnce?: boolean;
     failSolve?: boolean;
     messageReply?: boolean;
+    holdStage?: string;
+    failPreparation?: boolean;
+    errorText?: string;
+    delayedEvent?: boolean;
   } = {},
 ) {
   await page.addInitScript(
@@ -50,6 +54,22 @@ async function nativeFixture(
               ? 'A'
               : 'B'
             : 'Общее';
+      const waitForCancellation = (id: string) => {
+        if (options.delayedEvent)
+          setTimeout(
+            () => eventCallback?.({ payload: { id, kind: 'started', elapsedMs: 25 } }),
+            500,
+          );
+        return new Promise<never>((_resolve, reject) => {
+          rejectRun = reject;
+        });
+      };
+      const stageFailure = (stage: string) => {
+        if (stage === 'STALKER' && options.failPreparation)
+          return options.errorText ?? 'Fixture preparation failed';
+        if (stage === 'PERSON' && options.failSolve) return 'Fixture CLI unavailable';
+        return undefined;
+      };
       const runFixture = async (
         request: { id: string; task: string; systemPrompt: string; provider: string } | undefined,
       ) => {
@@ -57,12 +77,10 @@ async function nativeFixture(
         const stage = request.systemPrompt.split('\n')[0] ?? '';
         calls.push(stage);
         Reflect.set(window, 'stageCalls', calls);
-        if (cancelMode)
-          return new Promise((_resolve, reject) => {
-            rejectRun = reject;
-          });
+        if (cancelMode || options.holdStage === stage) return waitForCancellation(request.id);
+        const failure = stageFailure(stage);
+        if (failure !== undefined) throw new Error(failure);
         const input = JSON.parse(request.task) as FixtureModelInput;
-        if (stage === 'PERSON' && options.failSolve) throw new Error('Fixture CLI unavailable');
         if (stage === 'STALKER') sources++;
         const actor = actorFor(stage, input);
         const reasoning = reasoningAvailable
@@ -656,3 +674,90 @@ for (const [width, height] of [
     ).toBeFocused();
   });
 }
+
+test('silent execution advances host time and cancellation removes active status', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  await nativeFixture(page, true);
+  await fillExperiment(page, false);
+  const status = page.getByRole('region', { name: 'Состояние запуска', exact: true });
+  await expect(status).toContainText('Выполняется');
+  await expect(status).toContainText('Brain Analyzator');
+  await expect(status).toContainText('Система');
+  await expect(status).toContainText('Событий CLI ещё не было');
+  await expect(status.getByTestId('host-elapsed')).toHaveText(/[1-9]\d* с/, { timeout: 5000 });
+  await expect(page.getByText('Завершено этапов: 0 / 13', { exact: true })).toBeVisible();
+  await noOverflow(page);
+  await page.getByRole('button', { name: 'Остановить', exact: true }).click();
+  await expect(status).toContainText('Отменён');
+  await expect(status).not.toContainText('LIVE');
+  await expect(status.locator('[data-active="true"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Остановить', exact: true })).toBeDisabled();
+  await expect(status).toContainText('Сохранённые этапы доступны ниже');
+});
+
+test('failed preparation shows its cause and retained stage without active indicator', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  await nativeFixture(page, false, true, { failPreparation: true });
+  await fillExperiment(page);
+  const status = page.getByRole('region', { name: 'Состояние запуска', exact: true });
+  await expect(status).toContainText('Ошибка этапа');
+  await expect(status).toContainText('STALKER');
+  await expect(status).toContainText('Fixture preparation failed');
+  await expect(status.locator('[data-active="true"]')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Текст Intelligence traces' })).toBeVisible();
+  await noOverflow(page);
+});
+
+test('stopping preparation preserves its stage and a delayed event is separate from host time', async ({
+  page,
+}) => {
+  await nativeFixture(page, false, false, { holdStage: 'STALKER', delayedEvent: true });
+  await fillExperiment(page);
+  const status = page.getByRole('region', { name: 'Состояние запуска', exact: true });
+  await expect(status).toContainText('STALKER');
+  await expect(status).toContainText('Последнее событие CLI:');
+  await expect(page.getByRole('region', { name: 'Текст Intelligence traces' })).not.toContainText(
+    'Модель рассуждает',
+  );
+  await page.getByRole('button', { name: 'Остановить', exact: true }).click();
+  await expect(status).toContainText('Отменён');
+  await expect(status).toContainText('STALKER');
+  await expect(status.locator('[data-active="true"]')).toHaveCount(0);
+});
+
+test('incomplete result exposes the actual failed stage cause alongside retained results', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  await nativeFixture(page, false, true, { failSolve: true });
+  await fillExperiment(page);
+  const failure = page.getByRole('region', { name: 'Причина неполной серии', exact: true });
+  await expect(failure).toContainText('Fixture CLI unavailable');
+  await expect(failure).toContainText('Сохранённые ответы и этапы доступны');
+  await expect(page.getByRole('button', { name: '↓ JSON', exact: true })).toBeVisible();
+  await noOverflow(page);
+});
+
+test('long preparation failure remains fully readable without overflowing the compact window', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  const reason = '  Точная причина é 👩🏽‍🔬\r\n'.repeat(160) + 'КОНЕЦ_ПРИЧИНЫ';
+  await nativeFixture(page, false, true, { failPreparation: true, errorText: reason });
+  await fillExperiment(page);
+  const status = page.getByRole('region', { name: 'Состояние запуска', exact: true });
+  await expect(status).toContainText('Ошибка этапа');
+  await noOverflow(page);
+  await status.getByRole('button', { name: 'Развернуть: Причина', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Поиск: Причина', exact: true }).fill('КОНЕЦ_ПРИЧИНЫ');
+  await expect(page.getByRole('dialog')).toContainText('КОНЕЦ_ПРИЧИНЫ');
+  await page.keyboard.press('Escape');
+  await expect(
+    status.getByRole('button', { name: 'Развернуть: Причина', exact: true }),
+  ).toBeFocused();
+});

@@ -1,13 +1,17 @@
 import { For, Show } from 'solid-js';
 import type { ExperimentRunModel } from '../model/experiment-run';
 import { formatInterval, formatScore, reportText, sourceLabel } from './experiment-report';
+import { FailureReason } from './failure-reason';
 import { TraceReader } from './trace-reader';
 import { PagedText } from './paged-text';
 import { ReplyReader } from './reply-reader';
 import styles from './experiment-page.module.scss';
 
 export function ExperimentResultView(props: {
-  readonly run: Pick<ExperimentRunModel, 'result' | 'savedPath' | 'reasoningStages' | 'download'>;
+  readonly run: Pick<
+    ExperimentRunModel,
+    'result' | 'savedPath' | 'reasoningStages' | 'download' | 'failureReason'
+  >;
   readonly selected: number;
   readonly detail: string;
   readonly onDetail: (detail: string) => void;
@@ -36,6 +40,13 @@ export function ExperimentResultView(props: {
               ? 'Предварительный обзор · один прогон'
               : 'Описание трёх прогонов · статистическое превосходство не установлено'}
         </p>
+        <Show when={props.run.failureReason()}>
+          <FailureReason
+            label="Причина неполной серии"
+            reason={props.run.failureReason()}
+            retained="Сохранённые ответы и этапы доступны. Можно сохранить JSON или начать новый запуск."
+          />
+        </Show>
       </header>
       <div class={styles['experiment__resultBody']}>
         <div class={styles['experiment__resultHeading']}>

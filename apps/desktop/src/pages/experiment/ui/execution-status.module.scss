@@ -1,0 +1,43 @@
+.executionStatus {
+  padding: 12px 20px;
+  border-bottom: 2px solid #69628b;
+  font-size: var(--caption);
+  overflow-wrap: anywhere;
+
+  > strong {
+    color: var(--accent);
+  }
+
+  h2 {
+    font-family: var(--pixelFont);
+    font-size: clamp(12px, 1.7vw, 22px);
+    margin: 6px 0;
+    line-height: 1.6;
+  }
+
+  > p {
+    margin: 4px 0;
+  }
+
+  small {
+    font-size: inherit;
+    color: var(--muted);
+  }
+
+  &__blink {
+    color: var(--accent);
+    animation: blink 1s steps(2, start) infinite;
+  }
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .executionStatus__blink {
+    animation: none;
+  }
+}

@@ -71,12 +71,27 @@ export function TraceReader(props: { stages: StageTrace[]; running: boolean; per
                   <span>{traceMarker(item(), props.running)}</span>
                 </button>
                 <Show when={active() === id}>
-                  <p class={styles['experiment__reasoningNote']}>
-                    {item().trace.summary || (props.running ? 'Выполняется…' : 'Этап не завершён')}
-                    {item().trace.reasoningTruncated
-                      ? ' · Текст сокращён до лимита сохранения.'
-                      : ''}
-                  </p>
+                  <Show
+                    when={item().trace.summary.length > 200}
+                    fallback={
+                      <p class={styles['experiment__reasoningNote']}>
+                        {item().trace.summary ||
+                          (props.running ? 'Выполняется…' : 'Этап не завершён')}
+                      </p>
+                    }
+                  >
+                    <details>
+                      <summary>Сводка этапа — открыть целиком</summary>
+                      <div class={styles['experiment__traceSummaryReader']}>
+                        <PagedText text={item().trace.summary} />
+                      </div>
+                    </details>
+                  </Show>
+                  <Show when={item().trace.reasoningTruncated}>
+                    <p class={styles['experiment__reasoningNote']}>
+                      Текст reasoning сокращён до лимита сохранения.
+                    </p>
+                  </Show>
                   <PagedText text={text()} resetKey={id} onInteraction={() => setPinned(true)} />
                 </Show>
               </article>

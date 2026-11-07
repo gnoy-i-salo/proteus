@@ -1,0 +1,15 @@
+.failureReason {
+  min-width: 0;
+  font-size: var(--caption);
+
+  &__reader {
+    height: 82px;
+    min-width: 0;
+    color: #ffbdbe;
+  }
+
+  > p {
+    margin: 4px 0 0;
+    font-size: inherit;
+  }
+}

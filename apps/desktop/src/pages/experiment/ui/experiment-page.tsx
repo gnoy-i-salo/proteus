@@ -130,7 +130,7 @@ export function ExperimentPage() {
           </button>
         </div>
       </Show>
-      <Show when={error()}>
+      <Show when={error() && error() !== run.failureNotification()}>
         <div class={styles['experiment__error']} role="alert">
           <p>{error()}</p>
           <Show

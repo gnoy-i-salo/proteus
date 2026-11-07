@@ -427,34 +427,10 @@
     background: #282641e8;
   }
 
-  &__progressHeading {
-    padding: 28px 32px 20px;
-    border-bottom: 2px solid #69628b;
-  }
-
-  &__progressHeading > span,
   &__resultBanner > span {
     color: var(--accent);
     font-size: var(--caption);
     letter-spacing: 2px;
-  }
-
-  &__progressHeading h2 {
-    font-family: var(--pixelFont);
-    font-size: clamp(12px, 1.7vw, 22px);
-    line-height: 1.6;
-    margin: 16px 0;
-  }
-
-  &__progressHeading p {
-    margin: 0;
-    color: var(--muted);
-    font-size: var(--caption);
-  }
-
-  &__blink {
-    color: var(--accent);
-    animation: blink 1s steps(2, start) infinite;
   }
 
   &__traces {
@@ -657,6 +633,11 @@
     padding: 2px 10px;
   }
 
+  &__traceSummaryReader {
+    height: 100px;
+    min-height: 0;
+  }
+
   &__reasoningNote {
     font-size: var(--caption);
     color: var(--muted);
@@ -744,18 +725,6 @@
   }
 }
 
-@keyframes blink {
-  to {
-    visibility: hidden;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .experiment__blink {
-    animation: none;
-  }
-}
-
 @media (width <= 900px) {
   .experiment__start {
     padding-inline: 22px;
@@ -809,7 +778,6 @@
     font-size: var(--caption);
   }
 
-  .experiment__progressHeading,
   .experiment__resultBanner {
     padding: 18px;
   }
@@ -901,14 +869,6 @@
 
   .experiment__task {
     padding-block: 8px;
-  }
-
-  .experiment__progressHeading {
-    padding-block: 14px;
-  }
-
-  .experiment__progressHeading h2 {
-    margin-block: 10px;
   }
 
   .experiment__traces {

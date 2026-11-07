@@ -1,7 +1,12 @@
 import type * as SolidClient from 'solid-js';
 import { createRoot } from 'solid-js';
 import { expect, it, vi } from 'vitest';
-import type { ExperimentInput, ExperimentProtocol, SourceGrant } from '@proteus-int/contracts';
+import type {
+  ExperimentInput,
+  ExperimentProtocol,
+  SourceGrant,
+  StageLifecycle,
+} from '@proteus-int/contracts';
 import { createModelSettings } from '@proteus-int/intelligence';
 import type { StageTrace } from '@proteus-int/pipeline';
 import { createExperimentRun } from './experiment-run';
@@ -236,6 +241,13 @@ it('preserves progress, stage upserts and the current live reasoning merge', asy
         message: 'Person A',
       });
       options?.onTrace?.(stage);
+      options?.onExecution?.({
+        ...liveStage,
+        calls: [
+          { ...liveStage.calls[0]!, callId: 'first-call', status: 'failed', wallTimeMs: 10 },
+          ...liveStage.calls,
+        ],
+      });
       port.cliProviders.mock.calls[0]?.[0]({
         id: 'run-id',
         kind: 'reasoning',
@@ -304,5 +316,174 @@ it('returns from pending approval to editable input without continuing or presen
   expect(continued).not.toHaveBeenCalled();
   expect(fixture.model.running()).toBe(false);
   expect(fixture.reportError).toHaveBeenLastCalledWith('');
+  fixture.dispose();
+});
+
+it('ignores uncorrelated CLI reasoning instead of attaching it to the latest stage', async () => {
+  const fixture = setup((port) =>
+    port.runExperiment.mockImplementation((_input, _settings, _providers, options) => {
+      options?.onProgress?.({
+        id: stage.id,
+        stage: 'person',
+        person: 0,
+        completed: 2,
+        total: 13,
+        message: 'Person A',
+      });
+      options?.onTrace?.(stage);
+      port.cliProviders.mock.calls[0]?.[0]({
+        id: 'another-call',
+        kind: 'reasoning',
+        elapsedMs: 500,
+        reasoning: { id: 'late', kind: 'thinking', text: 'Wrong stage' },
+      });
+      return Promise.reject(new Error('synthetic end'));
+    }),
+  );
+  await fixture.model.start();
+  expect(fixture.model.reasoningStages()[0]?.trace.reasoning).toEqual([]);
+  fixture.dispose();
+});
+
+it('retains the CLI cancellation acknowledgement failure after user stop', async () => {
+  const pending = deferred<void>();
+  const fixture = setup((port) =>
+    port.runExperiment.mockImplementation(async () => {
+      await pending.promise;
+      throw new Error('Cancelled. Не удалось подтвердить остановку CLI.');
+    }),
+  );
+  const running = fixture.model.start();
+  fixture.model.stop();
+  pending.resolve();
+  await running;
+  expect(fixture.reportError).toHaveBeenLastCalledWith(
+    expect.stringContaining('Не удалось подтвердить остановку CLI.'),
+  );
+  fixture.dispose();
+});
+
+const liveStage: StageLifecycle = {
+  schemaVersion: 1,
+  runId: 'execution',
+  stageId: 'unique-stage',
+  logicalStageId: stage.id,
+  component: 'person',
+  person: 0,
+  label: stage.label,
+  status: 'running',
+  startedAt: '2026-11-07T00:00:00Z',
+  finishedAt: null,
+  error: null,
+  calls: [
+    {
+      callId: 'run-id',
+      operation: 'generation',
+      trigger: 'initial',
+      formatAttempt: 1,
+      status: 'running',
+      startedAt: '2026-11-07T00:00:00Z',
+      returnedAt: null,
+      finishedAt: null,
+      wallTimeMs: null,
+      error: null,
+      validationError: null,
+    },
+  ],
+};
+
+it('advances the host clock during silence, records real correlated events separately and freezes after failure', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'performance'] });
+  const pending = deferred<void>();
+  const fixture = setup((port) =>
+    port.runExperiment.mockImplementation(async (_input, _settings, _providers, options) => {
+      options?.onExecution?.(liveStage);
+      await pending.promise;
+      options?.onExecution?.({
+        ...liveStage,
+        status: 'failed',
+        error: 'source refused',
+        finishedAt: '2026-11-07T00:00:02Z',
+      });
+      options?.onExecution?.({
+        ...liveStage,
+        stageId: 'skipped-id',
+        logicalStageId: 'next',
+        status: 'skipped',
+        calls: [],
+      });
+      throw new Error('source refused');
+    }),
+  );
+  try {
+    const running = fixture.model.start();
+    expect(fixture.model).toHaveProperty('runStatus', expect.any(Function));
+    expect(fixture.model.runStatus()).toBe('running');
+    expect(fixture.model.activeStageId()).toBe(stage.id);
+    vi.advanceTimersByTime(2000);
+    expect(fixture.model.elapsedMs()).toBe(2000);
+    expect(fixture.model.lastCliEventAgeMs()).toBeNull();
+    fixture.port.cliProviders.mock.calls[0]?.[0]({ id: 'run-id', kind: 'started', elapsedMs: 25 });
+    vi.advanceTimersByTime(1000);
+    expect(fixture.model.elapsedMs()).toBe(3000);
+    expect(fixture.model.lastCliEventAgeMs()).toBe(1000);
+    pending.resolve();
+    await running;
+    expect(fixture.model.runStatus()).toBe('failed');
+    expect(fixture.model.activeStageId()).toBeUndefined();
+    expect(fixture.model.failedStageId()).toBe(stage.id);
+    expect(fixture.model.execution()).toHaveLength(2);
+    expect(fixture.model.failureReason()).toBe('source refused');
+    vi.advanceTimersByTime(1000);
+    expect(fixture.model.elapsedMs()).toBe(3000);
+  } finally {
+    fixture.dispose();
+    pending.resolve();
+    vi.useRealTimers();
+  }
+});
+
+it('exposes preparing and stopping while a source grant resumes before any CLI call', async () => {
+  const pending = deferred<void>();
+  const fixture = setup((port) => port.resumeSourceGrant.mockReturnValue(pending.promise));
+  fixture.setGrants([[grant], []]);
+  const running = fixture.model.start();
+  expect(fixture.model).toHaveProperty('runStatus', expect.any(Function));
+  expect(fixture.model.runStatus()).toBe('preparing');
+  expect(fixture.model.activeStageId()).toBeUndefined();
+  fixture.model.stop();
+  expect(fixture.model.runStatus()).toBe('stopping');
+  pending.resolve();
+  await running;
+  expect(fixture.model.runStatus()).toBe('cancelled');
+  expect(fixture.port.runExperiment).not.toHaveBeenCalled();
+  fixture.dispose();
+});
+
+it('keeps one owner for an active run and ignores a second start', async () => {
+  const pending = deferred<void>();
+  const fixture = setup((port) =>
+    port.runExperiment.mockImplementation(async () => {
+      await pending.promise;
+      throw new Error('synthetic end');
+    }),
+  );
+  const first = fixture.model.start();
+  const second = fixture.model.start();
+  expect(fixture.port.runExperiment).toHaveBeenCalledOnce();
+  pending.resolve();
+  await Promise.all([first, second]);
+  fixture.dispose();
+});
+
+it('cleans running state if the owner start callback fails', async () => {
+  const fixture = setup();
+  fixture.onStarted.mockImplementation(() => {
+    throw new Error('owner failed');
+  });
+  await expect(fixture.model.start()).resolves.toBeUndefined();
+  expect(fixture.model.running()).toBe(false);
+  expect(fixture.model.runStatus()).toBe('failed');
+  expect(fixture.reportError).toHaveBeenLastCalledWith('Error: owner failed');
   fixture.dispose();
 });

@@ -75,7 +75,7 @@ export function ExperimentWorkspace(props: {
             />
           }
         >
-          <ExperimentProgressView run={props.run} selected={props.selected} />
+          <ExperimentProgressView run={props.run} selected={props.selected} names={props.names} />
         </Show>
       </section>
     </div>

@@ -6,6 +6,7 @@ import type {
   SourceDocument,
   SourceGrant,
 } from '@proteus-int/contracts';
+import { decodeExecutionSnapshot } from '@proteus-int/contracts';
 import { createModelSettings } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { exportExperiment, runExperiment, validateExperiment } from '../index';
@@ -622,4 +623,23 @@ describe('controlled persona experiment', () => {
       }),
     ).toThrow();
   });
+});
+
+it('exports versioned lifecycle observations and rejects corrupted metadata', async () => {
+  const { adapters } = providers();
+  const result = await runExperiment(input, createModelSettings(), adapters);
+  const exported = JSON.parse(exportExperiment(result)) as Record<string, unknown>;
+  expect(decodeExecutionSnapshot(exported.execution)).toEqual(result.execution);
+  expect(result.execution?.stages).toHaveLength(13);
+  expect(result.execution?.stages.every((stage) => stage.status === 'completed')).toBe(true);
+  const legacy = { ...result };
+  delete legacy.execution;
+  expect(
+    decodeExecutionSnapshot(
+      (JSON.parse(exportExperiment(legacy)) as Record<string, unknown>).execution,
+    ),
+  ).toBeNull();
+  const corrupted = structuredClone(result);
+  Object.assign(corrupted.execution!, { schemaVersion: 99 });
+  expect(() => exportExperiment(corrupted)).toThrow(/execution metadata/u);
 });

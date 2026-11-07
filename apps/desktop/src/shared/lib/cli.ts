@@ -31,7 +31,8 @@ export function cliProviders(
     async run(request, signal) {
       if (!isDesktop()) throw new Error('Запуск CLI доступен в настольном приложении PROTEUS.');
       signal?.throwIfAborted();
-      const runId = crypto.randomUUID();
+      const { invocationId, ...nativeRequest } = request;
+      const runId = invocationId ?? crypto.randomUUID();
       const started = performance.now();
       let elapsed = 0;
       let returned: IntelligenceTrace | undefined;
@@ -106,7 +107,7 @@ export function cliProviders(
         signal?.throwIfAborted();
         const rawResult = await invoke<unknown>('run_cli', {
           request: encodeCliRequest({
-            ...request,
+            ...nativeRequest,
             id: runId,
             provider: id,
             model: request.model ?? '',

@@ -28,6 +28,7 @@ export async function structured<T = JsonObject>(
       signal,
     );
     signal?.throwIfAborted();
+    let value: T;
     try {
       const parsed: unknown = JSON.parse(
         result.answer
@@ -35,7 +36,7 @@ export async function structured<T = JsonObject>(
           .replace(/^```(?:json)?\s*/u, '')
           .replace(/\s*```$/u, ''),
       );
-      return { data: decode(object(parsed)), trace: result.trace };
+      value = decode(object(parsed));
     } catch (failure) {
       feedback =
         failure instanceof SyntaxError
@@ -43,7 +44,19 @@ export async function structured<T = JsonObject>(
           : failure instanceof Error
             ? failure.message
             : 'Invalid JSON fields';
+      provider.onValidation?.({
+        ...(result.invocationId ? { invocationId: result.invocationId } : {}),
+        status: 'rejected',
+        error: feedback,
+      });
+      continue;
     }
+    provider.onValidation?.({
+      ...(result.invocationId ? { invocationId: result.invocationId } : {}),
+      status: 'accepted',
+      error: null,
+    });
+    return { data: value, trace: result.trace };
   }
   throw new Error(
     `${stage}: модель дважды вернула неподходящий формат JSON (${feedback}). Попробуйте другую модель для этого этапа в настройках.`,

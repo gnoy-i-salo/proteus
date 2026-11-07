@@ -40,8 +40,11 @@ export async function runExperiment(
   );
   await reviewProtocol(protocol, options);
   const prepared = await preparePeople(input, sourceGrants, sourcePort, stage, options);
-  const { trials, status } = await runTrials(task, protocol, prepared, stage, options);
-  const result = buildExperimentResult(input, protocol, prepared, trials, status, execution.traces);
+  const { trials, status } = await runTrials(task, protocol, prepared, execution, options);
+  const result = {
+    ...buildExperimentResult(input, protocol, prepared, trials, status, execution.traces),
+    execution: execution.snapshot(),
+  };
   result.people.forEach((person) => options.onPerson?.(person));
   options.onProgress?.({
     id: 'complete',

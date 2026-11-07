@@ -1,4 +1,4 @@
-import type { IntelligenceTrace, InvocationAttempt } from '@proteus-int/contracts';
+import type { IntelligenceTrace, InvocationAttempt, StageLifecycle } from '@proteus-int/contracts';
 import type { ComponentId } from '@proteus-int/intelligence';
 
 export interface StageTrace {
@@ -8,6 +8,7 @@ export interface StageTrace {
   readonly label: string;
   readonly trace: IntelligenceTrace;
   readonly attempts: readonly InvocationAttempt[];
+  readonly lifecycle?: StageLifecycle;
 }
 export interface ProgressEvent {
   readonly id: string;
@@ -20,6 +21,7 @@ export interface ProgressEvent {
 }
 export interface StageCallbacks {
   readonly signal?: AbortSignal;
+  readonly onExecution?: (stage: StageLifecycle) => void;
   readonly onProgress?: (event: ProgressEvent) => void;
   readonly onTrace?: (trace: StageTrace) => void;
 }

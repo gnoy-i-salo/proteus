@@ -3,9 +3,11 @@ import type {
   IntelligenceResult,
   IntelligenceTrace,
   ProviderId,
+  InvocationValidation,
 } from '@proteus-int/contracts';
 export interface IntelligenceProvider {
   readonly id: ProviderId;
+  onValidation?(event: InvocationValidation): void;
   run(request: IntelligenceRequest, signal?: AbortSignal): Promise<IntelligenceResult>;
 }
 export class IntelligenceRunError extends Error {

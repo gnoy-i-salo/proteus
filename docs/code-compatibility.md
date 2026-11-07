@@ -168,3 +168,24 @@ Keychain service `dev.proteus-int.social` и имена `<provider>-config`, `<p
 - Новая запись готовится отдельно, проходит decode/roundtrip/count/hash/link verification, затем публикуется атомарно. При сбое остаётся оригинал и прежний active generation. Повтор миграции не дублирует документы. Restart читает только committed generation; temp/WAL остаются зашифрованными. Удалять прежние файлы до верификации запрещено.
 - Порядок: inventory → boundary fixtures/codecs → атомарный TS switch со всеми consumers → Rust serde/writers+frontend → пакетные extraction и UX/RAG интеграция. Общие файлы мигрируются один раз, без доменных double aliases, any или as unknown as.
 - Сначала fixture tests для legacy/new/collision/unknown/oversize/Unicode/opaque keys и crash recovery; затем consumer switch. Старые production parsers до switch работают как прежде. Synthetic fixture не использует реальные accounts или grants.
+
+## Lifecycle extension результата schemaVersion 4
+
+Новые результаты сохраняют optional `execution` с собственным `schemaVersion: 1`.
+Отсутствие extension у исторического результата означает неизвестные metadata,
+а не ноль повторов и не восстановленные задним числом timestamps. Decoder
+`decodeExecutionSnapshot` отвергает смешанные ключи, неизвестную версию, повторные
+IDs и некорректные состояния. Export проверяет extension перед записью.
+
+`runId` относится к эксперименту, `stageId` — к логическому этапу, `callId` —
+к одному обращению к модели. Отдельный `logicalStageId` сохраняет прежние ключи
+этапов. Host передаёт `callId` как native request `id`; поле `invocationId`
+не добавляется в Rust wire DTO. `formatRepair` отмечается только при второй
+попытке формата, обычные source-plan/chunk-analysis вызовы повторами не считаются.
+
+Состояния `running`, `validating`, `formatRetry`, `completed`, `failed`, `cancelled`
+и `skipped` описывают наблюдаемое выполнение. Метаданные этапа сохраняются и при
+ошибке до ответа CLI через callback `onExecution`; завершённый результат содержит
+снимок всех начатых и явно пропущенных этапов. Старые `attempts` и агрегированные
+traces сохранены для совместимости. Измеряется wall time; активное время
+рассуждений по-прежнему неизвестно. Ответы не превращаются в reasoning.

@@ -202,3 +202,27 @@ it('uses canonical native request keys and decodes the returned trace', async ()
   expect(result.trace).toMatchObject({ reasoningMs: 5, resolvedModel: null });
   expect(result.answer).toBe('Exact answer  \r\n👩🏽‍🔬');
 });
+
+it('uses the host invocation identity to correlate native progress without expanding native request fields', async () => {
+  const invocationId = 'c867090a-f7ea-4a1c-ad04-9a4a3920b077';
+  const seen: CliEvent[] = [];
+  native.invoke.mockImplementation(async () => {
+    native.receive?.({ payload: { id: invocationId, kind: 'answer', elapsedMs: 3 } });
+    return {
+      answer: 'Exact answer',
+      trace: { provider: 'codex', reasoningMs: 3, terminalMs: 0, summary: 'Done' },
+    };
+  });
+  const result = await cliProviders((event) => seen.push(event)).codex.run({
+    invocationId,
+    task: 'Task',
+    systemPrompt: 'PERSON',
+    effort: 'medium',
+  });
+  expect(native.invoke).toHaveBeenCalledWith('run_cli', {
+    request: expect.objectContaining({ id: invocationId }),
+  });
+  expect(native.invoke.mock.calls[0]?.[1].request).not.toHaveProperty('invocationId');
+  expect(result.answer).toBe('Exact answer');
+  expect(seen).toEqual([{ id: invocationId, kind: 'answer', elapsedMs: 3 }]);
+});

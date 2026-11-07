@@ -21,9 +21,21 @@ export function formatScore(score: Pick<ScoreSummary, 'interval' | 'point'> | un
   return formatInterval(score?.interval);
 }
 export function traceMarker(
-  stage: Pick<StageTrace, 'trace' | 'attempts'>,
+  stage: Pick<StageTrace, 'trace' | 'attempts' | 'lifecycle'>,
   running: boolean,
 ): string {
+  if (stage.lifecycle) {
+    const status = stage.lifecycle.status;
+    return status === 'completed'
+      ? '✓'
+      : status === 'failed'
+        ? '!'
+        : status === 'cancelled'
+          ? '×'
+          : status === 'skipped'
+            ? '—'
+            : '◇';
+  }
   const status = stage.attempts.at(-1)?.status;
   return status === 'accepted'
     ? '✓'
@@ -32,6 +44,16 @@ export function traceMarker(
       : status || running
         ? '◇'
         : '—';
+}
+export function formatRetryCount(
+  stages: readonly Pick<StageTrace, 'attempts' | 'lifecycle'>[],
+): number | null {
+  if (stages.some((stage) => !stage.lifecycle)) return null;
+  return stages.reduce(
+    (sum, stage) =>
+      sum + (stage.lifecycle?.calls.filter((call) => call.trigger === 'formatRepair').length ?? 0),
+    0,
+  );
 }
 const sourceLabels = {
   'evidence-informed': 'Профиль по заявленным источникам',
@@ -105,7 +127,7 @@ export function reportText(
   const score = person.score;
   const ownIndex = output.people.findIndex((item) => item.profile.id === person.profile.id);
   const ownTraces = output.traces.filter((trace) => trace.person === ownIndex);
-  const retries = ownTraces.reduce((sum, trace) => sum + Math.max(0, trace.attempts.length - 1), 0);
+  const retries = formatRetryCount(ownTraces);
   const required = { passed: 'выполнены', failed: 'не выполнены', unknown: 'не установлено' }[
     score.requiredStatus
   ];
@@ -126,7 +148,7 @@ export function reportText(
     `BSC v2: ${formatScore(score)} / 100.${score.point === null && score.interval ? ' Есть неопределённость или неполные прогоны.' : ''} Оценено ${score.evaluated} из ${score.planned} прогонов.\nРазброс: ${formatInterval(score.spread)}. Обязательные требования: ${required}.\nРасхождение оценок: ${score.judgeDisagreement ? 'есть' : 'нет'}. Это оценка выполнения критериев, не интеллекта.`,
     `${sourceLabel(person)}. ${person.profile.rules.flatMap((rule) => rule.limitations).join('; ') || 'Достоверность персональных черт не установлена.'}`,
     `НЕЙТРАЛЬНЫЙ КОНТРОЛЬ\nBSC v2: ${formatScore(output.control.score)} / 100. Оценено ${output.control.score.evaluated} из ${output.control.score.planned}.\nРазница с контролем: ${formatInterval(person.baselineDifference)} п.п. Разность не доказывает причинное влияние персоны.`,
-    `ВРЕМЯ И ПОВТОРЫ\nПодготовка профиля и стратегии: ${formatNumber(person.preparationWallTimeMs / 1000)} с.\nРешение: ${formatNumber(person.solutionWallTimeMs / 1000)} с; повторных запросов формата: ${retries}.\nВремя включает ожидание CLI/провайдера; активное время рассуждения не измерено. В BSC длительность не входит.`,
+    `ВРЕМЯ И ПОВТОРЫ\nПодготовка профиля и стратегии: ${formatNumber(person.preparationWallTimeMs / 1000)} с.\nРешение: ${formatNumber(person.solutionWallTimeMs / 1000)} с; повторных запросов формата: ${retries ?? 'неизвестно (старый формат)'}.\nВремя включает ожидание CLI/провайдера; активное время рассуждения не измерено. В BSC длительность не входит.`,
     'ОЦЕНКИ ПО КРИТЕРИЯМ\n' + assessments,
     'ОТВЕТЫ НЕЙТРАЛЬНОГО КОНТРОЛЯ\n' + answersText(output.control),
     protocolText(output.protocol),

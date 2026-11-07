@@ -1,6 +1,12 @@
 import { expect, it } from 'vitest';
 import type { ExperimentProtocol } from '@proteus-int/contracts';
-import { formatInterval, formatScore, protocolText, traceMarker } from './experiment-report';
+import {
+  formatInterval,
+  formatScore,
+  protocolText,
+  traceMarker,
+  formatRetryCount,
+} from './experiment-report';
 
 it('keeps a narrow uncertainty interval visible by rounding its limits outward', () => {
   expect(formatInterval({ lower: 0.01, upper: 0.04 })).toBe('0–0.1');
@@ -71,4 +77,54 @@ it('shows small positive criterion weights without rounding them to zero', () =>
     createdAt: '2026-11-06T00:00:00Z',
   };
   expect(protocolText(protocol)).toContain('Вес: 0.01;');
+});
+
+it('does not count ordinary model calls as retries and keeps historical counts unknown', () => {
+  const attempts = [1, 2, 3].map((index) => ({
+    index,
+    status: 'accepted' as const,
+    wallTimeMs: 1,
+    error: null,
+  }));
+  const lifecycle = {
+    schemaVersion: 1 as const,
+    runId: 'run',
+    stageId: 'stage',
+    logicalStageId: 'sources',
+    component: 'stalker',
+    person: 0,
+    label: 'Sources',
+    status: 'completed' as const,
+    startedAt: '2026-11-07T00:00:00.000Z',
+    finishedAt: '2026-11-07T00:00:01.000Z',
+    error: null,
+    calls: [1, 2, 3].map((index) => ({
+      callId: `call-${index}`,
+      operation: 'source-plan' as const,
+      trigger: 'initial' as const,
+      formatAttempt: 1 as const,
+      status: 'completed' as const,
+      startedAt: '2026-11-07T00:00:00.000Z',
+      returnedAt: '2026-11-07T00:00:01.000Z',
+      finishedAt: '2026-11-07T00:00:01.000Z',
+      wallTimeMs: 1,
+      error: null,
+      validationError: null,
+    })),
+  };
+  expect(formatRetryCount([{ attempts, lifecycle }])).toBe(0);
+  expect(formatRetryCount([{ attempts }])).toBeNull();
+  const repaired = {
+    ...lifecycle,
+    calls: [
+      ...lifecycle.calls,
+      {
+        ...lifecycle.calls[0]!,
+        callId: 'repair',
+        trigger: 'formatRepair' as const,
+        formatAttempt: 2 as const,
+      },
+    ],
+  };
+  expect(formatRetryCount([{ attempts, lifecycle: repaired }])).toBe(1);
 });

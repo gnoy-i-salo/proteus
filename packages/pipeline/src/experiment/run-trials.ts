@@ -2,7 +2,7 @@ import type { ExperimentProtocol } from '@proteus-int/contracts';
 import { personRuntime } from '@proteus-int/person';
 import { scoreTrial } from '@proteus-int/brain-scoring';
 import { evaluateAnswers } from '@proteus-int/brain-analyzator';
-import type { StageRunner } from '../execution/run-stage';
+import type { createStageRunner } from '../execution/run-stage';
 import type { PreparedPerson } from './prepare-people';
 import type { TrialResult, ExperimentResult } from './result';
 import type { RunOptions } from './run-options';
@@ -11,10 +11,11 @@ export async function runTrials(
   task: string,
   protocol: ExperimentProtocol,
   prepared: readonly PreparedPerson[],
-  stage: StageRunner,
+  execution: ReturnType<typeof createStageRunner>,
   options: Pick<RunOptions, 'signal'>,
 ) {
   const { repetitions, participantOrder: order } = protocol;
+  const stage = execution.runStage;
   const trials: TrialResult[] = order.flatMap((ids, round) =>
     ids.map((id) => ({
       id: `${round + 1}-${id}`,
@@ -66,7 +67,10 @@ export async function runTrials(
           const trial = trials.find(
             (item) => item.round === round && item.personId === evaluation.personId,
           )!;
-          replace({ ...trial, evaluations: [...trial.evaluations, evaluation] });
+          replace({
+            ...trial,
+            evaluations: [...trial.evaluations, evaluation],
+          });
         }
       }
       for (const trial of trials.filter((item) => item.round === round)) {
@@ -82,8 +86,28 @@ export async function runTrials(
     const message = failure instanceof Error ? failure.message : String(failure);
     if (activeTrial) replace({ ...activeTrial, status: 'failed', error: message });
     for (const trial of trials) {
-      if (trial.status === 'pending') replace({ ...trial, status: 'skipped', error: message });
-      else if (trial.status === 'answered') replace({ ...trial, error: message });
+      if (trial.status === 'pending') {
+        replace({ ...trial, status: 'skipped', error: message });
+        const index = prepared.findIndex((person) => person.profile.id === trial.personId);
+        execution.skipStage(
+          `solve-${trial.id}`,
+          'person',
+          index,
+          `Решение · прогон ${trial.round}`,
+          message,
+        );
+      } else if (trial.status === 'answered') replace({ ...trial, error: message });
+    }
+    for (let round = 1; round <= repetitions; round++) {
+      for (let pass = 0; pass < 2; pass++) {
+        execution.skipStage(
+          `judge-${round}-${pass}`,
+          'brain-analyzator',
+          null,
+          `Слепая оценка · прогон ${round} · порядок ${pass + 1}`,
+          message,
+        );
+      }
     }
   }
   return { trials, status };

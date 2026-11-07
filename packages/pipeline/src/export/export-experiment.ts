@@ -1,8 +1,10 @@
+import { decodeExecutionSnapshot } from '@proteus-int/contracts';
 import type { PersonProfile, StyleExemplar } from '@proteus-int/contracts';
 import { personaArtifacts } from '@proteus-int/person';
 import type { ExperimentPerson, ExperimentResult } from '../experiment/result';
 
 export function exportExperiment(result: ExperimentResult): string {
+  decodeExecutionSnapshot(result.execution);
   const privateSamples: StyleExemplar[] = [];
   const privateExcerpts: string[] = [];
   const connected = [...result.people, result.control].some(

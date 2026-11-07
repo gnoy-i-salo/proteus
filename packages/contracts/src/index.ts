@@ -126,3 +126,12 @@ export type {
   PersonaStyleProfile,
   PersonReply,
 } from './style';
+
+export type {
+  ExecutionStatus,
+  ModelCallLifecycle,
+  StageLifecycle,
+  ExecutionSnapshot,
+  InvocationValidation,
+} from './execution';
+export { decodeExecutionSnapshot } from './execution-metadata';

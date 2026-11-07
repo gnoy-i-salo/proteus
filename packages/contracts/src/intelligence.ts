@@ -5,6 +5,8 @@ export type IntelligenceEffort = 'low' | 'medium' | 'high';
 export type IntelligenceOperation =
   'generation' | 'public-research' | 'source-plan' | 'corpus-analysis' | 'persona-reply';
 export interface IntelligenceRequest {
+  /** Host-assigned invocation identity; adapters use it for stream correlation. */
+  readonly invocationId?: string;
   readonly sourceContext?: boolean;
   readonly task: string;
   readonly systemPrompt: string;
@@ -36,6 +38,7 @@ export interface IntelligenceTrace {
   readonly reasoningTruncated?: boolean;
 }
 export interface IntelligenceResult {
+  readonly invocationId?: string;
   readonly answer: string;
   readonly trace: IntelligenceTrace;
   readonly reply?: PersonReply;

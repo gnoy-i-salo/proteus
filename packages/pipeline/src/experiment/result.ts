@@ -1,6 +1,7 @@
 import type {
   AnswerEvaluation,
   ExperimentInput,
+  ExecutionSnapshot,
   ExperimentProtocol,
   IntelligenceResult,
   PersonProfile,
@@ -39,6 +40,8 @@ export interface ExperimentPerson {
 }
 export interface ExperimentResult {
   readonly schemaVersion: 4;
+  /** Absent for historical schema4 results without lifecycle observations. */
+  readonly execution?: ExecutionSnapshot;
   readonly scoringVersion: 2;
   readonly status: 'complete' | 'incomplete' | 'cancelled';
   readonly input: ExperimentInput;

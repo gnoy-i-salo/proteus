@@ -2,6 +2,8 @@
 //! or IPC commands. Sources rechecks current permissions before exposing content.
 #[path = "corpus-crypto.rs"]
 mod crypto;
+#[path = "corpus-episodes.rs"]
+pub mod episodes;
 #[path = "corpus-migrations.rs"]
 mod migrations;
 #[path = "source-provenance.rs"]

@@ -220,7 +220,7 @@ async function nativeFixture(
   );
 }
 async function confirmProtocol(page: Page) {
-  await page.getByRole('button', { name: 'Принять протокол', exact: true }).click();
+  await page.getByRole('button', { name: 'Подтвердить и продолжить', exact: true }).click();
 }
 
 test('persona replies preserve separate messages and render markup as plain text', async ({
@@ -291,7 +291,9 @@ test('rubric review freezes the protocol before sources and answers are requeste
   await page.setViewportSize({ width: 640, height: 600 });
   await nativeFixture(page);
   await fillExperiment(page, false);
-  await expect(page.getByRole('button', { name: 'Принять протокол', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Подтвердить и продолжить', exact: true }),
+  ).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as NativeFixtureWindow).stageCalls)).toEqual([
     'BRAIN_ANALYZATOR_RUBRIC',
   ]);
@@ -303,9 +305,12 @@ test('rubric review freezes the protocol before sources and answers are requeste
 test('cancelling protocol review prevents all profile and answer requests', async ({ page }) => {
   await nativeFixture(page);
   await fillExperiment(page, false);
-  await expect(page.getByRole('button', { name: 'Принять протокол', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Остановить', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('остановлен');
+  await expect(
+    page.getByRole('button', { name: 'Подтвердить и продолжить', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Вернуться к задаче', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Общая задача', exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as NativeFixtureWindow).stageCalls)).toEqual([
     'BRAIN_ANALYZATOR_RUBRIC',
   ]);

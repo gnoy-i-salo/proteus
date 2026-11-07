@@ -66,6 +66,7 @@ export function createExperimentRun(
       return index < 0 ? [...items, next] : items.map((item, i) => (i === index ? next : item));
     });
   let controller: AbortController | undefined;
+  let returningToInput = false;
   onMount(() => {
     void port
       .cliStatus()
@@ -128,6 +129,7 @@ export function createExperimentRun(
       options.reportError(String(failure));
       return;
     }
+    returningToInput = false;
     controller = new AbortController();
     setRunning(true);
     setEvents([]);
@@ -231,16 +233,24 @@ export function createExperimentRun(
         options.reportError('Результат готов, но не удалось сохранить его на диск. Скачайте JSON.');
       }
     } catch (failure) {
-      setActivity(controller.signal.aborted ? 'Эксперимент остановлен' : 'Ошибка этапа');
-      options.reportError(
-        controller.signal.aborted
-          ? 'Эксперимент остановлен. Можно вернуться к вводу и запустить заново.'
-          : String(failure),
-      );
+      if (!returningToInput) {
+        setActivity(controller.signal.aborted ? 'Эксперимент остановлен' : 'Ошибка этапа');
+        options.reportError(
+          controller.signal.aborted
+            ? 'Эксперимент остановлен. Можно вернуться к вводу и запустить заново.'
+            : String(failure),
+        );
+      }
     } finally {
       setRunning(false);
       acceptProtocol = undefined;
       setPendingProtocol(undefined);
+      if (returningToInput) {
+        setScreen('start');
+        setActivity('Ожидаем запуск');
+        options.reportError('');
+        returningToInput = false;
+      }
     }
   };
   const progress = () => events().at(-1)?.completed ?? 0;
@@ -267,6 +277,11 @@ export function createExperimentRun(
     start,
     stop,
     approveProtocol: () => acceptProtocol?.(),
+    returnToInput: () => {
+      if (!pendingProtocol()) return;
+      returningToInput = true;
+      controller?.abort();
+    },
     download: () =>
       port.downloadFile(exportExperiment(result()!), 'application/json', 'proteus-experiment.json'),
   };

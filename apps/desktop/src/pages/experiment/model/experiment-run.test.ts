@@ -283,3 +283,26 @@ it('blocks a known missing selected CLI before starting any pipeline work', asyn
   expect(fixture.model.screen()).toBe('start');
   fixture.dispose();
 });
+
+it('returns from pending approval to editable input without continuing or presenting cancellation as failure', async () => {
+  const continued = vi.fn();
+  const fixture = setup((port) =>
+    port.runExperiment.mockImplementation(async (_input, _settings, _providers, options) => {
+      await options?.onProtocol?.(protocol);
+      continued();
+      throw new Error('synthetic end');
+    }),
+  );
+  const running = fixture.model.start();
+  await tick();
+  expect(fixture.model.pendingProtocol()).toBe(protocol);
+  fixture.model.returnToInput();
+  await tick();
+  expect(fixture.model.screen()).toBe('start');
+  expect(fixture.model.pendingProtocol()).toBeUndefined();
+  await running;
+  expect(continued).not.toHaveBeenCalled();
+  expect(fixture.model.running()).toBe(false);
+  expect(fixture.reportError).toHaveBeenLastCalledWith('');
+  fixture.dispose();
+});

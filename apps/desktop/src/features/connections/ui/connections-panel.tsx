@@ -11,6 +11,7 @@ import {
   stateLabels,
   capabilityLabels,
 } from '../model/connection-labels';
+import { formText } from '../../../shared/lib/form-fields';
 import styles from './connections-panel.module.scss';
 
 export function ConnectionsPanel(props: {
@@ -41,6 +42,19 @@ export function ConnectionsPanel(props: {
     });
   const challenge = () => challenges[current().status];
   const configurationVisible = () => editing() || current().status === 'unconfigured';
+
+  const runAction = (task: Promise<void>): void => {
+    void task.catch(() => activity.fail('Не удалось завершить действие. Попробуйте ещё раз.'));
+  };
+  const canStartBrowserLogin = () =>
+    !configurationVisible() &&
+    selected() !== 'instagram' &&
+    selected() !== 'telegram' &&
+    (current().status === 'disconnected' || current().status === 'error');
+  const canStartTelegramLogin = () =>
+    selected() === 'telegram' &&
+    !configurationVisible() &&
+    (current().status === 'disconnected' || current().status === 'error');
 
   return (
     <section class={styles['connectionsPanel']} aria-label="Подключения источников">
@@ -120,24 +134,17 @@ export function ConnectionsPanel(props: {
                     status={current()}
                     busy={busy()}
                     onSubmit={(request) => {
-                      void configure(request);
+                      runAction(configure(request));
                     }}
                   />
                 )}
               </Show>
             </Show>
-            <Show
-              when={
-                !configurationVisible() &&
-                selected() !== 'instagram' &&
-                selected() !== 'telegram' &&
-                (current().status === 'disconnected' || current().status === 'error')
-              }
-            >
+            <Show when={canStartBrowserLogin()}>
               <button
                 disabled={busy()}
                 onClick={() => {
-                  void begin();
+                  runAction(begin());
                 }}
               >
                 {selected() === 'vk'
@@ -145,18 +152,12 @@ export function ConnectionsPanel(props: {
                   : `Подключить ${names[selected()]}`}
               </button>
             </Show>
-            <Show
-              when={
-                selected() === 'telegram' &&
-                !configurationVisible() &&
-                (current().status === 'disconnected' || current().status === 'error')
-              }
-            >
+            <Show when={canStartTelegramLogin()}>
               <div class={styles['connectionsPanel__actions']}>
-                <button disabled={busy()} onClick={() => void begin('qr')}>
+                <button disabled={busy()} onClick={() => runAction(begin('qr'))}>
                   Войти по QR-коду
                 </button>
-                <button disabled={busy()} onClick={() => void begin('phone')}>
+                <button disabled={busy()} onClick={() => runAction(begin('phone'))}>
                   Войти по номеру телефона
                 </button>
               </div>
@@ -178,7 +179,7 @@ export function ConnectionsPanel(props: {
                     В Telegram на телефоне откройте Настройки → Устройства → Подключить устройство.
                   </p>
                   <p>QR-код обновляется автоматически.</p>
-                  <button disabled={busy()} onClick={() => void begin('phone')}>
+                  <button disabled={busy()} onClick={() => runAction(begin('phone'))}>
                     Отменить вход по QR и войти по номеру
                   </button>
                   <p>Текущая попытка входа будет отменена.</p>
@@ -192,9 +193,9 @@ export function ConnectionsPanel(props: {
                   autocomplete="off"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    const input = String(new FormData(event.currentTarget).get('challenge') ?? '');
+                    const input = formText(new FormData(event.currentTarget), 'challenge');
                     event.currentTarget.reset();
-                    void advance(input);
+                    runAction(advance(input));
                   }}
                 >
                   <label>
@@ -231,14 +232,14 @@ export function ConnectionsPanel(props: {
                 аккаунта.
               </p>
               <Show when={selected() === 'vk'}>
-                <button disabled={busy()} onClick={() => void openPage('vk-auth')}>
+                <button disabled={busy()} onClick={() => runAction(openPage('vk-auth'))}>
                   Открыть браузер ещё раз
                 </button>
               </Show>
               <button
                 disabled={busy()}
                 onClick={() => {
-                  void advance();
+                  runAction(advance());
                 }}
               >
                 Проверить подключение
@@ -278,7 +279,7 @@ export function ConnectionsPanel(props: {
                 <button
                   disabled={busy()}
                   onClick={() => {
-                    void disconnect();
+                    runAction(disconnect());
                   }}
                 >
                   {current().status === 'connected'
@@ -289,7 +290,7 @@ export function ConnectionsPanel(props: {
             </div>
           </Show>
           <Show when={selected() === 'instagram' && instagramMode() === 'archive'}>
-            <button disabled={busy()} onClick={() => void openPage('instagram-export')}>
+            <button disabled={busy()} onClick={() => runAction(openPage('instagram-export'))}>
               Открыть экспорт Instagram
             </button>
             <p class={styles['connectionsPanel__note']}>
@@ -301,7 +302,7 @@ export function ConnectionsPanel(props: {
             <button
               disabled={busy()}
               onClick={() => {
-                void pickImport();
+                runAction(pickImport());
               }}
             >
               Импортировать JSON или текст
@@ -321,7 +322,7 @@ export function ConnectionsPanel(props: {
                 {selected() === 'telegram' ? ' Кэш Telegram не входит в материалы STALKER.' : ''}
               </p>
             </Show>
-            <button type="button" disabled={busy()} onClick={() => void clearData()}>
+            <button type="button" disabled={busy()} onClick={() => runAction(clearData())}>
               {clearConfirm()
                 ? `Подтвердить удаление материалов ${names[selected()]}`
                 : 'Удалить материалы STALKER'}

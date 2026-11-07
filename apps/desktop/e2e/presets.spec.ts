@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-const preset = JSON.stringify({
+const presetData = {
   format: 'proteus-personas',
   version: 1,
   task: 'Общая задача',
@@ -7,7 +7,8 @@ const preset = JSON.stringify({
     { label: 'Анна', context: 'Точный контекст', 'public-urls': ['https://example.org/a'] },
     { label: 'Борис', context: 'Импровизация', 'public-urls': [] },
   ],
-});
+};
+const preset = JSON.stringify(presetData);
 const expectedPreset = {
   format: 'proteus-personas',
   version: 2,
@@ -27,21 +28,21 @@ for (const mode of ['import', 'system'] as const) {
         Reflect.set(window, '__TAURI_EVENT_PLUGIN_INTERNALS__', { unregisterListener() {} });
         Reflect.set(window, '__TAURI_INTERNALS__', {
           transformCallback: () => 1,
-          async invoke(command: string, args: { data?: string }) {
+          invoke(command: string, args: { data?: string }) {
             if (command === 'cli_status')
-              return [
+              return Promise.resolve([
                 { provider: 'codex', available: false, path: null },
                 { provider: 'kimi', available: false, path: null },
-              ];
+              ]);
             if (command === 'take_pending_presets')
-              return mode === 'system' ? [{ Ok: preset }] : [];
-            if (command === 'import_preset') return preset;
+              return Promise.resolve(mode === 'system' ? [{ Ok: preset }] : []);
+            if (command === 'import_preset') return Promise.resolve(preset);
             if (command === 'export_preset') {
               Reflect.set(window, 'exportedPreset', args.data);
-              return '/tmp/personas.proteus';
+              return Promise.resolve('/tmp/personas.proteus');
             }
-            if (command === 'run_cli') throw new Error('Must not start CLI');
-            return 1;
+            if (command === 'run_cli') return Promise.reject(new Error('Must not start CLI'));
+            return Promise.resolve(1);
           },
         });
       },
@@ -57,9 +58,9 @@ for (const mode of ['import', 'system'] as const) {
     await expect(page.getByLabel('Контекст B', { exact: true })).toHaveValue('Импровизация');
     await expect(page.getByLabel('Общая задача', { exact: true })).toHaveValue('Общая задача');
     await page.getByRole('button', { name: 'Экспорт .proteus', exact: true }).click();
-    expect(JSON.parse(await page.evaluate(() => Reflect.get(window, 'exportedPreset')))).toEqual(
-      expectedPreset,
-    );
+    expect(
+      JSON.parse(await page.evaluate(() => Reflect.get(window, 'exportedPreset') as string)),
+    ).toEqual(expectedPreset);
     await expect(page.getByRole('button', { name: 'Начать эксперимент' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -81,8 +82,8 @@ test('invalid browser import preserves the existing form', async ({ page }) => {
 test('long Unicode presets survive import, resize and export without changing their text', async ({
   page,
 }) => {
-  const data = JSON.parse(preset);
-  data.people[0].context = 'Точный  текст ✨\n'.repeat(100);
+  const data = structuredClone(presetData);
+  data.people[0]!.context = 'Точный  текст ✨\n'.repeat(100);
   data.task = 'Задача с пробелами  и переносами.\n'.repeat(50);
   await page.goto('/');
   await page.getByLabel('Файл пресета').setInputFiles({
@@ -98,12 +99,15 @@ test('long Unicode presets survive import, resize and export without changing th
   expect(file.suggestedFilename()).toBe('personas.proteus');
   const stream = await file.createReadStream();
   const chunks: Buffer[] = [];
-  for await (const chunk of stream!) chunks.push(chunk);
+  for await (const chunk of stream) {
+    if (!Buffer.isBuffer(chunk)) throw new Error('Expected a binary download chunk');
+    chunks.push(chunk);
+  }
   expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual({
     ...expectedPreset,
     task: data.task,
     people: [
-      { ...expectedPreset.people[0], context: data.people[0].context },
+      { ...expectedPreset.people[0], context: data.people[0]!.context },
       expectedPreset.people[1],
     ],
   });

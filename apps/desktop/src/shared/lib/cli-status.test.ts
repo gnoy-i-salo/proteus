@@ -46,7 +46,7 @@ it.each([
   const data = { arbitrary: { 'source-url': ' exact\r\n' } };
   expect(await saveExperiment(data)).toBe(path);
   expect(native.invoke).toHaveBeenCalledWith('save_experiment', {
-    id: expect.any(String),
+    id: expect.any(String) as unknown,
     data: JSON.stringify(data),
   });
 });

@@ -18,7 +18,7 @@ const symbols: Record<WindowAction, string> = {
 };
 
 export function TitleBar() {
-  const { error, busy, act } = createWindowControlModel();
+  const { error, busy, act, reportError } = createWindowControlModel();
   const platform = windowPlatform();
   return (
     <header class={styles['titleBar']} data-platform={platform}>
@@ -37,7 +37,7 @@ export function TitleBar() {
                 aria-label={labels[action]}
                 data-action={action}
                 disabled={busy()}
-                onClick={() => void act(action)}
+                onClick={() => void act(action).catch(reportError)}
               >
                 <span aria-hidden="true">{symbols[action]}</span>
               </button>

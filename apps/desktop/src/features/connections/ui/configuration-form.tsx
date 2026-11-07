@@ -1,6 +1,7 @@
 import { Show, untrack } from 'solid-js';
 import type { ConnectionConfig, ConnectionStatus, SourceProvider } from '@proteus-int/contracts';
 import { names } from '../model/connection-labels';
+import { formText } from '../../../shared/lib/form-fields';
 import styles from './connections-panel.module.scss';
 
 export function ConfigurationForm(props: {
@@ -22,12 +23,12 @@ export function ConfigurationForm(props: {
           provider === 'telegram'
             ? {
                 provider,
-                apiId: Number(fields.get('api-id')),
-                apiHash: String(fields.get('api-hash') ?? ''),
+                apiId: Number(formText(fields, 'api-id')),
+                apiHash: formText(fields, 'api-hash'),
               }
             : provider === 'instagram'
-              ? { provider, token: String(fields.get('token') ?? '') }
-              : { provider, clientId: String(fields.get('client-id') ?? '').trim() };
+              ? { provider, token: formText(fields, 'token') }
+              : { provider, clientId: formText(fields, 'client-id').trim() };
         form.reset();
         props.onSubmit(request);
       }}

@@ -1,4 +1,8 @@
 import { expect, test } from '@playwright/test';
+interface NativeFixtureWindow {
+  readonly windowCalls: readonly { command: string; args: Record<string, unknown> }[];
+  readonly windowFailure?: boolean;
+}
 
 for (const platform of ['MacIntel', 'Win32', 'Linux x86_64']) {
   test(`pixel window controls preserve ${platform} semantics and geometry`, async ({ page }) => {
@@ -12,20 +16,21 @@ for (const platform of ['MacIntel', 'Win32', 'Linux x86_64']) {
       Reflect.set(window, '__TAURI_INTERNALS__', {
         metadata: { currentWindow: { label: 'main' } },
         transformCallback: () => 1,
-        async invoke(command: string, args: Record<string, unknown> = {}) {
+        invoke(command: string, args: Record<string, unknown> = {}) {
           if (command.startsWith('plugin:window|')) {
             calls.push({ command, args });
-            if (Reflect.get(window, 'windowFailure')) throw new Error('Native failure');
+            if ((window as unknown as NativeFixtureWindow).windowFailure)
+              return Promise.reject(new Error('Native failure'));
           }
-          if (command === 'plugin:window|is_fullscreen') return fullscreen;
+          if (command === 'plugin:window|is_fullscreen') return Promise.resolve(fullscreen);
           if (command === 'plugin:window|set_fullscreen') fullscreen = args.value === true;
           if (command === 'cli_status')
-            return [
+            return Promise.resolve([
               { provider: 'codex', available: false, path: null },
               { provider: 'kimi', available: false, path: null },
-            ];
-          if (command === 'take_pending_presets') return [];
-          return 1;
+            ]);
+          if (command === 'take_pending_presets') return Promise.resolve([]);
+          return Promise.resolve(1);
         },
       });
     }, platform);
@@ -56,16 +61,18 @@ for (const platform of ['MacIntel', 'Win32', 'Linux x86_64']) {
       await toggle.click();
       expect(
         await page.evaluate(() =>
-          Reflect.get(window, 'windowCalls')
+          (window as unknown as NativeFixtureWindow).windowCalls
             .filter((call: { command: string }) => call.command === 'plugin:window|set_fullscreen')
-            .map((call: { args: { value: boolean } }) => call.args.value),
+            .map((call) => call.args.value),
         ),
       ).toEqual([true, false]);
     } else {
       await page.getByRole('button', { name: 'Развернуть или восстановить окно' }).click();
-      expect(await page.evaluate(() => Reflect.get(window, 'windowCalls').at(-1).command)).toBe(
-        'plugin:window|toggle_maximize',
-      );
+      expect(
+        await page.evaluate(
+          () => (window as unknown as NativeFixtureWindow).windowCalls.at(-1)!.command,
+        ),
+      ).toBe('plugin:window|toggle_maximize');
     }
     const mainBefore = await page.getByRole('main').boundingBox();
     await page.evaluate(() => Reflect.set(window, 'windowFailure', true));

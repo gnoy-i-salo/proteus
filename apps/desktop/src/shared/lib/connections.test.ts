@@ -6,7 +6,10 @@ import {
   importSource,
   nativeSourcePort,
 } from './connections';
-const native = vi.hoisted(() => ({ invoke: vi.fn() }));
+const native = vi.hoisted(() => ({
+  invoke:
+    vi.fn<(command: string, args: { request?: Record<string, unknown> }) => Promise<unknown>>(),
+}));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: native.invoke }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 vi.mock('./window-controls', () => ({ isDesktop: () => true }));
@@ -80,13 +83,15 @@ it('roundtrips issued grants without turning model refusal into consent', async 
     operations: ['read' as const],
     budget: { maxSteps: 2, maxDocuments: 3, maxBytes: 1024, maxDurationMs: 1000 },
   };
-  native.invoke.mockImplementation(async (_command, args) => ({
-    ...args.request,
-    id: 'grant-id',
-    accountId: 'account-id',
-    snapshotId: 'snapshot-id',
-    expiresAt: 'old-date',
-  }));
+  native.invoke.mockImplementation((_command, args) =>
+    Promise.resolve({
+      ...args.request,
+      id: 'grant-id',
+      accountId: 'account-id',
+      snapshotId: 'snapshot-id',
+      expiresAt: 'old-date',
+    }),
+  );
   expect(await createSourceGrant(request)).toEqual({
     ...request,
     id: 'grant-id',
@@ -115,10 +120,10 @@ it('preserves cancelled imports and rejects malformed status lists', async () =>
 });
 it('does not accept results when cancellation arrives after native action returns', async () => {
   const controller = new AbortController();
-  native.invoke.mockImplementation(async (command) => {
-    if (command === 'cancel_source') return;
+  native.invoke.mockImplementation((command) => {
+    if (command === 'cancel_source') return Promise.resolve();
     controller.abort();
-    return wireResult;
+    return Promise.resolve(wireResult);
   });
   await expect(
     nativeSourcePort.execute('grant-id', { action: 'coverage' }, controller.signal),

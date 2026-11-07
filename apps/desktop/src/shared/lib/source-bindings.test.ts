@@ -223,9 +223,9 @@ describe('native source bindings', () => {
   });
   it('suppresses a late response after cancellation without claiming native cancellation', async () => {
     const controller = new AbortController();
-    native.invoke.mockImplementation(async () => {
+    native.invoke.mockImplementation(() => {
       controller.abort();
-      return fixture.result;
+      return Promise.resolve(fixture.result);
     });
     await expect(sourceBindingAction('binding-id', action, controller.signal)).rejects.toThrow();
     expect(native.invoke).toHaveBeenCalledOnce();

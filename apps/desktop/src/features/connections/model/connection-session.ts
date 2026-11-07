@@ -142,12 +142,21 @@ export function createConnectionSession(
     }
   };
   onMount(() => {
-    void refresh();
+    void refresh().catch(() => {
+      if (!disposed) setPollError('Не удалось получить состояние подключений. Попробуйте ещё раз.');
+    });
     const timer = window.setInterval(() => {
       if (!desktop || busy()) return;
       if (selected() === 'github' && current().status === 'pending' && Date.now() >= nextPoll)
-        void perform(() => port.advanceConnection('github'));
-      else void refresh();
+        void perform(() => port.advanceConnection('github')).catch(() => {
+          if (!disposed)
+            setError('Не удалось выполнить подключение. Проверьте данные и повторите попытку.');
+        });
+      else
+        void refresh().catch(() => {
+          if (!disposed)
+            setPollError('Не удалось получить состояние подключений. Попробуйте ещё раз.');
+        });
     }, 1500);
     onCleanup(() => {
       disposed = true;

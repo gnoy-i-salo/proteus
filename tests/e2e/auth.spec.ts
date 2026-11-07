@@ -12,6 +12,7 @@ const validQuery = new URLSearchParams({
 
 test('valid callback returns a fixed native handoff after clearing the browser URL', async ({
   page,
+  baseURL,
 }) => {
   const requests: { url: string; type: string; referrer: string | undefined }[] = [];
   page.on('request', (request) =>
@@ -42,7 +43,7 @@ test('valid callback returns a fixed native handoff after clearing the browser U
   await page.evaluate(() => document.fonts.ready);
   for (const request of requests) {
     const url = new URL(request.url);
-    expect(url.origin).toBe('http://127.0.0.1:1421');
+    expect(url.origin).toBe(new URL(baseURL!).origin);
     expect(url.pathname.startsWith(callbackPath)).toBe(true);
     if (request.referrer) {
       // Fonts may refer to their public stylesheet even when the document sends no referrer.
@@ -140,7 +141,7 @@ for (const [error, expectedError] of [
       state: syntheticState,
     });
     await expect(page.locator('body')).not.toContainText('untrusted-provider-description');
-    expect(await page.evaluate(() => Reflect.get(window, 'injected'))).toBeUndefined();
+    expect(await page.evaluate(() => Reflect.get(window, 'injected') as unknown)).toBeUndefined();
   });
 }
 

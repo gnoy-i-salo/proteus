@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { isDesktop } from './window-controls';
+import { downloadFile } from './download-file';
 
 export type PresetFileErrorCode = 'nativeUnavailable' | 'nativeFailure' | 'invalidResponse';
 export class PresetFileError extends Error {
@@ -65,12 +66,7 @@ export async function exportPreset(data: string): Promise<void> {
     }
     return;
   }
-  const url = URL.createObjectURL(new Blob([data], { type: 'application/x-proteus' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'personas.proteus';
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadFile(data, 'application/x-proteus', 'personas.proteus');
 }
 export async function listenPresets(
   receive: (data: string) => void,

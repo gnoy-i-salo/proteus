@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CliEvent } from './cli';
+import type { CliWireRequest } from './cli-wire-codec';
 import { cliProviders } from './cli';
 
 const native = vi.hoisted(() => ({
-  invoke: vi.fn(),
-  listen: vi.fn(),
+  invoke:
+    vi.fn<(command: string, args: { request?: CliWireRequest; id?: string }) => Promise<unknown>>(),
+  listen:
+    vi.fn<(name: string, receive: (event: { payload: unknown }) => void) => Promise<() => void>>(),
   unlisten: vi.fn(),
   receive: undefined as ((event: { payload: unknown }) => void) | undefined,
 }));
@@ -14,24 +17,24 @@ vi.mock('./window-controls', () => ({ isDesktop: () => true }));
 
 beforeEach(() => {
   native.receive = undefined;
-  native.listen.mockImplementation(async (_name, receive) => {
+  native.listen.mockImplementation((_name, receive) => {
     native.receive = receive;
-    return native.unlisten;
+    return Promise.resolve(native.unlisten);
   });
 });
 
 describe('failed native calls retain public traces', () => {
   it('bounds partial UTF-8 text without splitting a character', async () => {
-    native.invoke.mockImplementation(async (_command, args) => {
+    native.invoke.mockImplementation((_command, args) => {
       native.receive?.({
         payload: {
-          id: args.request.id,
+          id: args.request!.id,
           kind: 'reasoning',
           elapsedMs: 30,
           reasoning: { id: 'r', kind: 'thinking', text: 'я'.repeat(30000) },
         },
       });
-      throw new Error('Stopped');
+      return Promise.reject(new Error('Stopped'));
     });
     const failure = await cliProviders(() => {})
       .kimi.run({
@@ -50,9 +53,9 @@ describe('failed native calls retain public traces', () => {
   it('keeps latest public snapshots and elapsed time when cancellation rejects the CLI call', async () => {
     const controller = new AbortController();
     const seen: CliEvent[] = [];
-    native.invoke.mockImplementation(async (command, args) => {
-      if (command === 'cancel_cli') return;
-      const id = args.request.id as string;
+    native.invoke.mockImplementation((command, args) => {
+      if (command === 'cancel_cli') return Promise.resolve();
+      const id = args.request!.id;
       for (const [elapsed, text] of [
         [100, 'First summary'],
         [150, 'Updated public summary'],
@@ -74,7 +77,7 @@ describe('failed native calls retain public traces', () => {
         },
       });
       controller.abort();
-      throw new Error('CLI cancelled');
+      return Promise.reject(new Error('CLI cancelled'));
     });
     const failure = await cliProviders((event) => seen.push(event))
       .codex.run(
@@ -109,10 +112,10 @@ describe('failed native calls retain public traces', () => {
 
   it('does not replace a completed public trace with an empty one when abort arrives after the native answer', async () => {
     const controller = new AbortController();
-    native.invoke.mockImplementation(async (command) => {
-      if (command === 'cancel_cli') return;
+    native.invoke.mockImplementation((command) => {
+      if (command === 'cancel_cli') return Promise.resolve();
       controller.abort();
-      return {
+      return Promise.resolve({
         answer: 'Not accepted after cancellation',
         trace: {
           provider: 'kimi',
@@ -122,7 +125,7 @@ describe('failed native calls retain public traces', () => {
           summary: 'Returned',
           reasoning: [{ id: 'thinking', kind: 'thinking', text: 'Public thought' }],
         },
-      };
+      });
     });
     const failure = await cliProviders(() => {})
       .kimi.run(
@@ -145,12 +148,12 @@ describe('failed native calls retain public traces', () => {
 
 it('rejects malformed matching-run events without throwing from the subscription callback', async () => {
   let callbackFailure: unknown;
-  native.invoke.mockImplementation(async (command, args) => {
-    if (command === 'cancel_cli') return;
+  native.invoke.mockImplementation((command, args) => {
+    if (command === 'cancel_cli') return Promise.resolve();
     try {
       native.receive?.({
         payload: {
-          id: args.request.id,
+          id: args.request!.id,
           kind: 'reasoning',
           elapsedMs: 1,
           reasoning: { id: 'r', kind: 'answer', text: 'Must not be promoted to reasoning' },
@@ -159,10 +162,10 @@ it('rejects malformed matching-run events without throwing from the subscription
     } catch (error) {
       callbackFailure = error;
     }
-    return {
+    return Promise.resolve({
       answer: 'Answer',
       trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: 'Done' },
-    };
+    });
   });
   const seen: CliEvent[] = [];
   await expect(
@@ -196,7 +199,7 @@ it('uses canonical native request keys and decodes the returned trace', async ()
     sourceContext: true,
   });
   expect(native.invoke).toHaveBeenCalledWith('run_cli', {
-    request: expect.objectContaining({ systemPrompt: 'PERSON', sourceContext: true }),
+    request: expect.objectContaining({ systemPrompt: 'PERSON', sourceContext: true }) as unknown,
   });
   expect(native.invoke.mock.calls[0]?.[1].request).not.toHaveProperty('system-prompt');
   expect(result.trace).toMatchObject({ reasoningMs: 5, resolvedModel: null });
@@ -206,12 +209,12 @@ it('uses canonical native request keys and decodes the returned trace', async ()
 it('uses the host invocation identity to correlate native progress without expanding native request fields', async () => {
   const invocationId = 'c867090a-f7ea-4a1c-ad04-9a4a3920b077';
   const seen: CliEvent[] = [];
-  native.invoke.mockImplementation(async () => {
+  native.invoke.mockImplementation(() => {
     native.receive?.({ payload: { id: invocationId, kind: 'answer', elapsedMs: 3 } });
-    return {
+    return Promise.resolve({
       answer: 'Exact answer',
       trace: { provider: 'codex', reasoningMs: 3, terminalMs: 0, summary: 'Done' },
-    };
+    });
   });
   const result = await cliProviders((event) => seen.push(event)).codex.run({
     invocationId,
@@ -220,9 +223,45 @@ it('uses the host invocation identity to correlate native progress without expan
     effort: 'medium',
   });
   expect(native.invoke).toHaveBeenCalledWith('run_cli', {
-    request: expect.objectContaining({ id: invocationId }),
+    request: expect.objectContaining({ id: invocationId }) as unknown,
   });
   expect(native.invoke.mock.calls[0]?.[1].request).not.toHaveProperty('invocationId');
   expect(result.answer).toBe('Exact answer');
   expect(seen).toEqual([{ id: invocationId, kind: 'answer', elapsedMs: 3 }]);
+});
+
+it('reports unconfirmed native cancellation while preserving the original abort cause and public trace', async () => {
+  const controller = new AbortController();
+  const abortReason = new Error('Caller stopped the run');
+  const nativeCancelError = new Error('Native cancellation failed');
+  let observedNativeError: unknown;
+  const cancellation = Promise.reject(nativeCancelError);
+  void cancellation.catch((error: unknown) => {
+    observedNativeError = error;
+  });
+  native.invoke.mockImplementation((command) => {
+    if (command === 'cancel_cli') return cancellation;
+    controller.abort(abortReason);
+    return Promise.reject(abortReason);
+  });
+  const failure = await cliProviders(() => {})
+    .codex.run(
+      {
+        task: 'Exact task',
+        systemPrompt: 'PERSON',
+        effort: 'medium',
+      },
+      controller.signal,
+    )
+    .catch((error: unknown) => error);
+  expect(observedNativeError).toBe(nativeCancelError);
+  expect(failure).toMatchObject({
+    cause: abortReason,
+    message: 'Caller stopped the run Не удалось подтвердить остановку CLI.',
+    trace: {
+      reasoning: [],
+      summary: 'Запрос не завершён: Caller stopped the run Не удалось подтвердить остановку CLI.',
+    },
+  });
+  expect(native.unlisten).toHaveBeenCalledOnce();
 });

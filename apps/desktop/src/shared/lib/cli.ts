@@ -9,6 +9,7 @@ import type {
 import { IntelligenceRunError } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { isDesktop } from './window-controls';
+import { boundCliReasoningText } from './cli-progress';
 import {
   decodeCliEvent,
   decodeCliResult,
@@ -38,39 +39,26 @@ export function cliProviders(
       let returned: IntelligenceTrace | undefined;
       const reasoning: ReasoningBlock[] = [];
       let truncated = false;
-      let streamFailure: unknown;
+      let streamFailure: Error | undefined;
+      let cancellation: Promise<void> | undefined;
+      let cancellationFailed = false;
+      const cancel = () => {
+        cancellation ??= invoke<void>('cancel_cli', { id: runId }).catch(() => {
+          // Report the missing cancellation acknowledgement in the terminal error.
+          cancellationFailed = true;
+        });
+      };
       const unlisten = await listen<unknown>('cli-progress', ({ payload: raw }) => {
         if (!raw || typeof raw !== 'object' || !('id' in raw) || raw.id !== runId) return;
         let payload: CliEvent;
         try {
-          let bounded: unknown = raw;
-          // Preserve the existing public-text cap before strict wire validation.
-          // This only shortens the known reasoning text field; no other content is relabelled.
-          if (
-            'reasoning' in raw &&
-            raw.reasoning &&
-            typeof raw.reasoning === 'object' &&
-            'text' in raw.reasoning &&
-            typeof raw.reasoning.text === 'string'
-          ) {
-            const bytes = new TextEncoder().encode(raw.reasoning.text);
-            let end = Math.min(bytes.length, 48 * 1024);
-            while (end > 0 && end < bytes.length && (bytes[end]! & 0xc0) === 0x80) end--;
-            if (end < bytes.length) {
-              truncated = true;
-              bounded = {
-                ...raw,
-                reasoning: {
-                  ...raw.reasoning,
-                  text: new TextDecoder().decode(bytes.subarray(0, end)),
-                },
-              };
-            }
-          }
-          payload = decodeCliEvent(bounded);
+          const bounded = boundCliReasoningText(raw);
+          truncated ||= bounded.truncated;
+          payload = decodeCliEvent(bounded.value);
         } catch (failure) {
-          streamFailure = failure;
-          void invoke('cancel_cli', { id: runId }).catch(() => undefined);
+          streamFailure =
+            failure instanceof Error ? failure : new Error(String(failure), { cause: failure });
+          cancel();
           return;
         }
         if (Number.isFinite(payload.elapsedMs)) elapsed = Math.max(elapsed, payload.elapsedMs);
@@ -99,9 +87,6 @@ export function cliProviders(
         }
         onEvent(payload);
       });
-      const cancel = () => {
-        void invoke('cancel_cli', { id: runId });
-      };
       signal?.addEventListener('abort', cancel, { once: true });
       try {
         signal?.throwIfAborted();
@@ -119,7 +104,10 @@ export function cliProviders(
         signal?.throwIfAborted();
         return result;
       } catch (failure) {
-        const message = failure instanceof Error ? failure.message : String(failure);
+        await cancellation;
+        const originalMessage = failure instanceof Error ? failure.message : String(failure);
+        const message =
+          originalMessage + (cancellationFailed ? ' Не удалось подтвердить остановку CLI.' : '');
         const wallTime = returned
           ? (returned.wallTimeMs ?? returned.reasoningMs)
           : Math.max(elapsed, performance.now() - started);

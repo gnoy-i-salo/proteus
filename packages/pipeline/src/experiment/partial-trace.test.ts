@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { IntelligenceRequest, IntelligenceTrace } from '@proteus-int/contracts';
 import { createModelSettings, IntelligenceRunError } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
-import { runExperiment } from './index';
+import { runExperiment } from '../index';
 
 const input = {
   task: 'Write a short plan',

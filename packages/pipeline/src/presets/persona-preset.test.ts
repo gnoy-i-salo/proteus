@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { parsePersonaPreset, serializePersonaPreset } from './index';
+import { parsePersonaPreset, serializePersonaPreset } from '../index';
 const input = {
   task: '',
   people: [

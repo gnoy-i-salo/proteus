@@ -8,7 +8,7 @@ import type {
 } from '@proteus-int/contracts';
 import { createModelSettings } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
-import { exportExperiment, runExperiment, validateExperiment } from './index';
+import { exportExperiment, runExperiment, validateExperiment } from '../index';
 
 const input = {
   task: 'Design a public reading room',

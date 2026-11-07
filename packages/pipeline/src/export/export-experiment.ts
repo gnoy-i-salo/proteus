@@ -1,6 +1,6 @@
 import type { PersonProfile, StyleExemplar } from '@proteus-int/contracts';
 import { personaArtifacts } from '@proteus-int/person';
-import type { ExperimentPerson, ExperimentResult } from './experiment';
+import type { ExperimentPerson, ExperimentResult } from '../experiment/result';
 
 export function exportExperiment(result: ExperimentResult): string {
   const privateSamples: StyleExemplar[] = [];

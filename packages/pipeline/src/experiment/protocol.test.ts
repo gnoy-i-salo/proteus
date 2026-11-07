@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import * as pipeline from './index';
+import * as pipeline from '../index';
 
 describe('balanced experiment protocol', () => {
   it('rotates all three participants through every position without parallel execution', () => {

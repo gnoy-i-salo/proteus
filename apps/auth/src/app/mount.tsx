@@ -1,6 +1,7 @@
 import { render } from 'solid-js/web';
 import { parseVkAuthCallback } from '@proteus-int/contracts';
 import type { AuthCallbackResult } from '@proteus-int/contracts';
+import '../shared/styles/global.scss';
 import { App } from './app';
 
 export function mountAuthApp(callbackSearch: string | null): void {

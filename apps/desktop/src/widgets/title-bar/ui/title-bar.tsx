@@ -1,11 +1,7 @@
-import { createSignal, For, Show } from 'solid-js';
-import {
-  controlWindow,
-  isDesktop,
-  windowActions,
-  windowPlatform,
-} from '../../../shared/lib/window-controls';
+import { For, Show } from 'solid-js';
+import { isDesktop, windowActions, windowPlatform } from '../../../shared/lib/window-controls';
 import type { WindowAction } from '../../../shared/lib/window-controls';
+import { createWindowControlModel } from '../model/window-control-model';
 import styles from './title-bar.module.scss';
 
 const labels: Record<WindowAction, string> = {
@@ -22,21 +18,8 @@ const symbols: Record<WindowAction, string> = {
 };
 
 export function TitleBar() {
-  const [error, setError] = createSignal('');
-  const [busy, setBusy] = createSignal(false);
+  const { error, busy, act } = createWindowControlModel();
   const platform = windowPlatform();
-  const act = async (action: WindowAction) => {
-    if (busy()) return;
-    setBusy(true);
-    setError('');
-    try {
-      await controlWindow(action);
-    } catch {
-      setError('Не удалось изменить окно. Попробуйте ещё раз.');
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <header class={styles['title-bar']} data-platform={platform}>
       <div class={styles['title-bar__drag']} data-tauri-drag-region>

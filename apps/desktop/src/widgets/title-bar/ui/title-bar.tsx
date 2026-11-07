@@ -1,39 +1,70 @@
-import { createSignal, Show } from 'solid-js';
-import { controlWindow, isDesktop } from '../../../shared/lib/window-controls';
+import { createSignal, For, Show } from 'solid-js';
+import {
+  controlWindow,
+  isDesktop,
+  windowActions,
+  windowPlatform,
+} from '../../../shared/lib/window-controls';
+import type { WindowAction } from '../../../shared/lib/window-controls';
 import styles from './title-bar.module.scss';
+
+const labels: Record<WindowAction, string> = {
+  close: 'Закрыть окно',
+  minimize: 'Свернуть окно',
+  maximize: 'Развернуть или восстановить окно',
+  fullscreen: 'Включить или выключить полноэкранный режим',
+};
+const symbols: Record<WindowAction, string> = {
+  close: '×',
+  minimize: '−',
+  maximize: '□',
+  fullscreen: '⤢',
+};
+
 export function TitleBar() {
   const [error, setError] = createSignal('');
-  const act = (action: 'minimize' | 'maximize' | 'close') => {
-    void controlWindow(action).catch(() =>
-      setError('Не удалось изменить окно. Попробуйте ещё раз.'),
-    );
+  const [busy, setBusy] = createSignal(false);
+  const platform = windowPlatform();
+  const act = async (action: WindowAction) => {
+    if (busy()) return;
+    setBusy(true);
+    setError('');
+    try {
+      await controlWindow(action);
+    } catch {
+      setError('Не удалось изменить окно. Попробуйте ещё раз.');
+    } finally {
+      setBusy(false);
+    }
   };
   return (
-    <>
-      <header class={styles['title-bar']}>
-        <div class={styles['title-bar__drag']} data-tauri-drag-region>
-          ✦ PROTEUS <span class={styles['title-bar__label']}>PERSONA LAB / 0.3</span>
+    <header class={styles['title-bar']} data-platform={platform}>
+      <div class={styles['title-bar__drag']} data-tauri-drag-region>
+        ✦ PROTEUS <span class={styles['title-bar__label']}>PERSONA LAB / 0.3</span>
+      </div>
+      <Show
+        when={isDesktop()}
+        fallback={<span class={styles['title-bar__label']}>WEB PREVIEW</span>}
+      >
+        <div class={styles['title-bar__controls']}>
+          <For each={windowActions(platform)}>
+            {(action) => (
+              <button
+                type="button"
+                aria-label={labels[action]}
+                data-action={action}
+                disabled={busy()}
+                onClick={() => void act(action)}
+              >
+                <span aria-hidden="true">{symbols[action]}</span>
+              </button>
+            )}
+          </For>
         </div>
-        <Show
-          when={isDesktop()}
-          fallback={<span class={styles['title-bar__label']}>WEB PREVIEW</span>}
-        >
-          <div class={styles['title-bar__controls']}>
-            <button aria-label="Свернуть окно" onClick={() => act('minimize')}>
-              _
-            </button>
-            <button aria-label="Развернуть окно" onClick={() => act('maximize')}>
-              □
-            </button>
-            <button aria-label="Закрыть окно" onClick={() => act('close')}>
-              ×
-            </button>
-          </div>
-        </Show>
-      </header>
+      </Show>
       <Show when={error()}>
         <p role="alert">{error()}</p>
       </Show>
-    </>
+    </header>
   );
 }

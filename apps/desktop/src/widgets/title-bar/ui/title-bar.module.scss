@@ -1,4 +1,5 @@
 .title-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -29,8 +30,49 @@
   &__controls button {
     width: 30px;
     height: 28px;
+    min-height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    line-height: 1;
+    font-family: monospace;
+    font-size: 16px;
     color: var(--text);
     background: var(--panel);
     border: 2px solid var(--line);
+  }
+
+  &[data-platform='macos'] &__controls {
+    order: -1;
+  }
+
+  &[data-platform='macos'] button[data-action='close'] {
+    color: #ffb0a5;
+    border-color: #f19c94;
+  }
+
+  &[data-platform='macos'] button[data-action='minimize'] {
+    color: #ffda93;
+    border-color: #ddbb79;
+  }
+
+  &[data-platform='macos'] button[data-action='fullscreen'] {
+    color: #9be7bd;
+    border-color: #85cba6;
+  }
+
+  & [role='alert'] {
+    position: absolute;
+    z-index: 20;
+    top: 100%;
+    right: 8px;
+    max-width: calc(100% - 16px);
+    padding: 8px 12px;
+    margin: 4px 0;
+    color: var(--text);
+    background: var(--panel);
+    border: 2px solid #ffb78e;
+    font-size: var(--caption);
+    letter-spacing: normal;
   }
 }

@@ -140,3 +140,5 @@ export type {
   CreatedSourceBinding,
   SourceBindingResult,
 } from './source-binding';
+export type { ProvenanceLimitation } from './corpus';
+export { validateRevisionProvenance } from './document-provenance';

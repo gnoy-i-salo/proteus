@@ -57,6 +57,7 @@ export const revision: DocumentRevision = {
     originalObjectId: 'object-1',
     originalByteLength: 111,
     hashAlgorithm: 'sha256',
+    limitations: [],
   },
   usagePolicy: {
     grantId: 'grant-a',

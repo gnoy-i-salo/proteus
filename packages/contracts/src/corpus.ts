@@ -1,5 +1,6 @@
 import type { StoredSourceDocument } from './source-document-codec';
 import type { SourceProvider } from './sources';
+import { validateRevisionProvenance } from './document-provenance';
 
 export type CorpusProvider = SourceProvider | 'web' | 'savedPage';
 export type SourceRole = 'own' | 'context' | 'about' | 'reference';
@@ -59,6 +60,12 @@ export interface AttachmentMetadata {
   readonly availability: 'available' | 'missing' | 'unsupported';
 }
 
+export type ProvenanceLimitation =
+  | 'originalObjectIdUnavailable'
+  | 'originalBytesUnavailable'
+  | 'attachmentsUnavailable'
+  | 'relationsIncomplete';
+
 export interface DocumentRevision {
   readonly schemaVersion: 1;
   readonly revisionId: string;
@@ -75,9 +82,10 @@ export interface DocumentRevision {
     readonly acquisition: 'api' | 'archive' | 'selectedUrl' | 'savedPage';
     readonly adapterVersion: string;
     readonly sourceFormat: string;
-    readonly originalObjectId: string;
-    readonly originalByteLength: number;
+    readonly originalObjectId: string | null;
+    readonly originalByteLength: number | null;
     readonly hashAlgorithm: 'sha256';
+    readonly limitations: readonly ProvenanceLimitation[];
   };
   readonly usagePolicy: {
     readonly grantId: string;
@@ -181,6 +189,7 @@ export function projectBoundRevision(
   binding: SourceBinding,
   revision: DocumentRevision,
 ): ModelSourceDocument {
+  validateRevisionProvenance(revision);
   const document = revision.document;
   if (
     document.provider !== binding.provider ||

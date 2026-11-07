@@ -59,6 +59,7 @@ const revision: DocumentRevision = {
     originalObjectId: 'object-1',
     originalByteLength: 111,
     hashAlgorithm: 'sha256',
+    limitations: [],
   },
   usagePolicy: {
     grantId: 'grant-a',
@@ -287,5 +288,69 @@ describe('structural source binding projection', () => {
       const document = withDocument({ provider });
       expect(projectBoundRevision(selected, document).speakerRelation).toBe('context');
     }
+  });
+});
+
+describe('revision provenance limits', () => {
+  const legacy = {
+    acquisition: 'archive',
+    adapterVersion: 'legacy-source-record-v1',
+    sourceFormat: 'proteusEncryptedSourceRecord',
+    originalObjectId: null,
+    originalByteLength: null,
+    hashAlgorithm: 'sha256',
+    limitations: [
+      'originalObjectIdUnavailable',
+      'originalBytesUnavailable',
+      'attachmentsUnavailable',
+      'relationsIncomplete',
+    ],
+  };
+  const withProvenance = (provenance: unknown): DocumentRevision => ({
+    ...revision,
+    provenance: provenance as DocumentRevision['provenance'],
+  });
+  it.each([
+    { ...revision.provenance, originalObjectId: null },
+    { ...revision.provenance, limitations: ['originalObjectIdUnavailable'] },
+    { ...revision.provenance, limitations: ['originalBytesUnavailable'] },
+    { ...revision.provenance, originalByteLength: null },
+    { ...revision.provenance, originalObjectId: '' },
+    { ...revision.provenance, originalByteLength: -1 },
+    { ...revision.provenance, originalByteLength: 1.5 },
+    { ...revision.provenance, originalByteLength: Number.MAX_SAFE_INTEGER + 1 },
+    { ...revision.provenance, limitations: undefined },
+    { ...revision.provenance, limitations: ['invented'] },
+    { ...revision.provenance, limitations: ['relationsIncomplete', 'relationsIncomplete'] },
+    { ...legacy, limitations: ['originalObjectIdUnavailable', 'originalBytesUnavailable'] },
+    { ...legacy, originalObjectId: revision.document.id },
+    { ...legacy, originalByteLength: new TextEncoder().encode(revision.document.text).length },
+    { ...legacy, adapterVersion: 'legacy-source-record-v99' },
+    { ...legacy, sourceFormat: 'newlyClaimedOriginal' },
+  ])('rejects missing, contradictory or fabricated provenance (%#)', (provenance) => {
+    expect(() => projectBoundRevision(binding, withProvenance(provenance))).toThrow();
+  });
+  it('preserves an explicit legacy observation without claiming missing attachment or relation completeness', () => {
+    const stored = withProvenance(legacy);
+    const result = projectBoundRevision(binding, stored);
+    expect(result.document).toEqual(revision.document);
+    expect(result.relations).toEqual(revision.relations);
+    expect(stored.provenance).toEqual(legacy);
+    expect(result).not.toHaveProperty('provenance');
+  });
+  it('allows a newly acquired source with trustworthy empty attachment and relation lists', () => {
+    const acquired = { ...revision, attachments: [], relations: [] };
+    expect(projectBoundRevision(binding, acquired).document).toEqual(revision.document);
+  });
+  it('allows explicit unavailable native metadata without upgrading or rewriting source identity', () => {
+    const provenance = {
+      ...revision.provenance,
+      originalObjectId: null,
+      originalByteLength: null,
+      limitations: ['originalObjectIdUnavailable', 'originalBytesUnavailable'],
+    };
+    expect(projectBoundRevision(binding, withProvenance(provenance)).document).toEqual(
+      revision.document,
+    );
   });
 });

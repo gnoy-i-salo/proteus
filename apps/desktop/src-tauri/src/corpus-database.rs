@@ -21,6 +21,7 @@ mod job_store;
 mod job_types;
 #[path = "corpus-job-validation.rs"]
 mod job_validation;
+pub use job_validation::validate_binding as validate_source_binding;
 #[path = "corpus-jobs.rs"]
 mod jobs;
 #[path = "corpus-types.rs"]

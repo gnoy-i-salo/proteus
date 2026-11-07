@@ -1,5 +1,7 @@
 #[path = "ingestion-fingerprint.rs"]
 pub mod fingerprint;
+#[path = "ingestion-grants.rs"]
+pub mod grants;
 #[path = "ingestion-input.rs"]
 mod input;
 #[path = "ingestion-preview.rs"]

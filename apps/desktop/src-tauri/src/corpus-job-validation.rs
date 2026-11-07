@@ -106,7 +106,7 @@ pub(super) fn validate_input(input: &JobInput) -> Result<(), String> {
     }
     Ok(())
 }
-fn validate_binding(binding: &JobBinding) -> Result<(), String> {
+pub fn validate_binding(binding: &JobBinding) -> Result<(), String> {
     if (binding.role == JobRole::Own && binding.target_author_id.is_none())
         || binding
             .allowed_context_author_ids

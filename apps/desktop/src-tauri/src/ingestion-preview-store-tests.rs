@@ -1,7 +1,7 @@
 use super::*;
 use crate::corpus_database::{RecordInput, RecordNamespace};
 fn value() -> StoredPreview {
-    let mut v = StoredPreview {
+    let v = StoredPreview {
         schema_version: 1,
         id: "preview:one".into(),
         provider: "telegram".into(),
@@ -18,8 +18,14 @@ fn value() -> StoredPreview {
             estimated_documents: Some(1),
         }],
     };
-    v.id = preview_id(&v).unwrap();
-    v
+    issue_preview(
+        v.provider,
+        v.source_format,
+        v.adapter_version,
+        v.fingerprint,
+        v.resources,
+    )
+    .unwrap()
 }
 fn setup() -> (CorpusDatabase, std::path::PathBuf) {
     let dir = std::env::temp_dir().join(format!("proteus-preview-store-{}", rand::random::<u64>()));
@@ -92,7 +98,7 @@ fn malformed_versions_fingerprints_and_resource_author_metadata_fail_without_wri
     for kind in 0..7 {
         let mut v = value();
         match kind {
-            0 => v.schema_version = 2,
+            0 => v.schema_version = 3,
             1 => v.fingerprint.sha256 = "notHash".into(),
             2 => v.fingerprint.byte_length = 9_007_199_254_740_992,
             3 => v.resources.push(v.resources[0].clone()),
@@ -113,7 +119,7 @@ fn stored_codec_rejects_unknown_versions_fields_and_mismatched_provider_without_
         let v = value();
         let mut json = serde_json::to_value(&v).unwrap();
         match mutation {
-            0 => json["schemaVersion"] = serde_json::json!(2),
+            0 => json["schemaVersion"] = serde_json::json!(3),
             1 => json["sourceHandle"] = serde_json::json!("not-persisted"),
             _ => json["provider"] = serde_json::json!("vk"),
         };
@@ -152,4 +158,56 @@ fn encoding_refuses_over_budget_before_retaining_oversized_bytes() {
     // JSON control escaping expands one input byte to six persisted bytes.
     let escaped = "\u{0001}".repeat(MAX_BYTES / 6 + 1);
     assert!(encode(&escaped).is_err());
+}
+
+fn issued() -> StoredPreview {
+    let v = value();
+    issue_preview(
+        v.provider,
+        v.source_format,
+        v.adapter_version,
+        v.fingerprint,
+        v.resources,
+    )
+    .unwrap()
+}
+#[test]
+fn an_explicit_new_selection_can_import_again_without_reactivating_a_revoked_preview() {
+    let (mut db, dir) = setup();
+    let first = issued();
+    assert_eq!(first.schema_version, 2);
+    save_preview(&mut db, &first).unwrap();
+    db.remove(&first.id).unwrap();
+    let second = issued();
+    assert_ne!(first.id, second.id);
+    assert_eq!(first.fingerprint, second.fingerprint);
+    assert_eq!(first.resources, second.resources);
+    save_preview(&mut db, &second).unwrap();
+    assert!(read_preview(&db, &first.id).is_err());
+    assert_eq!(read_preview(&db, &second.id).unwrap(), second);
+    assert_eq!(db.read(&second.id).unwrap().unwrap().generation, 1);
+    save_preview(&mut db, &second).unwrap();
+    assert_eq!(db.read(&second.id).unwrap().unwrap().generation, 1);
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn legacy_preview_is_read_only_and_its_exact_saved_bytes_are_not_migrated_in_place() {
+    let (mut db, dir) = setup();
+    let raw = include_str!("fixtures/ingestion-preview-v1.json");
+    let legacy: StoredPreview = serde_json::from_str(raw).unwrap();
+    let input = RecordInput {
+        id: legacy.id.clone(),
+        kind: "import".into(),
+        provider: legacy.provider.clone(),
+        state_json: raw.into(),
+        documents: vec![],
+    };
+    db.save_ingestion(&input).unwrap();
+    let before = db.read(&legacy.id).unwrap().unwrap();
+    assert_eq!(read_preview(&db, &legacy.id).unwrap(), legacy);
+    assert!(save_preview(&mut db, &legacy).is_err());
+    assert_eq!(db.read(&legacy.id).unwrap().unwrap(), before);
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
 }

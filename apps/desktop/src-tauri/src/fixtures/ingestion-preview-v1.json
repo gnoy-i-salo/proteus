@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "preview:4dcacb2964ada84972fef6f1a71795220d9285f4723928c69674850a9def4982",
+  "provider": "telegram",
+  "sourceFormat": "telegramDesktopJson",
+  "adapterVersion": "telegramDesktopJson:1",
+  "fingerprint": {
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "byteLength": 500
+  },
+  "resources": [
+    {
+      "id": "telegram:chat:-1",
+      "label": "  Чат é\r\n",
+      "authorIds": ["user1"],
+      "estimatedDocuments": 1
+    }
+  ]
+}

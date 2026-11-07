@@ -20,21 +20,63 @@ pub struct StoredPreview {
 const INVALID: &str = "Предпросмотр повреждён или не поддерживается.";
 const MAX_BYTES: usize = 32 * 1024 * 1024;
 const MAX_SAFE: u64 = 9_007_199_254_740_991;
-// Only this native codec issues identities. Re-selecting identical input with
-// identical adapter output reuses metadata and never creates new originals.
+// A native receipt distinguishes an explicit new selection from a retry. Revoked
+// receipts stay revoked even when the user later selects identical source bytes.
+pub fn issue_preview(
+    provider: String,
+    source_format: String,
+    adapter_version: String,
+    fingerprint: InputFingerprint,
+    resources: Vec<PreviewResource>,
+) -> Result<StoredPreview, String> {
+    let mut value = StoredPreview {
+        schema_version: 2,
+        id: format!("preview:{}:", crate::connections::storage::random_id(24)?),
+        provider,
+        source_format,
+        adapter_version,
+        fingerprint,
+        resources,
+    };
+    value.id = preview_id(&value)?;
+    validate(&value)?;
+    Ok(value)
+}
 pub fn preview_id(value: &StoredPreview) -> Result<String, String> {
-    let bytes = encode(&(
+    let content = (
         value.schema_version,
         &value.provider,
         &value.source_format,
         &value.adapter_version,
         &value.fingerprint,
         &value.resources,
-    ))?;
-    Ok(format!("preview:{:x}", Sha256::digest(bytes)))
+    );
+    match value.schema_version {
+        // Keep the exact v1 hash algorithm and stored bytes for old checkpoints.
+        1 => Ok(format!("preview:{:x}", Sha256::digest(encode(&content)?))),
+        2 => {
+            let nonce = value
+                .id
+                .strip_prefix("preview:")
+                .and_then(|tail| tail.split_once(':'))
+                .map(|(nonce, _)| nonce)
+                .filter(|nonce| {
+                    nonce.len() == 32
+                        && nonce
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+                })
+                .ok_or(INVALID)?;
+            Ok(format!(
+                "preview:{nonce}:{:x}",
+                Sha256::digest(encode(&(nonce, content))?)
+            ))
+        }
+        _ => Err(INVALID.into()),
+    }
 }
 fn validate(value: &StoredPreview) -> Result<(), String> {
-    if value.schema_version != 1
+    if !matches!(value.schema_version, 1 | 2)
         || !matches!(
             value.provider.as_str(),
             "telegram" | "vk" | "github" | "instagram" | "web" | "savedPage"
@@ -90,6 +132,9 @@ fn validate(value: &StoredPreview) -> Result<(), String> {
 }
 pub fn save_preview(db: &mut CorpusDatabase, value: &StoredPreview) -> Result<(), String> {
     validate(value)?;
+    if value.schema_version != 2 {
+        return Err("Новые предпросмотры требуют текущую версию записи.".into());
+    }
     if db.read(&value.id)?.is_some() {
         return if read_preview(db, &value.id)? == *value {
             Ok(())
@@ -108,7 +153,7 @@ pub fn save_preview(db: &mut CorpusDatabase, value: &StoredPreview) -> Result<()
     Ok(())
 }
 pub fn read_preview(db: &CorpusDatabase, id: &str) -> Result<StoredPreview, String> {
-    if !id.starts_with("preview:") || id.len() != 72 {
+    if !id.starts_with("preview:") || !matches!(id.len(), 72 | 105) {
         return Err(INVALID.into());
     }
     let stored = db.read(id)?.ok_or("Предпросмотр источника не найден.")?;

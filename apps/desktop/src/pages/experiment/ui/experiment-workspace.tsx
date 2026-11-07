@@ -42,6 +42,20 @@ export function ExperimentWorkspace(props: {
             </button>
           )}
         </For>
+        <Show when={props.run.screen() !== 'progress'}>
+          <For each={['Контроль', 'Сравнение']}>
+            {(label, index) => (
+              <button
+                class={styles.experiment__person}
+                aria-pressed={props.selected === index() + 2}
+                data-active={props.selected === index() + 2}
+                onClick={() => props.onSelect(index() + 2)}
+              >
+                {label}
+              </button>
+            )}
+          </For>
+        </Show>
         <div class={styles['experiment__sidebarBottom']}>
           <small>
             ONE TASK.

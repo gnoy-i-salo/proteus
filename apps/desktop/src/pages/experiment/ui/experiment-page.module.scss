@@ -482,15 +482,15 @@
   }
 
   &__resultBanner {
-    padding: 22px 32px;
+    padding: 10px 20px;
     background: var(--accentDim);
     border-bottom: 3px solid var(--accent);
   }
 
   &__resultBanner h2 {
     font-family: var(--pixelFont);
-    font-size: 28px;
-    margin: 16px 0 12px;
+    font-size: 16px;
+    margin: 6px 0;
     color: var(--accent);
     text-shadow: 3px 3px #17182b;
   }
@@ -817,8 +817,8 @@
   }
 
   .experiment__resultBanner h2 {
-    font-size: 24px;
-    margin-block: 10px;
+    font-size: 16px;
+    margin-block: 6px;
   }
 
   .experiment__resultHeading h3 {

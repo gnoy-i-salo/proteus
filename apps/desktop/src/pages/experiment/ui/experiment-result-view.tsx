@@ -2,6 +2,7 @@ import { For, Show } from 'solid-js';
 import type { ExperimentRunModel } from '../model/experiment-run';
 import type { TraceNavigation } from '../model/trace-navigation';
 import { formatInterval, formatScore, reportText, sourceLabel } from './experiment-report';
+import { ResultAnalysis, ResultComparison } from './result-analysis';
 import { FailureReason } from './failure-reason';
 import { TraceReader } from './trace-reader';
 import { PagedText } from './paged-text';
@@ -15,7 +16,8 @@ export function ExperimentResultView(props: {
   readonly detail: string;
   readonly onDetail: (detail: string) => void;
 }) {
-  const persona = () => props.run.result()?.people[props.selected];
+  const persona = () =>
+    props.selected === 2 ? props.run.result()?.control : props.run.result()?.people[props.selected];
   const text = () => {
     const current = persona();
     const output = props.run.result();
@@ -30,7 +32,11 @@ export function ExperimentResultView(props: {
             ? 'EXPERIMENT COMPLETE'
             : 'EXPERIMENT INCOMPLETE'}
         </span>
-        <h2>BSC v2 · {formatScore(persona()?.score)}</h2>
+        <h2>
+          {props.selected === 3
+            ? 'Сравнение участников'
+            : `BSC v2 · ${formatScore(persona()?.score)}`}
+        </h2>
         <p>Разница A − B: {formatInterval(props.run.result()?.comparison.difference)} п.п.</p>
         <p>
           {props.run.result()?.status !== 'complete'
@@ -48,44 +54,63 @@ export function ExperimentResultView(props: {
         </Show>
       </header>
       <div class={styles['experiment__resultBody']}>
-        <div class={styles['experiment__resultHeading']}>
-          <h3>{persona()?.profile.label}</h3>
-          <span>{sourceLabel(persona())}</span>
-        </div>
-        <nav class={styles['experiment__tabs']} aria-label="Разделы анализа">
-          <For
-            each={[
-              ['analysis', 'Анализ'],
-              ['answer', 'Ответ'],
-              ['archetype', 'Архетип'],
-              ['sources', 'Источники'],
-              ['traces', 'Intelligence traces'],
-            ]}
-          >
-            {(item) => (
-              <button
-                aria-pressed={props.detail === item[0]}
-                onClick={() => props.onDetail(item[0] ?? 'analysis')}
-              >
-                {item[1]}
-              </button>
-            )}
-          </For>
-        </nav>
         <Show
-          when={props.detail === 'traces'}
+          when={props.selected === 3}
           fallback={
-            <Show
-              when={
-                props.detail === 'answer' && persona()?.trials.some((trial) => trial.attempt?.reply)
-              }
-              fallback={<PagedText text={text()} />}
-            >
-              <ReplyReader person={persona()!} />
-            </Show>
+            <>
+              <div class={styles['experiment__resultHeading']}>
+                <h3>{persona()?.profile.label}</h3>
+                <span>{sourceLabel(persona())}</span>
+              </div>
+              <nav class={styles['experiment__tabs']} aria-label="Разделы анализа">
+                <For
+                  each={[
+                    ['analysis', 'Анализ'],
+                    ['answer', 'Ответ'],
+                    ['archetype', 'Архетип'],
+                    ['sources', 'Источники'],
+                    ['traces', 'Intelligence traces'],
+                  ]}
+                >
+                  {(item) => (
+                    <button
+                      aria-pressed={props.detail === item[0]}
+                      onClick={() => props.onDetail(item[0] ?? 'analysis')}
+                    >
+                      {item[1]}
+                    </button>
+                  )}
+                </For>
+              </nav>
+              <Show
+                when={props.detail === 'traces'}
+                fallback={
+                  <Show
+                    when={
+                      props.detail === 'answer' &&
+                      persona()?.trials.some((trial) => trial.attempt?.reply)
+                    }
+                    fallback={
+                      <Show
+                        when={props.detail === 'analysis' && persona()}
+                        fallback={<PagedText text={text()} />}
+                      >
+                        {(person) => (
+                          <ResultAnalysis output={props.run.result()!} person={person()} />
+                        )}
+                      </Show>
+                    }
+                  >
+                    <ReplyReader person={persona()!} />
+                  </Show>
+                }
+              >
+                <TraceReader navigation={props.traces} running={false} />
+              </Show>
+            </>
           }
         >
-          <TraceReader navigation={props.traces} running={false} />
+          <ResultComparison output={props.run.result()!} />
         </Show>
       </div>
       <footer class={styles['experiment__footer']}>

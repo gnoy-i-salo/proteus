@@ -125,7 +125,10 @@ export function reportText(
       .filter(Boolean)
       .join('\n\n');
   const score = person.score;
-  const ownIndex = output.people.findIndex((item) => item.profile.id === person.profile.id);
+  const ownIndex =
+    person.profile.id === output.control.profile.id
+      ? 2
+      : output.people.findIndex((item) => item.profile.id === person.profile.id);
   const ownTraces = output.traces.filter((trace) => trace.person === ownIndex);
   const retries = formatRetryCount(ownTraces);
   const required = { passed: 'выполнены', failed: 'не выполнены', unknown: 'не установлено' }[

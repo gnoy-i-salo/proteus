@@ -19,6 +19,9 @@ async function nativeFixture(
   options: {
     unknown?: boolean;
     unknownOnce?: boolean;
+    required?: boolean;
+    longCriteria?: boolean;
+    exactQuote?: string;
     failSolve?: boolean;
     messageReply?: boolean;
     holdStage?: string;
@@ -114,9 +117,9 @@ async function nativeFixture(
           data = {
             criteria: (options.unknown ? [50, 30, 20] : [1]).map((weight, index) => ({
               id: `criterion-${index}`,
-              label: `Полнота решения ${index + 1}`,
+              label: `Полнота решения ${index + 1}${options.longCriteria ? ' · длинное название критерия'.repeat(40) : ''}`,
               weight,
-              required: false,
+              required: options.required ?? false,
               anchors: {
                 unmet: 'Решения нет',
                 partial: 'Решение частичное',
@@ -170,13 +173,16 @@ async function nativeFixture(
                         ? 'met'
                         : 'partial',
                 reason: 'Проверка содержания по заранее заданному критерию',
-                quote: answer.answer.slice(0, answer.answer.indexOf('.') + 1),
+                quote: options.exactQuote ?? answer.answer.slice(0, answer.answer.indexOf('.') + 1),
               })),
             })),
           };
         } else
           data = {
-            answer: `Ответ ${actor}. Длинный ответ для проверки пагинации. `.repeat(100),
+            answer:
+              `Ответ ${actor}. ${options.exactQuote ? `${options.exactQuote} ` : ''}Длинный ответ для проверки пагинации. `.repeat(
+                100,
+              ),
             ...(options.messageReply
               ? {
                   messages: [
@@ -240,6 +246,99 @@ async function nativeFixture(
 async function confirmProtocol(page: Page) {
   await page.getByRole('button', { name: 'Подтвердить и продолжить', exact: true }).click();
 }
+
+test('structured analysis exposes both judge orders, control and comparison at 640×600', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  await nativeFixture(page);
+  await fillExperiment(page);
+  await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+  await page.getByRole('button', { name: 'Критерии', exact: true }).click();
+  const matrix = page.getByRole('table', { name: 'Матрица критериев' });
+  await expect(matrix).toBeVisible();
+  await expect(matrix.getByRole('columnheader', { name: 'Порядок 1' })).toBeVisible();
+  await expect(matrix.getByRole('columnheader', { name: 'Порядок 2' })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('criteria-640.png') });
+  await matrix
+    .getByRole('button', { name: /Развернуть критерий/ })
+    .first()
+    .click();
+  const quote = await page.evaluate(
+    () =>
+      (window as unknown as NativeFixtureWindow).savedExperiment.people[0]!.trials[0]!
+        .evaluations[0]!.criteria[0]!.quote,
+  );
+  await page
+    .getByRole('button', { name: 'Развернуть: Основания и точные цитаты', exact: true })
+    .click();
+  await expect(page.getByLabel('Основания и точные цитаты', { exact: true }).last()).toContainText(
+    quote,
+  );
+  await page
+    .getByRole('button', { name: 'Свернуть: Основания и точные цитаты', exact: true })
+    .click();
+  await noOverflow(page);
+  await page.getByRole('button', { name: 'Контроль', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Нейтральный контроль', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Ответ', exact: true }).click();
+  await expect(page.getByText(/Ответ Контроль\./)).toBeVisible();
+  await page.getByRole('button', { name: 'Сравнение', exact: true }).click();
+  await expect(page.getByRole('table', { name: 'Сравнение участников' })).toBeVisible();
+  await expect(page.getByText(/не доказательство статистического превосходства/)).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('comparison-640.png') });
+  await noOverflow(page);
+});
+
+test('structured analysis keeps unknown scores and required failures explicit', async ({
+  page,
+}) => {
+  await nativeFixture(page, false, true, { unknown: true, required: true });
+  await fillExperiment(page);
+  await expect(page.getByRole('heading', { name: 'BSC v2 · 65–85' })).toBeVisible();
+  await page.getByRole('button', { name: 'Критерии', exact: true }).click();
+  await page.getByLabel('Критерий и прогон').selectOption('2');
+  await expect(page.getByRole('table', { name: 'Матрица критериев' })).toContainText('Неизвестно');
+  await page.getByRole('button', { name: 'Сводка', exact: true }).click();
+  await page.getByRole('button', { name: /Person B/ }).click();
+  await expect(
+    page.getByText('Обязательные требования: не выполнены', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Оценено 1 из 1 прогонов', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Сравнение', exact: true }).click();
+  await expect(
+    page
+      .getByRole('table', { name: 'Сравнение участников' })
+      .getByRole('row')
+      .filter({ has: page.getByRole('rowheader', { name: 'B', exact: true }) }),
+  ).toContainText('не выполнены');
+});
+
+test('criteria navigation retains all rounds and literal quote text with long labels', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 600 });
+  const quote = '<b>точно</b>  é\n  строка 🙂';
+  await nativeFixture(page, false, true, { longCriteria: true, exactQuote: quote });
+  await fillExperiment(page, true, '3');
+  await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible({ timeout: 15000 });
+  await page.getByRole('button', { name: 'Критерии', exact: true }).click();
+  const selector = page.getByLabel('Критерий и прогон');
+  await expect(selector.locator('option')).toHaveCount(3);
+  await selector.selectOption('2');
+  await page.getByRole('button', { name: 'Развернуть критерий', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Развернуть: Основания и точные цитаты', exact: true })
+    .click();
+  const dialog = page.getByRole('dialog', { name: 'Основания и точные цитаты' });
+  await dialog.getByRole('textbox', { name: 'Поиск: Основания и точные цитаты' }).fill('точно');
+  await expect(dialog.locator('mark')).toHaveText('точно');
+  expect(await dialog.locator('p').textContent()).toContain(quote);
+  await expect(dialog.locator('b')).toHaveCount(0);
+  await noOverflow(page);
+});
 
 test('persona replies preserve separate messages and render markup as plain text', async ({
   page,

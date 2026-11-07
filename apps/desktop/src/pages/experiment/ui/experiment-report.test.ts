@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest';
+import type { ExperimentPerson, ExperimentResult } from '@proteus-int/pipeline';
 import type { ExperimentProtocol } from '@proteus-int/contracts';
 import {
+  reportText,
   formatInterval,
   formatScore,
   protocolText,
@@ -127,4 +129,83 @@ it('does not count ordinary model calls as retries and keeps historical counts u
     ],
   };
   expect(formatRetryCount([{ attempts, lifecycle: repaired }])).toBe(1);
+});
+
+it('keeps historical control retry counts unknown instead of reading an empty persona lane', () => {
+  const profile = {
+    id: 'neutral',
+    label: 'Контроль',
+    palette: 'turquoise' as const,
+    archetype: 'Neutral',
+    skills: [],
+    rules: [],
+    taskSkills: [],
+    sourceStatus: 'neutral' as const,
+  };
+  const control: ExperimentPerson = {
+    report: null,
+    baseProfile: profile,
+    profile,
+    attempt: null,
+    score: {
+      version: 2,
+      personId: 'neutral',
+      interval: null,
+      point: null,
+      planned: 1,
+      evaluated: 0,
+      complete: false,
+      spread: null,
+      requiredStatus: 'unknown',
+      judgeDisagreement: false,
+      comparisonEligible: false,
+    },
+    trials: [],
+    preparationWallTimeMs: 0,
+    solutionWallTimeMs: 0,
+    baselineDifference: null,
+    artifacts: {},
+  };
+  const output: ExperimentResult = {
+    schemaVersion: 4,
+    scoringVersion: 2,
+    status: 'incomplete',
+    people: [],
+    control,
+    input: {
+      task: 'Task',
+      people: [
+        { label: 'A', context: '', publicUrls: [] },
+        { label: 'B', context: '', publicUrls: [] },
+      ],
+    },
+    protocol: {
+      version: 3,
+      task: 'Task',
+      repetitions: 1,
+      participantOrder: [],
+      rubric: { version: 2, criteria: [] },
+      modelSettings: {},
+      formatAttempts: 2,
+      stageTimeoutMs: 600000,
+      promptVersion: 'bsc-v2.4-camel-case',
+      createdAt: '',
+    },
+    trials: [],
+    comparison: { summary: 'Incomplete', difference: null, comparisonEligible: false },
+    finishedAt: '',
+    traces: [
+      {
+        id: 'control-person',
+        person: 2,
+        stage: 'person',
+        label: 'Control',
+        attempts: [{ index: 1, status: 'accepted', wallTimeMs: 1, error: null }],
+        trace: { provider: 'codex', reasoningMs: 0, terminalMs: 0, summary: '' },
+      },
+    ],
+  };
+  expect(reportText(output, control, 'analysis')).toContain(
+    'повторных запросов формата: неизвестно (старый формат)',
+  );
 });

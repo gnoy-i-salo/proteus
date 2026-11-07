@@ -17,6 +17,8 @@ env:
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 jobs:
   quality:
+    outputs:
+      sourceSha: ${{ steps.source.outputs.sourceSha }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -28,8 +30,10 @@ jobs:
           node-version-file: .node-version
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/release.mjs
+      - id: source
+        run: node scripts/release.mjs source
       - run: pnpm check
+      - run: pnpm build:pages
       - run: pnpm test:e2e
         env:
           PLAYWRIGHT_CHANNEL: chrome
@@ -69,10 +73,11 @@ jobs:
     timeout-minutes: 90
     env:
       CARGO_BUILD_JOBS: 2
+      SOURCE_SHA: ${{ needs.quality.outputs.sourceSha }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          ref: ${{ needs.quality.outputs.sourceSha }}
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
@@ -120,15 +125,17 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   publish:
-    needs: build
+    needs: [quality, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      SOURCE_SHA: ${{ needs.quality.outputs.sourceSha }}
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          ref: ${{ needs.quality.outputs.sourceSha }}
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
@@ -143,11 +150,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > /tmp/is-draft; then
-            if [ "$(cat /tmp/is-draft)" = false ]; then
-              echo 'Release already published; keeping its assets unchanged.'
-              exit 0
+            if [ "$(cat /tmp/is-draft)" != true ]; then
+              echo 'Release is not a draft; keeping its assets unchanged and stopping.'
+              exit 1
             fi
           else
             gh release create "$RELEASE_TAG" --verify-tag --draft --title "PROTEUS $RELEASE_TAG" --generate-notes --notes-file docs/release-notes.md
           fi
-          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          gh release upload "$RELEASE_TAG" release-assets/*.dmg release-assets/*.exe release-assets/*.deb release-assets/SHA256SUMS.txt release-assets/BUILD-MANIFEST.json --clobber

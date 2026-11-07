@@ -142,3 +142,11 @@ export type {
 } from './source-binding';
 export type { ProvenanceLimitation } from './corpus';
 export { validateRevisionProvenance } from './document-provenance';
+
+export { decodeSourceBinding } from './source-binding-codec';
+export {
+  decodeIngestionBudget,
+  decodeIngestionSelection,
+  decodeIngestionPreview,
+  decodeIngestionJob,
+} from './ingestion-codec';

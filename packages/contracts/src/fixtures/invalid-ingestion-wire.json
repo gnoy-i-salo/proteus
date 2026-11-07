@@ -1,0 +1,5 @@
+{
+  "budgetAlias": { "max-documents": 100000 },
+  "snapshotAlias": { "published-snapshot-id": "old" },
+  "bindingAlias": { "persona-id": "legacy" }
+}

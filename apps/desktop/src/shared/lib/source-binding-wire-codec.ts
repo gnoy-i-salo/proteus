@@ -1,6 +1,5 @@
-import { decodeSourceDocument } from '@proteus-int/contracts';
+import { decodeSourceDocument, decodeSourceBinding } from '@proteus-int/contracts';
 import type {
-  SourceBinding,
   SourceBindingRequest,
   CreatedSourceBinding,
   SourceBindingResult,
@@ -99,60 +98,12 @@ export function encodeSourceBindingRequest(value: unknown): SourceBindingRequest
     includeUndated: flag(input.includeUndated),
   };
 }
-function binding(value: unknown): SourceBinding {
-  const input = fields(value, [
-    'schemaVersion',
-    'id',
-    'personaId',
-    'provider',
-    'accountId',
-    'resourceId',
-    'grantId',
-    'policyVersion',
-    'role',
-    'targetAuthorId',
-    'allowedContextAuthorIds',
-    'allowUnknownContext',
-    'period',
-  ]);
-  if (input.schemaVersion !== 1) throw new Error('Неизвестная версия привязки источника.');
-  const period = fields(input.period, ['from', 'to', 'includeUndated']);
-  const targetAuthorId = input.targetAuthorId === null ? null : identifier(input.targetAuthorId);
-  const role = choice(input.role, ['own', 'context', 'about', 'reference'] as const);
-  if (role === 'own' && targetAuthorId === null) throw new Error('В привязке отсутствует автор.');
-  return {
-    schemaVersion: 1,
-    id: identifier(input.id),
-    personaId: identifier(input.personaId),
-    provider: choice(input.provider, [
-      'telegram',
-      'vk',
-      'instagram',
-      'github',
-      'web',
-      'savedPage',
-    ] as const),
-    accountId: nullableText(input.accountId),
-    resourceId: text(input.resourceId),
-    grantId: identifier(input.grantId),
-    policyVersion: text(input.policyVersion),
-    role,
-    targetAuthorId,
-    allowedContextAuthorIds: contextIds(input.allowedContextAuthorIds, targetAuthorId),
-    allowUnknownContext: flag(input.allowUnknownContext),
-    period: {
-      from: nullableText(period.from),
-      to: nullableText(period.to),
-      includeUndated: flag(period.includeUndated),
-    },
-  };
-}
 export function decodeCreatedSourceBinding(
   value: unknown,
   request: SourceBindingRequest,
 ): CreatedSourceBinding {
   const input = fields(value, ['binding', 'grant']);
-  const selected = binding(input.binding);
+  const selected = decodeSourceBinding(input.binding);
   const grant = decodeSourceGrant(input.grant);
   const grantedSource = sourceRequest({
     provider: grant.provider,

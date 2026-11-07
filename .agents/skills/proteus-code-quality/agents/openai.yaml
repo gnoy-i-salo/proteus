@@ -1,0 +1,3 @@
+interface:
+  display_name: 'PROTEUS Code Quality'
+  short_description: 'Границы кода, совместимость и стиль PROTEUS'

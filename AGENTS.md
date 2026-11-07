@@ -31,8 +31,12 @@
 - No package cycles, relative cross-package imports or deep imports. Use public `@proteus-int/<package>` APIs.
 - Desktop follows FSD: `app → pages → widgets → features → entities → shared`; layers may skip lower layers. No upward or cross-slice imports.
 - Cross-slice imports use `index.ts`. `app` and `shared` are not sliced; shared segments can reference each other.
-- Use kebab-case for paths, package names, persisted custom fields, CSS variables and SCSS variables. CSS Modules use BEM: `model-settings__row--active`, accessed as `styles['model-settings__row']`.
-- Language constraints: TypeScript identifiers use camelCase/PascalCase, Rust identifiers use snake_case, and third-party API/config keys retain their required spelling. Required filenames (`AGENTS.md`, `README.md`, `Cargo.toml`, `Cargo.lock`, `PULL_REQUEST_TEMPLATE.md`) and generated platform icons are explicit exceptions.
+- Apply [the code standard](docs/code-style.md) to all three release epics. Own TypeScript fields and variables use camelCase, types/components PascalCase; paths and npm package IDs remain kebab-case. This replaces the former persisted-field kebab-case rule.
+- CSS Modules use `blockMore__elementMore_modificatorMaybe`: camelCase parts, `__` before an element, one `_` before a modifier; assign base and modifier together. Use `styles.modelSettings__row` and camelCase tokens (`--personaTurquoise`, `$personaTurquoise`). The former `--modifier` class spelling is obsolete.
+- Rust identifiers stay snake_case/PascalCase; own serialized DTOs use camelCase after the coordinated boundary migration. External API/config/HTML/framework names retain their required spelling. Stable IDs/status values, source text, citations and opaque maps are not field names to rename.
+- Decode exact legacy schemas only at their owning boundaries; version new writers and reject conflicting aliases/unknown versions without overwriting originals. Never recursively rename arbitrary JSON or publish both aliases in domain interfaces.
+- Keep package `index.ts` exports-only; use direct relative imports inside a package. Separate SolidJS 1.9 scenario models from presentation and keep Tauri commands thin. Read the repository skill `.agents/skills/proteus-code-quality/SKILL.md` when changing packages, UI models, SCSS or native code. It supplements checks; it does not replace them.
+- Required filenames (`AGENTS.md`, `README.md`, `SKILL.md`, `Cargo.toml`, `Cargo.lock`, `PULL_REQUEST_TEMPLATE.md`) and generated platform icons are explicit exceptions. Migration status and still-pending enforcement are recorded in `docs/code-style.md`; do not broaden exceptions to bypass existing gates.
 
 ## Product boundaries
 
@@ -41,7 +45,7 @@
 - Preserve turquoise/violet persona palettes, the gray central logo head and pixel-style native window controls.
 - Provider integrations stay behind ports. Unconfigured adapters must fail explicitly; no fabricated model output or network activity from demo settings.
 - Native executable embeds the frontend and invokes the user's installed Codex/Kimi CLIs through Rust IPC. No separate application Node server; authentication stays with each CLI.
-- Use only permitted public source material; separate facts from hypotheses and remove direct identifiers before Person Fabric.
+- Use permitted public source material or explicitly granted selected sources. Separate facts from hypotheses; preserve source names, authorship, relationships and exact wording through STALKER, Person Fabric and Person. Do not anonymize the shared task or persona context. Model-processing permissions, credential isolation and export restrictions remain independent controls.
 - Traces include timing, answers and reasoning text explicitly exposed by Codex/Kimi CLI streams. Never extract encrypted/raw provider state or relabel an answer as reasoning. BSC is the board's experimental metric, not a validated human intelligence measure.
 - Keep provider credentials out of frontend code, storage and Git. Installed CLIs own their authentication; do not read or copy their token files.
 

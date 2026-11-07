@@ -1,14 +1,14 @@
 .modelSettings {
   p {
     margin: 8px 0;
-    font-size: 12px;
+    font-size: var(--caption);
     line-height: 1.5;
   }
 
   label {
     display: grid;
     gap: 5px;
-    font-size: 11px;
+    font-size: var(--caption);
   }
 
   input,
@@ -34,8 +34,11 @@
 
   &__row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1.3fr);
+    align-items: center;
+    gap: 10px;
+    font-size: var(--caption);
+    line-height: 1.4;
   }
 
   &__note {
@@ -44,8 +47,29 @@
 }
 
 @media (height <= 650px) {
+  .modelSettings__global {
+    padding-bottom: 8px;
+  }
+
   .modelSettings__components {
-    gap: 7px;
-    margin: 10px 0;
+    gap: 6px;
+    margin: 8px 0;
+  }
+}
+
+.modelSettings__warning {
+  padding: 6px 8px;
+  border: 1px solid #ffbc73;
+  color: #ffdcaa;
+
+  p {
+    margin: 0 0 6px;
+  }
+
+  button {
+    font-size: var(--caption);
+    min-height: 28px;
+    padding: 3px 6px;
+    margin-right: 6px;
   }
 }

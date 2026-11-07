@@ -2,6 +2,7 @@ import { For, onCleanup, onMount, Show } from 'solid-js';
 import { connectionProviders } from '@proteus-int/contracts';
 import type { ImportedSource, SourceGrant, SourceProvider } from '@proteus-int/contracts';
 import { createSourceSelectionModel } from '../model/source-selection-model';
+import { formText } from '../../../shared/lib/form-fields';
 import { isDesktop } from '../../../shared/lib/window-controls';
 import styles from './source-selection.module.scss';
 
@@ -30,6 +31,7 @@ export function SourceSelection(props: {
   onImported: (provider: SourceProvider, source: ImportedSource) => void;
   onChange: (grants: readonly SourceGrant[]) => void;
   onClose: () => void;
+  onShowSettings: () => void;
 }) {
   const {
     provider,
@@ -48,6 +50,7 @@ export function SourceSelection(props: {
     pick,
     add,
     remove,
+    reportActionFailure,
   } = createSourceSelectionModel({
     grants: () => props.grants,
     modelProcessingAvailable: () => props.modelProcessingAvailable,
@@ -105,6 +108,9 @@ export function SourceSelection(props: {
           <p class={styles['sourceSelection__error']} role="alert">
             Для подключённых источников выберите Codex для всех компонентов в настройках. Поддержка
             Kimi для этих материалов пока недоступна.
+            <button type="button" onClick={() => props.onShowSettings()}>
+              Открыть настройки моделей
+            </button>
           </p>
         </Show>
         <Show when={props.grants.length > 0}>
@@ -139,10 +145,10 @@ export function SourceSelection(props: {
               event.preventDefault();
               const fields = new FormData(event.currentTarget);
               void add({
-                author: String(fields.get('author') ?? ''),
-                from: String(fields.get('from') ?? ''),
-                to: String(fields.get('to') ?? ''),
-              });
+                author: formText(fields, 'author'),
+                from: formText(fields, 'from'),
+                to: formText(fields, 'to'),
+              }).catch(reportActionFailure);
             }}
           >
             <div class={styles['sourceSelection__provider']}>
@@ -202,7 +208,11 @@ export function SourceSelection(props: {
                   }}
                 />
               </label>
-              <button type="button" disabled={busy()} onClick={() => void pick()}>
+              <button
+                type="button"
+                disabled={busy()}
+                onClick={() => void pick().catch(reportActionFailure)}
+              >
                 Импорт JSON / текста
               </button>
             </div>
@@ -293,7 +303,11 @@ export function SourceSelection(props: {
                 >
                   →
                 </button>
-                <button type="button" disabled={busy()} onClick={() => void remove()}>
+                <button
+                  type="button"
+                  disabled={busy()}
+                  onClick={() => void remove().catch(reportActionFailure)}
+                >
                   Убрать источник
                 </button>
               </nav>

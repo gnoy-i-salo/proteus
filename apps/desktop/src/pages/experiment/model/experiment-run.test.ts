@@ -226,7 +226,7 @@ it('unsubscribes a connection listener that registers after owner disposal', asy
 
 it('preserves progress, stage upserts and the current live reasoning merge', async () => {
   const fixture = setup((port) =>
-    port.runExperiment.mockImplementation(async (_input, _settings, _providers, options) => {
+    port.runExperiment.mockImplementation((_input, _settings, _providers, options) => {
       options?.onProgress?.({
         id: stage.id,
         stage: 'person',
@@ -242,7 +242,7 @@ it('preserves progress, stage upserts and the current live reasoning merge', asy
         elapsedMs: 5,
         reasoning: { id: 'r', kind: 'summary', text: ' exact\r\n👩🏽‍🔬 ' },
       });
-      throw new Error('synthetic end');
+      return Promise.reject(new Error('synthetic end'));
     }),
   );
   await fixture.model.start();
@@ -264,4 +264,22 @@ it('replaces a repeated public stream block without rewriting previous text or s
   expect(second.trace.reasoning).toEqual([{ id: '2:r', kind: 'summary', text: ' updated\r\n👩🏽‍🔬' }]);
   expect(second.trace.wallTimeMs).toBe(18);
   expect(second.attempts).toBe(stage.attempts);
+});
+
+it('blocks a known missing selected CLI before starting any pipeline work', async () => {
+  const fixture = setup((port) =>
+    port.cliStatus.mockResolvedValue([
+      { provider: 'codex', available: false, path: null },
+      { provider: 'kimi', available: true, path: '/synthetic/kimi' },
+    ]),
+  );
+  await tick();
+  await fixture.model.start();
+  expect(fixture.port.runExperiment).not.toHaveBeenCalled();
+  expect(fixture.onStarted).not.toHaveBeenCalled();
+  expect(fixture.reportError).toHaveBeenLastCalledWith(
+    expect.stringContaining('Codex CLI не найден'),
+  );
+  expect(fixture.model.screen()).toBe('start');
+  fixture.dispose();
 });

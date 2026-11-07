@@ -1,4 +1,5 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js';
+import type { CliStatus } from '../../../shared/lib/cli';
 import type { ModelSettings } from '@proteus-int/intelligence';
 import type { ImportedSource, SourceProvider } from '@proteus-int/contracts';
 import { ModelSettingsPanel } from '../../../features/model-settings';
@@ -7,6 +8,8 @@ import styles from './settings-dialog.module.scss';
 
 export function SettingsDialog(props: {
   settings: ModelSettings;
+  hasSources: boolean;
+  available: readonly CliStatus[];
   onChange: (settings: ModelSettings) => void;
   onClose: () => void;
   onImported: (provider: SourceProvider, source: ImportedSource) => void;
@@ -16,6 +19,10 @@ export function SettingsDialog(props: {
   let dialog: HTMLElement | undefined;
   const previousFocus = document.activeElement;
   onMount(() => dialog?.querySelector<HTMLElement>('[role="tab"]')?.focus());
+  const selectTab = (next: 'models' | 'connections') => {
+    setSection(next);
+    dialog?.querySelector<HTMLElement>(`#${next}-tab`)?.focus();
+  };
   onCleanup(() => {
     if (previousFocus instanceof HTMLElement) previousFocus.focus();
   });
@@ -33,7 +40,12 @@ export function SettingsDialog(props: {
         if (event.key !== 'Tab' || !dialog) return;
         const targets = [
           ...dialog.querySelectorAll<HTMLElement>('button, input, select, a[href]'),
-        ].filter((element) => !element.hasAttribute('disabled') && element.offsetParent !== null);
+        ].filter(
+          (element) =>
+            !element.hasAttribute('disabled') &&
+            element.tabIndex >= 0 &&
+            element.offsetParent !== null,
+        );
         const first = targets[0];
         const last = targets.at(-1);
         if (event.shiftKey && document.activeElement === first) {
@@ -51,13 +63,31 @@ export function SettingsDialog(props: {
           ×
         </button>
       </header>
-      <div class={styles['settingsDialog__tabs']} role="tablist" aria-label="Раздел настроек">
+      <div
+        class={styles['settingsDialog__tabs']}
+        role="tablist"
+        aria-label="Раздел настроек"
+        onKeyDown={(event) => {
+          if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          selectTab(
+            event.key === 'Home'
+              ? 'models'
+              : event.key === 'End'
+                ? 'connections'
+                : section() === 'models'
+                  ? 'connections'
+                  : 'models',
+          );
+        }}
+      >
         <button
           id="models-tab"
           role="tab"
           aria-selected={section() === 'models'}
+          tabIndex={section() === 'models' ? 0 : -1}
           aria-controls="settings-panel"
-          onClick={() => setSection('models')}
+          onClick={() => selectTab('models')}
         >
           Модели
         </button>
@@ -65,8 +95,9 @@ export function SettingsDialog(props: {
           id="connections-tab"
           role="tab"
           aria-selected={section() === 'connections'}
+          tabIndex={section() === 'connections' ? 0 : -1}
           aria-controls="settings-panel"
-          onClick={() => setSection('connections')}
+          onClick={() => selectTab('connections')}
         >
           Подключения
         </button>
@@ -78,7 +109,12 @@ export function SettingsDialog(props: {
             <ConnectionsPanel onImported={props.onImported} onDataCleared={props.onDataCleared} />
           }
         >
-          <ModelSettingsPanel settings={props.settings} onChange={props.onChange} />
+          <ModelSettingsPanel
+            settings={props.settings}
+            onChange={props.onChange}
+            hasSources={props.hasSources}
+            available={props.available}
+          />
         </Show>
       </div>
       <button class={styles['settingsDialog__done']} onClick={() => props.onClose()}>

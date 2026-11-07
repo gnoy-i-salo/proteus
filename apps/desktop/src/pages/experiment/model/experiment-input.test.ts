@@ -70,7 +70,7 @@ it('joins input pages exactly and only normalizes the existing public URL fields
 
 it('keeps source identity and removes cleared-provider attachments without duplicate native revocations', () => {
   const remove = vi.fn().mockResolvedValue(undefined);
-  const { model, dispose } = owned(() => createExperimentSources(remove));
+  const { model, dispose } = owned(() => createExperimentSources(remove, vi.fn()));
   const other = { ...grant, id: 'github-grant', provider: 'github' as const };
   model.changeGrants(0, [grant, other]);
   model.changeGrants(1, [grant]);
@@ -123,7 +123,10 @@ it('applies model changes despite failed persistence and only invalidates STALKE
   model.persist(otherChange);
   expect(clearSourceGrants).not.toHaveBeenCalled();
   expect(model.sourceModelsAvailable()).toBe(false);
-  expect(JSON.parse(local.values.get(modelSettingsKeys.current) ?? '{}').version).toBe(2);
+  expect(JSON.parse(local.values.get(modelSettingsKeys.current) ?? '{}')).toHaveProperty(
+    'version',
+    2,
+  );
   vi.spyOn(local, 'setItem').mockImplementation(() => {
     throw new Error('quota');
   });
@@ -132,5 +135,21 @@ it('applies model changes despite failed persistence and only invalidates STALKE
   expect(model.settings()).toEqual(changed);
   expect(clearSourceGrants).toHaveBeenCalledOnce();
   expect(reportError).toHaveBeenLastCalledWith('Настройки применены, но не сохранены.');
+  dispose();
+});
+
+it('reports a failed native permission revocation after detaching the source from input', async () => {
+  const remove = vi
+    .fn<(id: string) => Promise<void>>()
+    .mockRejectedValue(new Error('native failure'));
+  const reportError = vi.fn();
+  const { model, dispose } = owned(() => createExperimentSources(remove, reportError));
+  model.changeGrants(0, [grant]);
+  model.clearSourceGrants();
+  await Promise.resolve();
+  expect(model.sourceGrants()).toEqual([[], []]);
+  expect(reportError).toHaveBeenCalledWith(
+    expect.stringContaining('не удалось подтвердить отзыв разрешений'),
+  );
   dispose();
 });

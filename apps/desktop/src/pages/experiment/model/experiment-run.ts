@@ -92,9 +92,23 @@ export function createExperimentRun(
     }
   });
   onCleanup(() => controller?.abort());
+  const readinessError = () => {
+    if (!available().length) return '';
+    const missing = [...new Set(Object.values(options.settings().components))].filter(
+      (provider) => !available().some((cli) => cli.provider === provider && cli.available),
+    );
+    return missing.length
+      ? `${missing.map((id) => (id === 'codex' ? 'Codex' : 'Kimi')).join(', ')} CLI не найден. Установите выбранный CLI или смените провайдера в настройках. Вход выполняется в самом CLI.`
+      : '';
+  };
   const start = async () => {
     options.reportError('');
     setSavedPath('');
+    const notReady = readinessError();
+    if (notReady) {
+      options.reportError(notReady);
+      return;
+    }
     if (
       options.sourceGrants().some((grants) => grants.length > 0) &&
       !options.sourceModelsAvailable()
@@ -154,7 +168,11 @@ export function createExperimentRun(
             new Promise<void>((resolve, reject) => {
               const signal = controller!.signal;
               if (signal.aborted) {
-                reject(signal.reason);
+                reject(
+                  signal.reason instanceof Error
+                    ? signal.reason
+                    : new Error('Эксперимент остановлен', { cause: signal.reason }),
+                );
                 return;
               }
               const cleanup = () => {
@@ -164,7 +182,11 @@ export function createExperimentRun(
               };
               const abort = () => {
                 cleanup();
-                reject(signal.reason ?? new Error('Эксперимент остановлен'));
+                reject(
+                  signal.reason instanceof Error
+                    ? signal.reason
+                    : new Error('Эксперимент остановлен', { cause: signal.reason }),
+                );
               };
               signal.addEventListener('abort', abort, { once: true });
               acceptProtocol = () => {
@@ -232,6 +254,7 @@ export function createExperimentRun(
     screen,
     setScreen,
     available,
+    readinessError,
     pendingProtocol,
     events,
     result,

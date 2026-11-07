@@ -1,5 +1,18 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+interface NativeFixtureWindow {
+  readonly connectionCalls: readonly { command: string; args: Record<string, unknown> }[];
+  readonly connectionPollCount?: number;
+  readonly rejectNextConnectionPoll?: boolean;
+  readonly holdNextConnectionPoll?: boolean;
+  readonly rejectNextConnectionAction?: boolean;
+  readonly holdNextConnectionAction?: boolean;
+  emitConnectionError(): void;
+  rotateTelegramQr(): void;
+  setConnectionState(provider: string, state: Record<string, unknown>): void;
+  releaseConnectionAction(): void;
+  releaseConnectionPoll(): void;
+}
 
 async function nativeConnections(page: Page) {
   await page.addInitScript(() => {
@@ -37,6 +50,54 @@ async function nativeConnections(page: Page) {
         qrCode: qrCode('rotated'),
       };
     });
+    const changeConnection = (
+      command: string,
+      provider: string,
+      request: Record<string, unknown> | undefined,
+      args: Record<string, unknown>,
+    ) => {
+      if (command === 'configure_connection') {
+        if (request?.['token'] === 'bad-test-token') throw new Error('bad-test-token rejected');
+        states[provider] = {
+          provider,
+          status: provider === 'instagram' ? 'connected' : 'disconnected',
+          capabilities: provider === 'instagram' ? ['profile', 'posts'] : [],
+          ...(request?.clientId ? { clientId: request.clientId } : {}),
+          ...(request?.apiId ? { apiId: request.apiId } : {}),
+        };
+      }
+      if (command === 'begin_connection') {
+        if (provider === 'telegram') delete states[provider]?.qrCode;
+        states[provider] = {
+          ...states[provider],
+          status:
+            provider === 'telegram'
+              ? args.telegramMethod === 'phone'
+                ? 'phone-required'
+                : 'qr-required'
+              : 'pending',
+          ...(provider === 'telegram' && args.telegramMethod !== 'phone'
+            ? { qrCode: qrCode() }
+            : {}),
+          ...(provider === 'github' ? { userCode: 'TEST-CODE', pollAfterMs: 60000 } : {}),
+        };
+      }
+      if (command === 'advance_connection') {
+        const next = {
+          'phone-required': 'code-required',
+          'code-required': 'password-required',
+          'password-required': 'connected',
+          pending: 'connected',
+        }[String(states[provider]?.['status'])];
+        states[provider] = {
+          ...states[provider],
+          status: next,
+          ...(next === 'connected' ? { label: 'test-account', capabilities: ['profile'] } : {}),
+        };
+      }
+      if (command === 'disconnect_connection')
+        states[provider] = { ...states[provider], status: 'disconnected', capabilities: [] };
+    };
     Reflect.set(window, '__TAURI_INTERNALS__', {
       transformCallback: (callback: (event: unknown) => void) => {
         callbacks.set(++callbackId, callback);
@@ -54,17 +115,17 @@ async function nativeConnections(page: Page) {
           return args['handler'];
         }
         if (command === 'connection_statuses') {
-          if (Reflect.get(window, 'rejectNextConnectionPoll')) {
+          if ((window as unknown as NativeFixtureWindow).rejectNextConnectionPoll) {
             Reflect.set(window, 'rejectNextConnectionPoll', false);
             throw new Error('test-transient-status-error');
           }
           Reflect.set(
             window,
             'connectionPollCount',
-            Number(Reflect.get(window, 'connectionPollCount') ?? 0) + 1,
+            Number((window as unknown as NativeFixtureWindow).connectionPollCount ?? 0) + 1,
           );
           const snapshot = structuredClone(Object.values(states));
-          if (Reflect.get(window, 'holdNextConnectionPoll')) {
+          if ((window as unknown as NativeFixtureWindow).holdNextConnectionPoll) {
             Reflect.set(window, 'holdNextConnectionPoll', false);
             return new Promise((resolve) =>
               Reflect.set(window, 'releaseConnectionPoll', () => resolve(snapshot)),
@@ -76,11 +137,11 @@ async function nativeConnections(page: Page) {
         if (command === 'export_preset') return null;
         if (command === 'open_connection_page') return;
         if (command === 'begin_connection' || command === 'disconnect_connection') {
-          if (Reflect.get(window, 'rejectNextConnectionAction')) {
+          if ((window as unknown as NativeFixtureWindow).rejectNextConnectionAction) {
             Reflect.set(window, 'rejectNextConnectionAction', false);
             throw new Error('test-native-credential-error');
           }
-          if (Reflect.get(window, 'holdNextConnectionAction')) {
+          if ((window as unknown as NativeFixtureWindow).holdNextConnectionAction) {
             Reflect.set(window, 'holdNextConnectionAction', false);
             await new Promise<void>((resolve) =>
               Reflect.set(window, 'releaseConnectionAction', resolve),
@@ -97,47 +158,7 @@ async function nativeConnections(page: Page) {
             snapshotId: 'snapshot-test',
             expiresAt: '2099-01-01T00:00:00Z',
           };
-        if (command === 'configure_connection') {
-          if (request?.['token'] === 'bad-test-token') throw new Error('bad-test-token rejected');
-          states[provider] = {
-            provider,
-            status: provider === 'instagram' ? 'connected' : 'disconnected',
-            capabilities: provider === 'instagram' ? ['profile', 'posts'] : [],
-            ...(request?.clientId ? { clientId: request.clientId } : {}),
-            ...(request?.apiId ? { apiId: request.apiId } : {}),
-          };
-        }
-        if (command === 'begin_connection') {
-          if (provider === 'telegram') delete states[provider]?.qrCode;
-          states[provider] = {
-            ...states[provider],
-            status:
-              provider === 'telegram'
-                ? args.telegramMethod === 'phone'
-                  ? 'phone-required'
-                  : 'qr-required'
-                : 'pending',
-            ...(provider === 'telegram' && args.telegramMethod !== 'phone'
-              ? { qrCode: qrCode() }
-              : {}),
-            ...(provider === 'github' ? { userCode: 'TEST-CODE', pollAfterMs: 60000 } : {}),
-          };
-        }
-        if (command === 'advance_connection') {
-          const next = {
-            'phone-required': 'code-required',
-            'code-required': 'password-required',
-            'password-required': 'connected',
-            pending: 'connected',
-          }[String(states[provider]?.['status'])];
-          states[provider] = {
-            ...states[provider],
-            status: next,
-            ...(next === 'connected' ? { label: 'test-account', capabilities: ['profile'] } : {}),
-          };
-        }
-        if (command === 'disconnect_connection')
-          states[provider] = { ...states[provider], status: 'disconnected', capabilities: [] };
+        changeConnection(command, provider, request, args);
         if (command === 'import_source')
           return {
             id: 'import:test-archive',
@@ -189,9 +210,11 @@ test('source selection requires explicit model consent and stays outside saved p
   await expect(
     page.getByRole('button', { name: 'Источники персоны B', exact: true }),
   ).toContainText('0');
-  const calls = await page.evaluate(() => Reflect.get(window, 'connectionCalls'));
+  const calls = await page.evaluate(
+    () => (window as unknown as NativeFixtureWindow).connectionCalls,
+  );
   expect(
-    calls.find((call: { command: string }) => call.command === 'create_source_grant').args.request,
+    calls.find((call: { command: string }) => call.command === 'create_source_grant')!.args.request,
   ).toMatchObject({
     provider: 'telegram',
     resourceId: '-1001234567890',
@@ -280,12 +303,16 @@ test('connected sources explain the current Codex requirement before granting ac
   await nativeConnections(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Настройки PROTEUS' }).click();
-  await page.getByLabel('Модель Person', { exact: true }).selectOption('kimi');
+  await page.getByLabel('Провайдер Person', { exact: true }).selectOption('kimi');
   await page.getByRole('button', { name: 'Закрыть настройки' }).click();
   await page.getByRole('button', { name: 'Источники персоны A', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Codex для всех компонентов');
   await page.getByLabel('Ресурс', { exact: true }).fill('-1001234567890');
   await expect(page.getByRole('button', { name: 'Добавить источник', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Открыть настройки моделей', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Настройки PROTEUS' })).toBeVisible();
+  await expect(page.getByLabel('Провайдер Person', { exact: true })).toHaveValue('kimi');
+  await expect(page.getByLabel('Провайдер STALKER', { exact: true })).toHaveValue('codex');
 });
 
 test('native callback failure is visible without exposing provider response details', async ({
@@ -293,7 +320,7 @@ test('native callback failure is visible without exposing provider response deta
 }) => {
   await nativeConnections(page);
   await openConnections(page);
-  await page.evaluate(() => Reflect.get(window, 'emitConnectionError')());
+  await page.evaluate(() => (window as unknown as NativeFixtureWindow).emitConnectionError());
   await expect(page.getByRole('alert')).toContainText('Подключение не завершено');
   await expect(page.getByRole('alert')).not.toContainText('raw-provider-detail');
 });
@@ -313,7 +340,7 @@ test('deleting downloaded provider data is explicit and removes its attached sou
   await page.getByRole('button', { name: 'Удалить материалы STALKER', exact: true }).click();
   expect(
     await page.evaluate(() =>
-      Reflect.get(window, 'connectionCalls').filter(
+      (window as unknown as NativeFixtureWindow).connectionCalls.filter(
         (call: { command: string }) => call.command === 'clear_source_data',
       ),
     ),
@@ -356,7 +383,9 @@ test('Instagram imports real file metadata separately from professional API conn
   await openConnections(page);
   await page.getByRole('tab', { name: 'Instagram', exact: true }).click();
   await page.getByRole('button', { name: 'Открыть экспорт Instagram', exact: true }).click();
-  expect(await page.evaluate(() => Reflect.get(window, 'connectionCalls').at(-1))).toEqual({
+  expect(
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).connectionCalls.at(-1)),
+  ).toEqual({
     command: 'open_connection_page',
     args: { page: 'instagram-export' },
   });
@@ -402,7 +431,7 @@ test('VK browser entry and reopening are explicit and keep pending confirmation'
   await page.getByRole('button', { name: 'Сохранить настройки VK' }).click();
   expect(
     await page.evaluate(() =>
-      Reflect.get(window, 'connectionCalls').filter(
+      (window as unknown as NativeFixtureWindow).connectionCalls.filter(
         (call: { command: string }) => call.command === 'begin_connection',
       ),
     ),
@@ -410,7 +439,9 @@ test('VK browser entry and reopening are explicit and keep pending confirmation'
   await page.getByRole('button', { name: 'Войти в VK через браузер', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Ожидаем подтверждения');
   await page.getByRole('button', { name: 'Открыть браузер ещё раз', exact: true }).click();
-  expect(await page.evaluate(() => Reflect.get(window, 'connectionCalls').at(-1))).toEqual({
+  expect(
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).connectionCalls.at(-1)),
+  ).toEqual({
     command: 'open_connection_page',
     args: { page: 'vk-auth' },
   });
@@ -425,7 +456,7 @@ test('Telegram QR rotates in place and fits the native window', async ({ page },
   await startTelegramQr(page);
   const qr = page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true });
   const first = await qr.getAttribute('src');
-  await page.evaluate(() => Reflect.get(window, 'rotateTelegramQr')());
+  await page.evaluate(() => (window as unknown as NativeFixtureWindow).rotateTelegramQr());
   await expect(qr).not.toHaveAttribute('src', first!);
   await expect(page.getByText('QR-код обновляется автоматически.', { exact: true })).toBeVisible();
   await expect(page.getByText(/Завершите вход в открывшемся браузере/)).toHaveCount(0);
@@ -451,7 +482,9 @@ test('Telegram QR rotates in place and fits the native window', async ({ page },
 test('Telegram QR transitions to password without keeping the QR image', async ({ page }) => {
   await startTelegramQr(page);
   await page.evaluate(() =>
-    Reflect.get(window, 'setConnectionState')('telegram', { status: 'password-required' }),
+    (window as unknown as NativeFixtureWindow).setConnectionState('telegram', {
+      status: 'password-required',
+    }),
   );
   await expect(page.getByLabel('Пароль Telegram', { exact: true })).toBeVisible();
   await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
@@ -474,12 +507,14 @@ test('Telegram QR can switch to the native phone flow', async ({ page }) => {
   await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
     0,
   );
-  await page.evaluate(() => Reflect.get(window, 'releaseConnectionAction')());
+  await page.evaluate(() => (window as unknown as NativeFixtureWindow).releaseConnectionAction());
   await expect(page.getByLabel('Номер телефона Telegram', { exact: true })).toBeVisible();
   await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
     0,
   );
-  expect(await page.evaluate(() => Reflect.get(window, 'connectionCalls').at(-1))).toEqual({
+  expect(
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).connectionCalls.at(-1)),
+  ).toEqual({
     command: 'begin_connection',
     args: { provider: 'telegram', telegramMethod: 'phone' },
   });
@@ -491,13 +526,19 @@ test('Telegram polling stays serial and an old poll cannot restore a cancelled Q
   await startTelegramQr(page);
   await page.evaluate(() => Reflect.set(window, 'holdNextConnectionPoll', true));
   await expect
-    .poll(() => page.evaluate(() => typeof Reflect.get(window, 'releaseConnectionPoll')))
+    .poll(() =>
+      page.evaluate(() => typeof (window as unknown as NativeFixtureWindow).releaseConnectionPoll),
+    )
     .toBe('function');
-  const count = await page.evaluate(() => Reflect.get(window, 'connectionPollCount'));
+  const count = await page.evaluate(
+    () => (window as unknown as NativeFixtureWindow).connectionPollCount,
+  );
   await page.waitForTimeout(3200);
-  expect(await page.evaluate(() => Reflect.get(window, 'connectionPollCount'))).toBe(count);
+  expect(
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).connectionPollCount),
+  ).toBe(count);
   await page.getByRole('button', { name: 'Отменить подключение', exact: true }).click();
-  await page.evaluate(() => Reflect.get(window, 'releaseConnectionPoll')());
+  await page.evaluate(() => (window as unknown as NativeFixtureWindow).releaseConnectionPoll());
   await expect(page.getByRole('status')).toContainText('Не подключено');
   await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
     0,
@@ -535,7 +576,7 @@ test('Telegram action errors and panel closure discard the displayed QR', async 
     .getByRole('button', { name: 'Отменить вход по QR и войти по номеру', exact: true })
     .click();
   await page.getByRole('button', { name: 'Закрыть настройки', exact: true }).click();
-  await page.evaluate(() => Reflect.get(window, 'releaseConnectionAction')());
+  await page.evaluate(() => (window as unknown as NativeFixtureWindow).releaseConnectionAction());
   await expect(page.getByRole('dialog', { name: 'Настройки PROTEUS' })).toHaveCount(0);
   await expect(page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true })).toHaveCount(
     0,
@@ -558,16 +599,89 @@ test('Telegram rejects nonlocal or oversized QR images', async ({ page }) => {
     'https://example.invalid/secret-qr',
     `data:image/svg+xml;base64,${'A'.repeat(131073)}`,
   ]) {
-    await page.evaluate(() => Reflect.get(window, 'rotateTelegramQr')());
+    await page.evaluate(() => (window as unknown as NativeFixtureWindow).rotateTelegramQr());
     await expect(
       page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true }),
     ).toBeVisible();
     await page.evaluate(
-      (qr) => Reflect.get(window, 'setConnectionState')('telegram', { qrCode: qr }),
+      (qr) =>
+        (window as unknown as NativeFixtureWindow).setConnectionState('telegram', { qrCode: qr }),
       value,
     );
     await expect(
       page.getByRole('img', { name: 'QR-код входа в Telegram', exact: true }),
     ).toHaveCount(0);
   }
+});
+
+test('STALKER changes warn before invalidating sources and preserve input', async ({ page }) => {
+  await nativeConnections(page);
+  await page.goto('/');
+  await page.getByLabel('Контекст A', { exact: true }).fill('Сохранить точный контекст.');
+  await page.getByLabel('Общая задача', { exact: true }).fill('Сохранить задачу.');
+  await page.getByRole('button', { name: 'Источники персоны A', exact: true }).click();
+  await page.getByLabel('Ресурс', { exact: true }).fill('-1001234567890');
+  await page.getByRole('checkbox', { name: /Разрешаю передать/ }).check();
+  await page.getByRole('button', { name: 'Добавить источник', exact: true }).click();
+  await page.getByRole('button', { name: 'Готово', exact: true }).click();
+  await page.getByRole('button', { name: 'Настройки PROTEUS' }).click();
+  await page.getByLabel(/^(Модель|Провайдер) STALKER$/).selectOption('kimi');
+  const deletes = () =>
+    page.evaluate(() => {
+      const calls: unknown = Reflect.get(window, 'connectionCalls');
+      return Array.isArray(calls)
+        ? calls.filter(
+            (call: unknown) =>
+              call &&
+              typeof call === 'object' &&
+              'command' in call &&
+              call.command === 'delete_source',
+          ).length
+        : -1;
+    });
+  expect(await deletes()).toBe(0);
+  await expect(page.getByRole('alert')).toContainText('Смена STALKER сбросит разрешения');
+  await page.setViewportSize({ width: 640, height: 600 });
+  const bounds = await page.getByRole('dialog', { name: 'Настройки PROTEUS' }).boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(600);
+  await page.screenshot({ path: 'test-results/settings-confirmation-640.png' });
+  await page.getByRole('button', { name: 'Отменить изменение', exact: true }).click();
+  await expect(page.getByLabel('Провайдер STALKER', { exact: true })).toHaveValue('codex');
+  await page
+    .getByLabel('Название модели STALKER', { exact: true })
+    .pressSequentially('exact alias');
+  await expect(page.getByLabel('Название модели STALKER', { exact: true })).toHaveValue(
+    'exact alias',
+  );
+  expect(await deletes()).toBe(0);
+  await page.getByRole('button', { name: 'Применить и сбросить разрешения', exact: true }).click();
+  await expect.poll(deletes).toBe(1);
+  await page.getByRole('button', { name: 'Закрыть настройки' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Источники персоны A', exact: true }),
+  ).toContainText('0');
+  await expect(page.getByLabel('Контекст A', { exact: true })).toHaveValue(
+    'Сохранить точный контекст.',
+  );
+  await expect(page.getByLabel('Общая задача', { exact: true })).toHaveValue('Сохранить задачу.');
+});
+
+test('missing CLI remains distinct from authentication and blocks pipeline start', async ({
+  page,
+}) => {
+  await nativeConnections(page);
+  await page.goto('/');
+  await page.getByLabel('Контекст A', { exact: true }).fill('A exact');
+  await page.getByLabel('Контекст B', { exact: true }).fill('B exact');
+  await page.getByLabel('Общая задача', { exact: true }).fill('Task exact');
+  await page.getByRole('button', { name: 'Начать эксперимент' }).click();
+  await expect(page.getByRole('alert')).toContainText('Codex CLI не найден');
+  await page.getByRole('button', { name: 'Открыть настройки моделей', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Настройки моделей' })).toContainText(
+    'Вход в CLI проверяется при запуске',
+  );
+  await page.getByRole('button', { name: 'Закрыть настройки' }).click();
+  await expect(page.getByLabel('Общая задача', { exact: true })).toHaveValue('Task exact');
 });

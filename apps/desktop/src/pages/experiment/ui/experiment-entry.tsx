@@ -126,9 +126,12 @@ export function ExperimentEntry(props: {
         <span>
           {props.available.length
             ? props.available
-                .map((cli) => `${cli.provider.toUpperCase()} ${cli.available ? '●' : '○'}`)
+                .map(
+                  (cli) =>
+                    `${cli.provider === 'codex' ? 'Codex' : 'Kimi'}: ${cli.available ? 'найден' : 'не найден'}`,
+                )
                 .join(' / ')
-            : 'DESKTOP CLI CONNECTION'}
+            : 'Запуск через настольный CLI'}
         </span>
         <button type="submit" aria-label="Начать эксперимент">
           START ▶

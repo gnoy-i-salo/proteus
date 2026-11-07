@@ -138,5 +138,8 @@ export function createSourceSelectionModel(
     pick,
     add,
     remove,
+    reportActionFailure: () => {
+      if (!disposed) setError('Не удалось завершить действие с источником. Повторите попытку.');
+    },
   };
 }

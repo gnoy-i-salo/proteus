@@ -2,7 +2,10 @@ import { createSignal } from 'solid-js';
 import type { ImportedSource, SourceGrant, SourceProvider } from '@proteus-int/contracts';
 import { deleteSourceGrant } from '../../../shared/lib/connections';
 
-export function createExperimentSources(removeGrant = deleteSourceGrant) {
+export function createExperimentSources(
+  removeGrant: typeof deleteSourceGrant = deleteSourceGrant,
+  reportError: (message: string) => void,
+) {
   const [sourceGrants, setSourceGrants] = createSignal<
     readonly [readonly SourceGrant[], readonly SourceGrant[]]
   >([[], []]);
@@ -15,7 +18,13 @@ export function createExperimentSources(removeGrant = deleteSourceGrant) {
       { provider, source },
     ]);
   const clearSourceGrants = () => {
-    for (const grant of sourceGrants().flat()) void removeGrant(grant.id).catch(() => undefined);
+    for (const grant of sourceGrants().flat()) {
+      void removeGrant(grant.id).catch(() =>
+        reportError(
+          'Источники убраны из эксперимента, но не удалось подтвердить отзыв разрешений. Удалите материалы в настройках подключений и повторите попытку.',
+        ),
+      );
+    }
     setSourceGrants([[], []]);
   };
   const clearProvider = (provider: SourceProvider) => {

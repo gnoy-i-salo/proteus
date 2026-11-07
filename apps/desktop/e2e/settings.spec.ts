@@ -6,7 +6,7 @@ test('model settings keep label spacing and prose typography', async ({ page }) 
   const section = page.getByRole('region', { name: 'Настройки моделей' });
   const label = section
     .locator('label')
-    .filter({ has: page.getByLabel('Общая модель', { exact: true }) });
+    .filter({ has: page.getByLabel('Общий провайдер', { exact: true }) });
   await expect(label).toHaveCSS('display', 'grid');
   await expect(label).toHaveCSS('gap', '5px');
   await expect(section.locator('p').first()).toHaveCSS('font-size', '12px');
@@ -19,14 +19,15 @@ test('three-screen entry composition and settings persist', async ({ page }) => 
   await expect(page.getByLabel('Имя персоны A')).toBeVisible();
   await expect(page.getByLabel('Имя персоны B')).toBeVisible();
   await page.getByRole('button', { name: 'Настройки PROTEUS' }).click();
-  await page.getByLabel('Общая модель', { exact: true }).selectOption('kimi');
-  await page.getByLabel('Модель STALKER', { exact: true }).selectOption('codex');
+  await page.getByLabel('Общий провайдер', { exact: true }).selectOption('kimi');
+  await page.getByRole('button', { name: 'Применить ко всем', exact: true }).click();
+  await page.getByLabel('Провайдер STALKER', { exact: true }).selectOption('codex');
   await page.getByLabel('Название модели Person', { exact: true }).fill('custom-model');
   await page.getByRole('button', { name: 'Закрыть настройки' }).click();
   await page.reload();
   await page.getByRole('button', { name: 'Настройки PROTEUS' }).click();
-  await expect(page.getByLabel('Модель STALKER', { exact: true })).toHaveValue('codex');
-  await expect(page.getByLabel('Модель Person', { exact: true })).toHaveValue('kimi');
+  await expect(page.getByLabel('Провайдер STALKER', { exact: true })).toHaveValue('codex');
+  await expect(page.getByLabel('Провайдер Person', { exact: true })).toHaveValue('kimi');
   await expect(page.getByLabel('Название модели Person', { exact: true })).toHaveValue(
     'custom-model',
   );
@@ -98,7 +99,7 @@ test('model settings migrate to version2 without rewriting the legacy record', a
   );
   const before = await page.evaluate(() => ({
     legacy: localStorage.getItem('proteus-model-settings'),
-    current: JSON.parse(localStorage.getItem('proteus-model-settings-v2') ?? '{}'),
+    current: JSON.parse(localStorage.getItem('proteus-model-settings-v2') ?? '{}') as unknown,
   }));
   expect(before.legacy).toBe(legacy);
   expect(before.current).toMatchObject({
@@ -109,10 +110,10 @@ test('model settings migrate to version2 without rewriting the legacy record', a
   await page.getByLabel('Название модели Person', { exact: true }).fill('explicit-change');
   const after = await page.evaluate(() => ({
     legacy: localStorage.getItem('proteus-model-settings'),
-    current: JSON.parse(localStorage.getItem('proteus-model-settings-v2') ?? '{}'),
+    current: JSON.parse(localStorage.getItem('proteus-model-settings-v2') ?? '{}') as unknown,
   }));
   expect(after.legacy).toBe(legacy);
-  expect(after.current.aliases.person).toBe('explicit-change');
+  expect(after.current).toHaveProperty(['aliases', 'person'], 'explicit-change');
 });
 
 test('invalid stored model settings remain recoverable and show a visible error', async ({
@@ -126,3 +127,78 @@ test('invalid stored model settings remain recoverable and show a visible error'
   );
   expect(await page.evaluate(() => localStorage.getItem('proteus-model-settings-v2'))).toBeNull();
 });
+
+test('global provider selection previews four targets without applying before the button', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Настройки PROTEUS' }).click();
+  await page.getByLabel('Общий провайдер', { exact: true }).selectOption('kimi');
+  for (const component of ['STALKER', 'Person Fabric', 'Person', 'Brain Analyzator']) {
+    await expect(page.getByLabel(`Провайдер ${component}`, { exact: true })).toHaveValue('codex');
+  }
+  await page.getByRole('button', { name: 'Применить ко всем', exact: true }).click();
+  for (const component of ['STALKER', 'Person Fabric', 'Person', 'Brain Analyzator']) {
+    await expect(page.getByLabel(`Провайдер ${component}`, { exact: true })).toHaveValue('kimi');
+  }
+});
+
+test('settings tabs use arrow navigation and a single tab stop', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Настройки PROTEUS' }).click();
+  const models = page.getByRole('tab', { name: 'Модели', exact: true });
+  const connections = page.getByRole('tab', { name: 'Подключения', exact: true });
+  await expect(models).toBeFocused();
+  await models.press('ArrowRight');
+  await expect(connections).toBeFocused();
+  await expect(connections).toHaveAttribute('aria-selected', 'true');
+  await expect(models).toHaveAttribute('tabindex', '-1');
+  await connections.press('Home');
+  await expect(models).toBeFocused();
+  await expect(models).toHaveAttribute('aria-selected', 'true');
+  await models.press('Shift+Tab');
+  const close = page.getByRole('button', { name: 'Закрыть настройки' });
+  const done = page.getByRole('button', { name: 'Готово ↵' });
+  await expect(close).toBeFocused();
+  await close.press('Shift+Tab');
+  await expect(done).toBeFocused();
+  await done.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Настройки PROTEUS' })).toBeFocused();
+});
+
+for (const [width, height] of [
+  [640, 600],
+  [1024, 768],
+  [1280, 800],
+] as const) {
+  test(`model settings honor enlarged text without clipping at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto('/');
+    await page.addStyleTag({ content: ':root { --reading: 17.5px; --caption: 15px; }' });
+    await page.getByRole('button', { name: 'Настройки PROTEUS' }).click();
+    const panel = page.getByRole('region', { name: 'Настройки моделей' });
+    await expect(panel.locator('p').first()).toHaveCSS('font-size', '15px');
+    const dialog = page.getByRole('dialog', { name: 'Настройки PROTEUS' });
+    const bounds = await dialog.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height);
+    expect(
+      await dialog.evaluate((element) =>
+        [...element.querySelectorAll<HTMLElement>('*')]
+          .filter(
+            (child) =>
+              child.clientWidth > 0 && !['INPUT', 'SELECT', 'OPTION'].includes(child.tagName),
+          )
+          .filter(
+            (child) =>
+              child.scrollWidth > child.clientWidth + 2 ||
+              child.scrollHeight > child.clientHeight + 2,
+          )
+          .map((child) => child.tagName),
+      ),
+    ).toEqual([]);
+  });
+}

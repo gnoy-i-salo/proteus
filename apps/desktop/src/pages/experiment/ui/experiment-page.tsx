@@ -24,7 +24,7 @@ export function ExperimentPage() {
     rememberImport,
     clearProvider,
     changeGrants,
-  } = createExperimentSources();
+  } = createExperimentSources(undefined, setError);
   const { settings, sourceModelsAvailable, persist } = createExperimentSettings({
     clearSourceGrants,
     reportError: setError,
@@ -77,9 +77,21 @@ export function ExperimentPage() {
           input={input}
           available={run.available()}
           sourceCounts={sourceGrants().map((grants) => grants.length)}
-          onStart={() => void run.start()}
-          onOpenPreset={() => void openPreset()}
-          onSavePreset={() => void savePreset()}
+          onStart={() =>
+            void run
+              .start()
+              .catch(() =>
+                setError('Не удалось начать эксперимент. Проверьте настройки и повторите попытку.'),
+              )
+          }
+          onOpenPreset={() =>
+            void openPreset().catch(() => setError('Не удалось открыть пресет. Повторите попытку.'))
+          }
+          onSavePreset={() =>
+            void savePreset().catch(() =>
+              setError('Не удалось сохранить пресет. Повторите попытку.'),
+            )
+          }
           onShowSettings={() => setSettingsOpen(true)}
           onShowSources={setSourcePerson}
         />
@@ -92,10 +104,12 @@ export function ExperimentPage() {
         hidden
         accept=".proteus"
         aria-label="Файл пресета"
-        onChange={async (event) => {
+        onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
-          await readBrowserFile(file);
+          void readBrowserFile(file).catch(() =>
+            setError('Не удалось прочитать пресет. Повторите попытку.'),
+          );
         }}
       />
       <Show when={pendingPreset()}>
@@ -119,6 +133,14 @@ export function ExperimentPage() {
       <Show when={error()}>
         <div class={styles['experiment__error']} role="alert">
           <p>{error()}</p>
+          <Show
+            when={
+              run.readinessError() ||
+              (!sourceModelsAvailable() && sourceGrants().some((grants) => grants.length > 0))
+            }
+          >
+            <button onClick={() => setSettingsOpen(true)}>Открыть настройки моделей</button>
+          </Show>
           <button aria-label="Закрыть сообщение" onClick={() => setError('')}>
             ×
           </button>
@@ -133,6 +155,8 @@ export function ExperimentPage() {
         >
           <SettingsDialog
             settings={settings()}
+            hasSources={sourceGrants().some((grants) => grants.length > 0)}
+            available={run.available()}
             onChange={persist}
             onClose={() => setSettingsOpen(false)}
             onImported={rememberImport}
@@ -151,6 +175,10 @@ export function ExperimentPage() {
             onImported={rememberImport}
             onChange={(grants) => changeGrants(sourcePerson() === 0 ? 0 : 1, grants)}
             onClose={() => setSourcePerson(undefined)}
+            onShowSettings={() => {
+              setSourcePerson(undefined);
+              setSettingsOpen(true);
+            }}
           />
         </div>
       </Show>

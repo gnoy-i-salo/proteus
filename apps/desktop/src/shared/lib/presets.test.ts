@@ -4,7 +4,7 @@ import { exportPreset, importPreset, listenPresets } from './presets';
 const native = vi.hoisted(() => ({
   desktop: true,
   invoke: vi.fn(),
-  listen: vi.fn(),
+  listen: vi.fn<(name: string, receive: () => void) => Promise<() => void>>(),
   unlisten: vi.fn(),
   event: undefined as (() => void) | undefined,
 }));
@@ -29,9 +29,9 @@ beforeEach(() => {
   native.desktop = true;
   native.event = undefined;
   native.invoke.mockResolvedValue([]);
-  native.listen.mockImplementation(async (_name, receive) => {
+  native.listen.mockImplementation((_name, receive) => {
     native.event = receive;
-    return native.unlisten;
+    return Promise.resolve(native.unlisten);
   });
 });
 
@@ -84,10 +84,14 @@ it('accepts native save cancellation and paths, rejects invalid save responses',
   for (const result of [null, '/tmp/personas.proteus']) {
     native.invoke.mockResolvedValue(result);
     await expect(exportPreset('exact preset')).resolves.toBeUndefined();
-    expect(native.invoke).toHaveBeenLastCalledWith('export_preset', { data: 'exact preset' });
+    expect(native.invoke).toHaveBeenLastCalledWith('export_preset', {
+      data: 'exact preset',
+    });
   }
   native.invoke.mockResolvedValue(3);
-  await expect(exportPreset('exact preset')).rejects.toMatchObject({ code: 'invalidResponse' });
+  await expect(exportPreset('exact preset')).rejects.toMatchObject({
+    code: 'invalidResponse',
+  });
 });
 
 it('delivers ordered native Ok/Err results through canonical callbacks and cleans up once', async () => {
@@ -244,4 +248,65 @@ it('drains an event queued during a failed read without waiting for another even
   expect(receive).toHaveBeenCalledWith('new file');
   expect(fail).toHaveBeenCalledOnce();
   stop();
+});
+
+it('disposes and reports an owner callback failure during an event drain', async () => {
+  const callbackError = new Error('Owner error handler failed');
+  const report = vi.fn();
+  vi.stubGlobal('reportError', report);
+  try {
+    const stop = await listenPresets(vi.fn(), () => {
+      throw callbackError;
+    });
+    native.invoke.mockRejectedValueOnce(new Error('Native read failed'));
+    native.event?.();
+    await tick();
+    await tick();
+    expect(report).toHaveBeenCalledExactlyOnceWith(callbackError);
+    expect(native.unlisten).toHaveBeenCalledOnce();
+    const calls = native.invoke.mock.calls.length;
+    native.event?.();
+    await tick();
+    expect(native.invoke).toHaveBeenCalledTimes(calls);
+    stop();
+    expect(native.unlisten).toHaveBeenCalledOnce();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it('reports the exact owner failure through the host error event when reportError is unavailable', async () => {
+  const callbackFailure = new Error('  failure\r\n');
+  const dispatch = vi.fn<(event: Event) => boolean>(() => true);
+  class HostErrorEvent extends Event {
+    readonly error: unknown;
+    constructor(type: string, options: ErrorEventInit) {
+      super(type);
+      this.error = options.error;
+    }
+  }
+  vi.useFakeTimers();
+  vi.stubGlobal('reportError', undefined);
+  vi.stubGlobal('ErrorEvent', HostErrorEvent);
+  vi.stubGlobal('dispatchEvent', dispatch);
+  try {
+    const stop = await listenPresets(vi.fn(), () => {
+      throw callbackFailure;
+    });
+    native.invoke.mockRejectedValueOnce(new Error('Native read failed'));
+    native.event?.();
+    await tick();
+    await tick();
+    expect(dispatch).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ type: 'error', error: callbackFailure }),
+    );
+    expect((dispatch.mock.calls[0]![0] as HostErrorEvent).error).toBe(callbackFailure);
+    stop();
+    expect(native.unlisten).toHaveBeenCalledOnce();
+  } finally {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
 });

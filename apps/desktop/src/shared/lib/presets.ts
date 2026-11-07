@@ -41,7 +41,10 @@ function pendingPresets(value: unknown): PendingPreset[] {
     const key = Object.keys(file)[0];
     if (key === 'Ok' && 'Ok' in file) return { kind: 'ready', data: presetText(file.Ok) };
     if (key === 'Err' && 'Err' in file)
-      return { kind: 'failed', error: new PresetFileError('nativeFailure', presetText(file.Err)) };
+      return {
+        kind: 'failed',
+        error: new PresetFileError('nativeFailure', presetText(file.Err)),
+      };
     throw invalidResponse();
   });
 }
@@ -86,6 +89,13 @@ export async function listenPresets(
     unlisten = undefined;
   };
   signal?.addEventListener('abort', dispose, { once: true });
+  const deliver = (files: ReturnType<typeof pendingPresets>) => {
+    for (const file of files) {
+      if (disposed) break;
+      if (file.kind === 'ready') receive(file.data);
+      else fail(file.error);
+    }
+  };
   const drain = async () => {
     requested = true;
     if (draining || disposed) return;
@@ -96,12 +106,7 @@ export async function listenPresets(
         try {
           const raw = await invoke<unknown>('take_pending_presets');
           if (disposed) break;
-          const files = pendingPresets(raw);
-          for (const file of files) {
-            if (disposed) break;
-            if (file.kind === 'ready') receive(file.data);
-            else fail(file.error);
-          }
+          deliver(pendingPresets(raw));
         } catch (error) {
           if (!disposed) fail(nativeFailure(error, 'Не удалось прочитать очередь пресетов.'));
         }
@@ -112,7 +117,12 @@ export async function listenPresets(
   };
   try {
     const stop = await listen('preset-opened', () => {
-      void drain();
+      void drain().catch((error: unknown) => {
+        // A broken owner error callback cannot receive another error. Release its
+        // listener and report through the browser's uncaught-error channel.
+        dispose();
+        reportOwnerFailure(error);
+      });
     });
     if (disposed) stop();
     else {
@@ -124,4 +134,21 @@ export async function listenPresets(
     dispose();
     throw nativeFailure(error, 'Не удалось включить открытие пресетов.');
   }
+}
+
+function reportOwnerFailure(error: unknown): void {
+  if (typeof globalThis.reportError === 'function') {
+    globalThis.reportError(error);
+    return;
+  }
+  // Older WebKit still supports ErrorEvent. Preserve the original thrown value
+  // for the owner's uncaught-error listener without starting another Promise.
+  setTimeout(() => {
+    globalThis.dispatchEvent(
+      new ErrorEvent('error', {
+        error,
+        message: error instanceof Error ? error.message : 'Unhandled preset callback failure',
+      }),
+    );
+  }, 0);
 }

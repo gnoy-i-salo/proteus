@@ -1,6 +1,7 @@
 import type {
   IntelligenceEffort,
   IntelligenceOperation,
+  ModelContextReference,
   ProviderId,
   ReasoningBlock,
 } from '@proteus-int/contracts';
@@ -228,6 +229,15 @@ export interface CliWireRequest {
   readonly effort: IntelligenceEffort;
   readonly operation?: IntelligenceOperation;
   readonly sourceContext?: boolean;
+  readonly memoryContext?: ModelContextReference;
+}
+function memoryContext(value: unknown): ModelContextReference {
+  const source = fields(value, ['sessionId', 'leaseId']);
+  const sessionId = text(source['sessionId'], 128);
+  const leaseId = text(source['leaseId'], 128);
+  if (![sessionId, leaseId].every((id) => /^[a-zA-Z0-9:_-]+$/u.test(id)))
+    throw new Error('Неверная ссылка на контекст памяти.');
+  return { sessionId, leaseId };
 }
 export function encodeCliRequest(value: unknown): CliWireRequest {
   const source = fields(value, [
@@ -239,6 +249,7 @@ export function encodeCliRequest(value: unknown): CliWireRequest {
     'effort',
     'operation',
     'sourceContext',
+    'memoryContext',
     'formatAttempt',
   ]);
   const id = text(source['id'], 80);
@@ -251,6 +262,12 @@ export function encodeCliRequest(value: unknown): CliWireRequest {
   // Repair attempt is domain bookkeeping and is not a native Request field.
   if ('formatAttempt' in source && source['formatAttempt'] !== 1 && source['formatAttempt'] !== 2)
     throw new Error('Неверная попытка исправления формата.');
+  if (
+    'memoryContext' in source &&
+    (source['sourceContext'] !== true ||
+      !['corpus-analysis', 'persona-reply'].includes(String(source['operation'])))
+  )
+    throw new Error('Контекст памяти требует операции с источниками.');
   return {
     id,
     provider: choice(source['provider'], ['codex', 'kimi'] as const),
@@ -270,11 +287,14 @@ export function encodeCliRequest(value: unknown): CliWireRequest {
         }
       : {}),
     ...('sourceContext' in source ? { sourceContext: boolean(source['sourceContext']) } : {}),
+    ...('memoryContext' in source ? { memoryContext: memoryContext(source['memoryContext']) } : {}),
   };
 }
 
 export function encodeLegacyCliRequest(value: unknown): LegacyCliRequest {
   const source = encodeCliRequest(value);
+  if (source.memoryContext !== undefined)
+    throw new Error('Старый формат CLI не поддерживает контекст памяти.');
   return {
     id: source.id,
     provider: source.provider,

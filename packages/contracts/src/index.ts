@@ -3,6 +3,7 @@ export type {
   IntelligenceEffort,
   IntelligenceOperation,
   IntelligenceRequest,
+  ModelContextReference,
   ReasoningBlock,
   IntelligenceTrace,
   IntelligenceResult,

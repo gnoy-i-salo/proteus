@@ -160,8 +160,7 @@ impl ModelContexts {
         self.ledger.verify(clock).map_err(|e| e.to_string())?;
         Ok(())
     }
-    /// Only native dispatch calls this after its CLI execution succeeds.
-    pub fn complete(
+    pub fn check_running(
         &mut self,
         id: &str,
         invocation_id: &str,
@@ -174,7 +173,19 @@ impl ModelContexts {
         if entry.completed || entry.invocation_id.as_deref() != Some(invocation_id) {
             return Err(INVALID.into());
         }
-        self.ledger.verify(clock).map_err(|e| e.to_string())?;
+        self.ledger
+            .verify(clock)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    /// Only native dispatch calls this after its CLI execution succeeds.
+    pub fn complete(
+        &mut self,
+        id: &str,
+        invocation_id: &str,
+        clock: &dyn Fn() -> Result<i64, String>,
+    ) -> Result<(), String> {
+        self.check_running(id, invocation_id, clock)?;
         self.entries.get_mut(id).ok_or(INVALID)?.completed = true;
         self.ledger.verify(clock).map_err(|e| e.to_string())?;
         Ok(())

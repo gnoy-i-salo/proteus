@@ -4,10 +4,15 @@ export type ProviderId = 'codex' | 'kimi';
 export type IntelligenceEffort = 'low' | 'medium' | 'high';
 export type IntelligenceOperation =
   'generation' | 'public-research' | 'source-plan' | 'corpus-analysis' | 'persona-reply';
+export interface ModelContextReference {
+  readonly sessionId: string;
+  readonly leaseId: string;
+}
 export interface IntelligenceRequest {
   /** Host-assigned invocation identity; adapters use it for stream correlation. */
   readonly invocationId?: string;
   readonly sourceContext?: boolean;
+  readonly memoryContext?: ModelContextReference;
   readonly task: string;
   readonly systemPrompt: string;
   readonly effort: IntelligenceEffort;

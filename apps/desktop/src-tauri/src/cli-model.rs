@@ -16,6 +16,24 @@ pub struct Request {
     pub(super) operation: String,
     #[serde(default)]
     pub(super) source_context: bool,
+    #[serde(
+        default,
+        deserialize_with = "present_memory_context",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub(super) memory_context: Option<ModelContextReference>,
+}
+#[cfg_attr(test, derive(Serialize))]
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct ModelContextReference {
+    pub(super) session_id: String,
+    pub(super) lease_id: String,
+}
+fn present_memory_context<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<ModelContextReference>, D::Error> {
+    ModelContextReference::deserialize(deserializer).map(Some)
 }
 fn default_operation() -> String {
     "generation".into()
@@ -66,6 +84,22 @@ pub(crate) fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 80 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 pub(super) fn validate(request: &Request) -> Result<(), String> {
+    if let Some(context) = &request.memory_context {
+        let valid_handle = |id: &str| {
+            !id.is_empty()
+                && id.len() <= 128
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b":_-".contains(&b))
+        };
+        if !request.source_context
+            || !["corpus-analysis", "persona-reply"].contains(&request.operation.as_str())
+            || !valid_handle(&context.session_id)
+            || !valid_handle(&context.lease_id)
+        {
+            return Err("Invalid memory context reference".into());
+        }
+    }
     if !valid_id(&request.id)
         || !["codex", "kimi"].contains(&request.provider.as_str())
         || !["low", "medium", "high"].contains(&request.effort.as_str())

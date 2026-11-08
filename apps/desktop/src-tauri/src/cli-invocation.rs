@@ -126,6 +126,7 @@ pub(super) fn execute(
     directory: &Path,
     cancelled: Arc<AtomicBool>,
     emit: impl Fn(&str, u64, Option<ReasoningBlock>),
+    session: Option<&mut crate::memory::session::MemorySession>,
 ) -> Result<Response, String> {
     validate(&request)?;
     let path = executable(&request.provider).ok_or_else(|| {
@@ -134,12 +135,28 @@ pub(super) fn execute(
             request.provider
         )
     })?;
+    execute_at(request, directory, cancelled, emit, &path, session, &|| {
+        chrono::Utc::now().timestamp_millis()
+    })
+}
+pub(crate) fn execute_at(
+    request: Request,
+    directory: &Path,
+    cancelled: Arc<AtomicBool>,
+    emit: impl Fn(&str, u64, Option<ReasoningBlock>),
+    path: &Path,
+    session: Option<&mut crate::memory::session::MemorySession>,
+    now: &dyn Fn() -> i64,
+) -> Result<Response, String> {
+    validate(&request)?;
+    let mut context = super::memory_context::Context::new(&request, session, now, &cancelled)?;
     if request.provider == "codex" {
         // Probe without prompt data before creating files or starting model inference.
-        let help = probe(&path, &["exec", "--help"], &cancelled)?;
-        let features = probe(&path, &["features", "list"], &cancelled)?;
+        let help = probe(path, &["exec", "--help"], &cancelled)?;
+        let features = probe(path, &["features", "list"], &cancelled)?;
         codex_capabilities(&help, &features)?;
     }
+    context.consume()?;
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     // Establish a private project root, preventing parent-directory discovery.
     std::fs::create_dir_all(directory.join(".git")).map_err(|e| e.to_string())?;
@@ -172,9 +189,14 @@ pub(super) fn execute(
     if cancelled.load(Ordering::SeqCst) {
         return Err("Отменено".into());
     }
+    context.check()?;
     let mut child = command
         .spawn()
         .map_err(|e| format!("CLI startup failed: {e}"))?;
+    if let Err(error) = context.check() {
+        stop(&mut child);
+        return Err(error);
+    }
     if request.provider == "codex" {
         let mut stdin = child.stdin.take().ok_or("CLI stdin unavailable")?;
         if stdin
@@ -195,6 +217,10 @@ pub(super) fn execute(
     let mut reasoning = Reasoning::default();
     let mut failure = false;
     let result = loop {
+        if let Err(error) = context.check() {
+            stop(&mut child);
+            break Err(error);
+        }
         if cancelled.load(Ordering::SeqCst) || start.elapsed() > Duration::from_secs(600) {
             stop(&mut child);
             break Err(if cancelled.load(Ordering::SeqCst) {
@@ -206,6 +232,10 @@ pub(super) fn execute(
         }
         match receiver.recv_timeout(Duration::from_millis(80)) {
             Ok(Ok(line)) => {
+                if let Err(error) = context.check() {
+                    stop(&mut child);
+                    break Err(error);
+                }
                 let parsed = match parse_event(&request.provider, &line) {
                     Ok(event) => event,
                     Err(error) => {
@@ -254,6 +284,9 @@ pub(super) fn execute(
                     }
                     if !status.success() || failure || answer.trim().is_empty() {
                         break Err(format!("{} CLI не вернул ответ ({}). Проверьте вход, выбранную модель и лимиты в терминале.", request.provider, status));
+                    }
+                    if let Err(error) = context.complete() {
+                        break Err(error);
                     }
                     let elapsed = start.elapsed().as_millis() as u64;
                     emit("finished", elapsed, None);

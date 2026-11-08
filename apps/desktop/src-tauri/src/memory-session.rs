@@ -48,6 +48,10 @@ struct MemoryScope {
     )>,
 }
 impl MemorySession {
+    pub(crate) fn cancel(&self) {
+        self.cancellation_handle()
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
     pub(super) fn cancellation_handle(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
         self.scope.operation.cancellation_handle()
     }

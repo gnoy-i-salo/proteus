@@ -103,6 +103,9 @@ fn main() {
             Ok(())
         })
         .manage(cli::Runs::default())
+        .manage(std::sync::Arc::new(
+            memory::registry::MemorySessions::default(),
+        ))
         .invoke_handler(tauri::generate_handler![
             local_embedding::commands::local_model_state,
             local_embedding::commands::inspect_local_model,
@@ -159,6 +162,8 @@ fn main() {
                 presets::queue_files(app, urls.iter().filter_map(|url| url.to_file_path().ok()));
             }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                app.state::<std::sync::Arc<memory::registry::MemorySessions>>()
+                    .shutdown();
                 app.state::<sources::Sources>().shutdown();
                 app.state::<connections::Connections>().shutdown();
                 let models = app

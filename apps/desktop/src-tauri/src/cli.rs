@@ -4,6 +4,8 @@ mod command;
 mod executable;
 #[path = "cli-invocation.rs"]
 mod invocation;
+#[path = "cli-memory-context.rs"]
+mod memory_context;
 #[path = "cli-model.rs"]
 pub(crate) mod model;
 use executable::executable;
@@ -40,6 +42,7 @@ pub fn cli_status() -> Vec<Availability> {
 pub async fn run_cli(
     app: tauri::AppHandle,
     state: tauri::State<'_, Runs>,
+    sessions: tauri::State<'_, Arc<crate::memory::registry::MemorySessions>>,
     request: Request,
 ) -> Result<Response, String> {
     validate(&request)?;
@@ -50,6 +53,7 @@ pub async fn run_cli(
         .join("runs")
         .join(&request.id);
     let runs = state.0.clone();
+    let sessions = sessions.inner().clone();
     let cancelled = Arc::new(AtomicBool::new(false));
     {
         let mut active = runs.lock().map_err(|e| e.to_string())?;
@@ -62,22 +66,27 @@ pub async fn run_cli(
 
     let result = tauri::async_runtime::spawn_blocking(move || {
         let event_id = request.id.clone();
-        let result = execute(
-            request,
-            &directory,
-            cancelled,
-            |kind, elapsed_ms, reasoning| {
-                let _ = app.emit(
-                    "cli-progress",
-                    Event {
-                        id: event_id.clone(),
-                        kind: kind.into(),
-                        elapsed_ms,
-                        reasoning,
-                    },
-                );
-            },
-        );
+        let emit = |kind: &str, elapsed_ms, reasoning| {
+            let _ = app.emit(
+                "cli-progress",
+                Event {
+                    id: event_id.clone(),
+                    kind: kind.into(),
+                    elapsed_ms,
+                    reasoning,
+                },
+            );
+        };
+        let result = if let Some(context) = &request.memory_context {
+            let session_id = context.session_id.clone();
+            sessions.with_session(
+                &session_id,
+                || chrono::Utc::now().timestamp_millis(),
+                |session| execute(request, &directory, cancelled, emit, Some(session)),
+            )
+        } else {
+            execute(request, &directory, cancelled, emit, None)
+        };
         // Transient prompts are not retained; completed experiment artifacts are saved separately.
         let _ = std::fs::remove_dir_all(directory);
         result
@@ -100,3 +109,10 @@ mod tests;
 #[cfg(test)]
 #[path = "cli-wire-tests.rs"]
 mod wire_tests;
+
+#[cfg(test)]
+#[path = "cli-memory-wire-tests.rs"]
+mod memory_wire_tests;
+
+#[cfg(test)]
+pub(crate) use invocation::execute_at as execute_fixture;

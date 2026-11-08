@@ -1,4 +1,6 @@
 use super::*;
+#[path = "cli-memory-dispatch-tests.rs"]
+mod cli_memory_dispatch_tests;
 #[path = "memory-model-session-tests.rs"]
 mod model_session_tests;
 #[path = "memory-recall-tests.rs"]

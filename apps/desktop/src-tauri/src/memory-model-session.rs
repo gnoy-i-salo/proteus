@@ -65,6 +65,19 @@ impl MemorySession {
             .consume(id, dispatch, &|| self.scope.guard(&now))?;
         self.verify_current(now)
     }
+    pub fn check_running_context(
+        &mut self,
+        id: &str,
+        invocation_id: &str,
+        now: impl Fn() -> i64,
+    ) -> Result<(), String> {
+        self.verify_current(&now)?;
+        self.models
+            .as_mut()
+            .ok_or(UNCONFIGURED)?
+            .check_running(id, invocation_id, &|| self.scope.guard(&now))?;
+        self.verify_current(now)
+    }
     /// Native dispatch calls this only after the bound CLI invocation succeeds.
     pub fn complete_model_context(
         &mut self,

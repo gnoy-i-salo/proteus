@@ -67,6 +67,7 @@ fn trace_distinguishes_wall_time_from_unobserved_reasoning() {
             effort: "high".into(),
             operation: "generation".into(),
             source_context: false,
+            memory_context: None,
         };
         let value = serde_json::to_value(response(
             &request,
@@ -147,6 +148,7 @@ fn kimi_print_config_preserves_prompt_model_and_explicit_tool_allowlist() {
             effort: "high".into(),
             operation: operation.into(),
             source_context: false,
+            memory_context: None,
         };
         let mut command = Command::new("kimi");
         configure_kimi(&mut command, &directory, &request).unwrap();
@@ -230,10 +232,12 @@ fn live_cli_connections() {
                     effort: "low".into(),
                     operation: "generation".into(),
                     source_context: false,
+            memory_context: None,
                 },
                 &directory,
                 Arc::new(AtomicBool::new(false)),
                 |_, _, _| {},
+                None,
             );
         let _ = std::fs::remove_dir_all(directory);
         let response = result.expect("CLI must return a final answer");

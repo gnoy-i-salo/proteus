@@ -311,135 +311,146 @@ fn real_e5_vectors_connect_authorized_import_preparation_and_hybrid_search() {
             .unwrap();
     }
     let service = LocalModelService::new(cache_dir.clone()).unwrap();
+    // Each service call represents one bounded operation. Indexing plus several
+    // independent queries must not share one 60-second deadline on slow CPU runners.
+    let receipt = service
+        .with_runtime("real-index", input.budget, &|| Ok(()), |model, _| {
+            build(&sources, &op, &input, model, || 70002)
+        })
+        .unwrap();
+    assert_eq!(receipt.vector_count, index.chunk_count);
+    assert_eq!(receipt.dimensions, 384);
     let (fingerprint, original_query) = service
-        .with_runtime(
-            "real-index-and-query",
-            input.budget,
-            &|| Ok(()),
-            |model, guard| {
-                let receipt = build(&sources, &op, &input, model, || 70002).unwrap();
-                assert_eq!(receipt.vector_count, index.chunk_count);
-                assert_eq!(receipt.dimensions, 384);
-                let query = model
-                    .embed(&["контекст"], InputKind::Query, &input.budget, guard)
-                    .unwrap();
-                sources
-                    .with_ingestion_database(&op, |db| {
-                        let binding = &db.job("job")?.unwrap().state.selection.bindings[0];
-                        let scope = SearchScope {
-                            snapshot_id: snapshot.id.clone(),
-                            snapshot_generation: snapshot.generation,
-                            persona_id: binding.persona_id.clone(),
-                            grant_ids: vec![binding.grant_id.clone()],
-                            binding_ids: vec![binding.id.clone()],
-                            period: SearchPeriod {
-                                from: None,
-                                to: None,
-                                include_undated: true,
-                            },
-                        };
-                        let hits = db.search_vectors(
-                            &scope,
-                            &receipt,
-                            &query[0],
-                            model.fingerprint(),
-                            SearchBudget {
-                                max_scanned: 100,
-                                max_results: 100,
-                            },
-                            &|| Ok(()),
-                        )?;
-                        assert_eq!(hits.len(), index.chunk_count as usize);
-                        assert!(hits.iter().all(|h| h.cosine.is_finite()));
-                        assert_eq!(
-                            db.active_vector_receipt(&snapshot.id, &|| Ok(()))?,
-                            Some(receipt)
-                        );
-                        Ok(())
-                    })
-                    .unwrap();
-                let hybrid = crate::ingestion::hybrid_query::query(
-                    &sources,
-                    &op,
-                    &crate::ingestion::hybrid_query::HybridQueryInput {
-                        query: super::input(&snapshot),
-                        candidate_limit: 10,
-                        max_scanned: 100,
-                        max_per_document: 10,
+        .with_runtime("real-query", input.budget, &|| Ok(()), |model, guard| {
+            let query = model
+                .embed(&["контекст"], InputKind::Query, &input.budget, guard)
+                .map_err(crate::local_embedding::model::model_error)?;
+            Ok((model.fingerprint().to_string(), query))
+        })
+        .unwrap();
+    sources
+        .with_ingestion_database(&op, |db| {
+            let binding = &db.job("job")?.unwrap().state.selection.bindings[0];
+            let scope = SearchScope {
+                snapshot_id: snapshot.id.clone(),
+                snapshot_generation: snapshot.generation,
+                persona_id: binding.persona_id.clone(),
+                grant_ids: vec![binding.grant_id.clone()],
+                binding_ids: vec![binding.id.clone()],
+                period: SearchPeriod {
+                    from: None,
+                    to: None,
+                    include_undated: true,
+                },
+            };
+            let hits = db.search_vectors(
+                &scope,
+                &receipt,
+                &original_query[0],
+                &fingerprint,
+                SearchBudget {
+                    max_scanned: 100,
+                    max_results: 100,
+                },
+                &|| Ok(()),
+            )?;
+            assert_eq!(hits.len(), index.chunk_count as usize);
+            assert!(hits.iter().all(|h| h.cosine.is_finite()));
+            assert_eq!(
+                db.active_vector_receipt(&snapshot.id, &|| Ok(()))?,
+                Some(receipt)
+            );
+            Ok(())
+        })
+        .unwrap();
+    service
+        .with_runtime("real-hybrid", input.budget, &|| Ok(()), |model, _| {
+            let hybrid = crate::ingestion::hybrid_query::query(
+                &sources,
+                &op,
+                &crate::ingestion::hybrid_query::HybridQueryInput {
+                    query: super::input(&snapshot),
+                    candidate_limit: 10,
+                    max_scanned: 100,
+                    max_per_document: 10,
+                    max_source_bytes: 65536,
+                    embedding_budget: input.budget,
+                },
+                model,
+                || 70003,
+            )
+            .unwrap();
+            assert_eq!(hybrid.hits.len(), index.chunk_count as usize);
+            assert!(hybrid.hits.iter().any(|hit| {
+                hit.chunk.text == "  контекст\r\n"
+                    && hit.semantic_rank.is_some()
+                    && hit.lexical_rank.is_some()
+            }));
+            Ok(())
+        })
+        .unwrap();
+    service
+        .with_runtime("real-memory", input.budget, &|| Ok(()), |model, _| {
+            let memory_operation = sources
+                .begin_ingestion_operation(
+                    "real-memory-receipt",
+                    crate::corpus_database::JobProvider::Telegram,
+                )
+                .unwrap();
+            let mut memory = crate::memory::session::MemorySession::bind_hybrid(
+                sources.clone(),
+                memory_operation,
+                crate::memory::session::SessionInput {
+                    job_id: "job",
+                    snapshot_id: &snapshot.id,
+                    persona_id: "personA",
+                    period: super::input(&snapshot).period,
+                    limits: crate::memory::budget::RecallLimits {
+                        max_calls: 2,
+                        max_candidates: 100,
+                        max_episodes: 100,
                         max_source_bytes: 65536,
-                        embedding_budget: input.budget,
+                        max_context_tokens: 10000,
+                        max_duration_ms: 60000,
                     },
-                    model,
-                    || 70003,
-                )
+                },
+                model,
+                input.budget,
+                || 70003,
+            )
+            .unwrap();
+            let recorded = memory
+                .recall_recorded("контекст", Some(model), || 70004)
                 .unwrap();
-                assert_eq!(hybrid.hits.len(), index.chunk_count as usize);
-                assert!(hybrid.hits.iter().any(|hit| {
-                    hit.chunk.text == "  контекст\r\n"
-                        && hit.semantic_rank.is_some()
-                        && hit.lexical_rank.is_some()
-                }));
-                let memory_operation = sources
-                    .begin_ingestion_operation(
-                        "real-memory-receipt",
-                        crate::corpus_database::JobProvider::Telegram,
-                    )
-                    .unwrap();
-                let mut memory = crate::memory::session::MemorySession::bind_hybrid(
-                    sources.clone(),
-                    memory_operation,
-                    crate::memory::session::SessionInput {
-                        job_id: "job",
-                        snapshot_id: &snapshot.id,
-                        persona_id: "personA",
-                        period: super::input(&snapshot).period,
-                        limits: crate::memory::budget::RecallLimits {
-                            max_calls: 2,
-                            max_candidates: 100,
-                            max_episodes: 100,
-                            max_source_bytes: 65536,
-                            max_context_tokens: 10000,
-                            max_duration_ms: 60000,
-                        },
-                    },
-                    model,
-                    input.budget,
-                    || 70003,
-                )
+            assert_eq!(recorded.receipt.mode, "hybrid");
+            let profile = recorded.receipt.embedding_fingerprint.as_ref().unwrap();
+            assert_eq!(profile.model_sha256, descriptor.weights.sha256);
+            assert_eq!(profile.tokenizer_sha256, descriptor.tokenizer.sha256);
+            assert_eq!(profile.dimensions, 384);
+            assert!(profile.chunking_version.starts_with("episodeChunks:1:"));
+            assert!(recorded
+                .receipt
+                .hits
+                .iter()
+                .any(|hit| hit.semantic_rank.is_some()));
+            assert!(recorded
+                .sources
+                .iter()
+                .any(|source| source.text == "  контекст\r\n"));
+            let expanded = memory
+                .read_episode_recorded(&recorded.receipt.hits[0].episode_id, || 70004)
                 .unwrap();
-                let recorded = memory
-                    .recall_recorded("контекст", Some(model), || 70004)
-                    .unwrap();
-                assert_eq!(recorded.receipt.mode, "hybrid");
-                let profile = recorded.receipt.embedding_fingerprint.as_ref().unwrap();
-                assert_eq!(profile.model_sha256, descriptor.weights.sha256);
-                assert_eq!(profile.tokenizer_sha256, descriptor.tokenizer.sha256);
-                assert_eq!(profile.dimensions, 384);
-                assert!(profile.chunking_version.starts_with("episodeChunks:1:"));
-                assert!(recorded
-                    .receipt
-                    .hits
-                    .iter()
-                    .any(|hit| hit.semantic_rank.is_some()));
-                assert!(recorded
-                    .sources
-                    .iter()
-                    .any(|source| source.text == "  контекст\r\n"));
-                let expanded = memory
-                    .read_episode_recorded(&recorded.receipt.hits[0].episode_id, || 70004)
-                    .unwrap();
-                assert_eq!(
-                    expanded.receipt.embedding_fingerprint.as_ref(),
-                    Some(profile)
-                );
-                assert!(expanded
-                    .receipt
-                    .hits
-                    .iter()
-                    .all(|hit| hit.lexical_rank.is_none() && hit.semantic_rank.is_none()));
-                Ok((model.fingerprint().to_string(), query))
-            },
-        )
+            assert_eq!(
+                expanded.receipt.embedding_fingerprint.as_ref(),
+                Some(profile)
+            );
+            assert!(expanded
+                .receipt
+                .hits
+                .iter()
+                .all(|hit| hit.lexical_rank.is_none() && hit.semantic_rank.is_none()));
+            Ok(())
+        })
         .unwrap();
     assert!(service.state().runtime_loaded);
     // Removing only these temporary cache links proves reuse does not reload.

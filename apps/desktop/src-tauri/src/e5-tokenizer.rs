@@ -1,11 +1,9 @@
 //! Local, checksum-pinned E5 tokenization. No model download or inference here.
 use sha2::{Digest, Sha256};
-use std::{io::Read, path::Path};
+use std::path::Path;
 use tokenizers::Tokenizer;
-pub const MODEL_REVISION: &str = "614241f622f53c4eeff9890bdc4f31cfecc418b3";
-pub const TOKENIZER_SHA256: &str =
-    "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39";
-const TOKENIZER_BYTES: usize = 17_082_730;
+#[path = "e5-tokenizer-pin.rs"]
+mod package;
 const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_SEQUENCE_TOKENS: usize = 512;
 const INVALID: &str = "Локальный токенизатор E5 отсутствует, повреждён или имеет другую версию.";
@@ -28,15 +26,9 @@ pub struct E5Tokenizer {
 }
 impl E5Tokenizer {
     pub fn load(path: &Path) -> Result<Self, String> {
-        let file = std::fs::File::open(path).map_err(|_| INVALID)?;
-        if !file.metadata().map_err(|_| INVALID)?.is_file() {
-            return Err(INVALID.into());
-        }
-        let mut bytes = Vec::new();
-        file.take((TOKENIZER_BYTES + 1) as u64)
-            .read_to_end(&mut bytes)
-            .map_err(|_| INVALID)?;
-        Self::verified(&bytes, TOKENIZER_BYTES, TOKENIZER_SHA256)
+        let pin = package::pin()?;
+        let bytes = package::read(path, &pin)?;
+        Self::verified(&bytes, pin.bytes, &pin.sha256)
     }
     fn verified(bytes: &[u8], expected_size: usize, expected_hash: &str) -> Result<Self, String> {
         if bytes.len() != expected_size || format!("{:x}", Sha256::digest(bytes)) != expected_hash {
@@ -47,7 +39,8 @@ impl E5Tokenizer {
         // must never disguise an over-budget input or invent source tokens.
         tokenizer.with_truncation(None).map_err(|_| INVALID)?;
         tokenizer.with_padding(None);
-        Ok(Self { tokenizer, fingerprint:format!("e5Tokenizer:1:{MODEL_REVISION}:{expected_hash}:tokenizers:0.23.2:queryPassage:1:specialTokens:1") })
+        let revision = package::pin()?.revision;
+        Ok(Self { tokenizer, fingerprint:format!("e5Tokenizer:1:{revision}:{expected_hash}:tokenizers:0.23.2:queryPassage:1:specialTokens:1") })
     }
     pub fn fingerprint(&self) -> &str {
         &self.fingerprint

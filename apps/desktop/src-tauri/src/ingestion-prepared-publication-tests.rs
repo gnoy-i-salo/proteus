@@ -276,3 +276,77 @@ fn native_prepared_publication_versions_policy_but_not_processing_budget() {
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn bundled_tokenizer_prepares_a_native_import_without_frontend_authored_chunks() {
+    use crate::ingestion::preparation_workflow::{execute, PrepareRequest};
+    let (sources, dir) = local();
+    let (inputs, preview_id, _) = acquire(&sources, &dir, &source_archive());
+    let op = sources
+        .begin_ingestion_operation("job", JobProvider::Telegram)
+        .unwrap();
+    inputs
+        .read_preview(&preview_id, |file, origin| {
+            run_reader(&sources, &op, "job", file, origin, || 1001)
+        })
+        .unwrap();
+    let request = PrepareRequest {
+        schema_version: 1,
+        operation_id: "job".into(),
+        job_id: "job".into(),
+        max_duration_ms: 60000,
+    };
+    // Exercise Tauri's actual copied resource, not the download cache.
+    let executable = std::env::current_exe().unwrap();
+    let path = executable
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("models/e5-tokenizer.json");
+    let prepared = execute(&sources, &op, &request, &path, || 70000).unwrap();
+    assert!(!prepared.episode_ids.is_empty());
+    sources
+        .with_ingestion_database(&op, |db| {
+            let stored = db.prepared_snapshot(&prepared.id)?;
+            assert!(stored
+                .tokenizer_version
+                .starts_with("e5Tokenizer:1:614241f622f53c4eeff9890bdc4f31cfecc418b3:"));
+            assert!(stored
+                .tokenizer_version
+                .contains("0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39"));
+            Ok(())
+        })
+        .unwrap();
+    assert!(execute(&sources, &op, &request, &dir.join("missing"), || 70000).is_err());
+    let clock = std::cell::Cell::new(70000);
+    let short = PrepareRequest {
+        max_duration_ms: 1,
+        ..request
+    };
+    assert_eq!(
+        execute(&sources, &op, &short, &path, || {
+            let now = clock.get();
+            clock.set(now + 1);
+            now
+        })
+        .err()
+        .unwrap(),
+        "Превышено время подготовки."
+    );
+    let foreign = PrepareRequest {
+        operation_id: "another".into(),
+        ..short
+    };
+    assert_eq!(
+        execute(&sources, &op, &foreign, &path, || 70000)
+            .err()
+            .unwrap(),
+        "Запрос относится к другой операции подготовки."
+    );
+
+    drop(op);
+    drop(inputs);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}

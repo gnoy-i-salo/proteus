@@ -313,3 +313,51 @@ it('does not deliver a decoded job if abort happens while the request finishes c
   controller.abort(failure);
   await rejected;
 });
+
+const prepared = {
+  ...snapshot,
+  id: 'prepared:1',
+  corpusId: 'corpus:job',
+  parentSnapshotId: snapshot.id,
+  episodeIds: ['episode:1'],
+  splitVersion: 'episodeSplit:1:test',
+  generation: 2,
+};
+it('prepares a completed import through native policy with no frontend source payload', async () => {
+  native.invoke.mockResolvedValue(prepared);
+  expect(await nativeIngestion.prepare('job', 60000)).toEqual(prepared);
+  expect(native.invoke).toHaveBeenCalledExactlyOnceWith('prepare_ingestion_job', {
+    request: { schemaVersion: 1, operationId, jobId: 'job', maxDurationMs: 60000 },
+  });
+});
+it('rejects preparation budgets and identifiers before native invocation', async () => {
+  for (const invalid of [0, -1, 3600001, 1.5, NaN, Infinity])
+    await expect(nativeIngestion.prepare('job', invalid)).rejects.toThrow();
+  await expect(nativeIngestion.prepare('', 60000)).rejects.toThrow();
+  expect(native.invoke).not.toHaveBeenCalled();
+});
+it('rejects an unprepared or unrelated snapshot returned by preparation', async () => {
+  for (const response of [
+    snapshot,
+    { ...prepared, corpusId: 'corpus:other' },
+    { ...prepared, parentSnapshotId: null },
+  ]) {
+    native.invoke.mockResolvedValue(response);
+    await expect(nativeIngestion.prepare('job', 60000)).rejects.toThrow();
+  }
+});
+it('cancels preparation and suppresses late results without cancelling the completed import', async () => {
+  const pending = deferred();
+  native.invoke.mockImplementation((command: string) =>
+    command === 'prepare_ingestion_job' ? pending.promise : Promise.resolve(undefined),
+  );
+  const controller = new AbortController();
+  const result = nativeIngestion.prepare('job', 60000, controller.signal);
+  const failure = new Error('preparation view closed');
+  const rejected = expect(result).rejects.toBe(failure);
+  controller.abort(failure);
+  pending.resolve(prepared);
+  await rejected;
+  expect(native.invoke).toHaveBeenCalledWith('cancel_ingestion_operation', { operationId });
+  expect(native.invoke).not.toHaveBeenCalledWith('cancel_ingestion_job', expect.anything());
+});

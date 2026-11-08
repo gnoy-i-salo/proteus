@@ -228,3 +228,32 @@ pub async fn publish_ingestion_job(
     .await
     .map_err(|_| "Не удалось получить снимок завершённого импорта.".to_string())?
 }
+
+#[tauri::command]
+pub async fn prepare_ingestion_job(
+    app: tauri::AppHandle,
+    request: super::preparation_workflow::PrepareRequest,
+    sources: tauri::State<'_, Sources>,
+) -> Result<super::publication::SnapshotView, String> {
+    use tauri::Manager;
+    request.validate()?;
+    let tokenizer_path = app
+        .path()
+        .resource_dir()
+        .map_err(|_| "Не найдены ресурсы приложения.")?
+        .join("models/e5-tokenizer.json");
+    let sources = sources.inner().clone();
+    let operation =
+        sources.begin_ingestion_operation(&request.operation_id, JobProvider::Telegram)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        super::preparation_workflow::execute(
+            &sources,
+            &operation,
+            &request,
+            &tokenizer_path,
+            now_ms,
+        )
+    })
+    .await
+    .map_err(|_| "Не удалось подготовить корпус.".to_string())?
+}

@@ -91,6 +91,7 @@ export type {
   IngestionPreview,
   IngestionJob,
   IngestionPort,
+  CorpusPreparationPort,
 } from './ingestion';
 export type {
   EmbeddingFingerprint,

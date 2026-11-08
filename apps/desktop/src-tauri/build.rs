@@ -1,6 +1,17 @@
 use std::{env, path::PathBuf};
 
+#[path = "src/e5-tokenizer-pin.rs"]
+mod tokenizer_package;
+
 fn main() {
+    println!("cargo:rerun-if-changed=../../../scripts/e5-package.json");
+    let tokenizer_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../.cache/models/e5-tokenizer.json");
+    println!("cargo:rerun-if-changed={}", tokenizer_path.display());
+    let pin = tokenizer_package::pin().expect("valid tokenizer package pin");
+    tokenizer_package::read(&tokenizer_path, &pin)
+        .expect("Run pnpm prepare:models to obtain the verified tokenizer");
+    println!("cargo:warning=Verified E5 tokenizer {}", pin.revision);
     tauri_build::build();
     if env::var_os("CARGO_FEATURE_TELEGRAM").is_some() {
         build_tdlib();

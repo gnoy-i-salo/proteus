@@ -8,7 +8,7 @@ import {
   decodeIngestionSelection,
   decodeSourceBinding,
 } from '@proteus-int/contracts';
-import type { IngestionPort, IngestionJob } from '@proteus-int/contracts';
+import type { IngestionPort, IngestionJob, CorpusPreparationPort } from '@proteus-int/contracts';
 import { isDesktop } from './window-controls';
 import { validateIngestionSourceHandle } from './ingestion-input';
 
@@ -98,7 +98,29 @@ function jobAction(
 // Abort governs this request only. Once start/resume/retry has returned, the
 // durable job is controlled explicitly by pause/cancel. Metadata reads and the
 // atomic binding write suppress late delivery without rolling back native state.
-export const nativeIngestion: IngestionPort = {
+export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
+  async prepare(id, maxDurationMs, signal) {
+    const selectedJob = jobId(id);
+    if (!Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1 || maxDurationMs > 3600000)
+      throw new Error('Неверный бюджет времени подготовки.');
+    const operationId = crypto.randomUUID();
+    return request(
+      'prepare_ingestion_job',
+      { request: { schemaVersion: 1, operationId, jobId: selectedJob, maxDurationMs } },
+      (value) => {
+        const result = decodeCorpusSnapshot(value);
+        if (
+          result.corpusId !== `corpus:${selectedJob}` ||
+          result.parentSnapshotId === null ||
+          !result.splitVersion.startsWith('episodeSplit:1:')
+        )
+          throw new Error('Ответ не является подготовленным снимком выбранного импорта.');
+        return result;
+      },
+      signal,
+      { operationId },
+    );
+  },
   async createBinding(input, signal) {
     const selected = decodeIngestionBindingRequest(input);
     return request(

@@ -88,3 +88,9 @@ export interface IngestionPort {
   // Must reject incomplete/cancelled jobs and atomically publish one generation.
   publish(jobId: string, signal?: AbortSignal): Promise<CorpusSnapshot>;
 }
+
+// Local deterministic preparation over a completed, authorized native import.
+// The native application owns tokenizer and split policy; no frontend chunks.
+export interface CorpusPreparationPort {
+  prepare(jobId: string, maxDurationMs: number, signal?: AbortSignal): Promise<CorpusSnapshot>;
+}

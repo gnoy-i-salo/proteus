@@ -57,6 +57,9 @@
         "desktopTemplate": "file-associations/proteus.desktop"
       }
     },
-    "resources": ["third-party-notices.txt"]
+    "resources": {
+      "third-party-notices.txt": "third-party-notices.txt",
+      "../../../.cache/models/e5-tokenizer.json": "models/e5-tokenizer.json"
+    }
   }
 }

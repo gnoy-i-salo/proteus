@@ -87,6 +87,8 @@ jobs:
           "$env:ProgramFiles/NASM" >> $env:GITHUB_PATH
       - name: Verify pinned TDLib source
         run: pnpm prepare:tdlib
+      - name: Verify pinned local tokenizer
+        run: pnpm prepare:models
       - run: pnpm build
       - run: pnpm check:rust
       - run: pnpm build:desktop

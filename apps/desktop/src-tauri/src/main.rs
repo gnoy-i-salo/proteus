@@ -115,6 +115,7 @@ fn main() {
             ingestion::job_commands::start_ingestion_job,
             ingestion::job_commands::get_ingestion_job,
             ingestion::job_commands::publish_ingestion_job,
+            ingestion::job_commands::prepare_ingestion_job,
             ingestion::job_commands::pause_ingestion_job,
             ingestion::job_commands::cancel_ingestion_job,
             ingestion::job_commands::resume_ingestion_job,

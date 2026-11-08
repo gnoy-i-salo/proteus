@@ -12,6 +12,8 @@ pub mod job_workflow;
 pub mod operations;
 #[path = "ingestion-preparation.rs"]
 pub mod preparation;
+#[path = "ingestion-preparation-workflow.rs"]
+pub mod preparation_workflow;
 #[path = "ingestion-preview.rs"]
 pub mod preview;
 #[path = "ingestion-preview-scan.rs"]

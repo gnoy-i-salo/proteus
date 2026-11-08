@@ -38,7 +38,8 @@
     "commitlint": "commitlint",
     "beads:init": "bd init --prefix proteus --skip-hooks --skip-agents --non-interactive --init-if-missing",
     "beads:ready": "bd ready --json",
-    "bundle:macos": "pnpm --filter @proteus-int/desktop tauri build --bundles app -- --locked"
+    "bundle:macos": "pnpm --filter @proteus-int/desktop tauri build --bundles app -- --locked",
+    "prepare:models": "node scripts/prepare-models.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.3.1",

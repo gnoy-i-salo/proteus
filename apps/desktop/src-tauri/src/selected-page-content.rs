@@ -11,6 +11,8 @@ pub struct PageContent {
     pub author_labels: Vec<String>,
     pub published_at: Option<String>,
     pub limitations: Vec<String>,
+    /// Analysis-only: never changes the version1 persisted page envelope.
+    pub has_relation_markers: bool,
 }
 
 pub fn extract(
@@ -25,6 +27,7 @@ pub fn extract(
     if matches!(content_type, "text/plain" | "text/markdown") {
         let result = PageContent {
             text: original.into(),
+            has_relation_markers: text_relation_markers(original),
             title: None,
             author_labels: vec![],
             published_at: None,
@@ -94,6 +97,14 @@ pub fn extract(
         .body()
         .ok_or("В HTML нет текстового содержимого.")?;
     result.text = body_text(body, check)?;
+    // Unresolved explicit citations stay out of reference. This does not infer
+    // arbitrary unlabelled copied passages or assert that metadata is truthful.
+    result.has_relation_markers = text_relation_markers(&result.text)
+        || !document
+            .select("a[href],area[href],blockquote,q,cite,[cite],[itemprop~='citation']")
+            .nodes()
+            .is_empty();
+    check()?;
     if result.text.trim().is_empty() {
         return Err("В странице нет доступного текстового содержимого.".into());
     }
@@ -143,6 +154,7 @@ fn metadata(
     let title = (titles.len() == 1).then(|| titles.remove(0));
     Ok(PageContent {
         text: String::new(),
+        has_relation_markers: false,
         title,
         author_labels: authors,
         published_at,
@@ -265,3 +277,13 @@ fn block(name: &str) -> bool {
 #[cfg(test)]
 #[path = "selected-page-content-tests.rs"]
 mod tests;
+
+fn text_relation_markers(text: &str) -> bool {
+    text.contains(['"', '«', '»', '“', '”', '„', '‟', '‘', '’', '>', '[', ']']) || {
+        let lower = text.to_ascii_lowercase();
+        lower.contains("http://")
+            || lower.contains("https://")
+            || lower.contains("www.")
+            || lower.contains("mailto:")
+    }
+}

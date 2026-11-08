@@ -2,15 +2,12 @@
 //! The source gate is released between bounded pages; no frontend-authored text,
 //! persona/grant pairing or source span is accepted by this scenario.
 use super::{
+    adapter::CompletedAdapter,
     grants::preview_deadline,
     job_workflow::{read_job, validate_selection},
     operations::Operation,
-    period::date_ms,
     preview_store::read_preview,
     projection::access,
-    telegram_document::decode_revision,
-    telegram_identity::ArchiveVersion,
-    telegram_worker::{completed_origin, selected},
 };
 use crate::{
     corpus_database::{
@@ -31,8 +28,7 @@ pub struct IndexInput<'a> {
 }
 struct IndexSource {
     job: StoredJob,
-    version: ArchiveVersion,
-    origin: String,
+    adapter: CompletedAdapter,
     deadline: i64,
 }
 impl IndexSource {
@@ -71,11 +67,7 @@ pub fn rebuild(
         let now = now_ms();
         validate_selection(db, &job.state.selection, now)?;
         let preview = read_preview(db, &job.state.selection.preview_id)?;
-        let version = ArchiveVersion::from_adapter(&job.state.checkpoint.adapter_version)?;
-        if preview.adapter_version != version.adapter() {
-            return Err("Версии задачи и предпросмотра не совпадают.".into());
-        }
-        let origin = completed_origin(&job, &preview.fingerprint, now)?;
+        let adapter = CompletedAdapter::resolve(&job, &preview, operation.provider(), now)?;
         let deadline = job
             .state
             .selection
@@ -104,8 +96,7 @@ pub fn rebuild(
         Ok((
             IndexSource {
                 job,
-                version,
-                origin,
+                adapter,
                 deadline,
             },
             cursor,
@@ -138,7 +129,7 @@ pub fn rebuild(
                 let mut hashes = Vec::with_capacity(page.len());
                 for entry in page {
                     check()?;
-                    let chunk = index_chunk(&source, &stage, entry)?;
+                    let chunk = index_chunk(&source, &stage, entry, &check)?;
                     db.stage_search_chunk(&chunk)?;
                     hashes.push((chunk.chunk_id.clone(), chunk_content_hash(&chunk)));
                     check()?;
@@ -188,6 +179,7 @@ fn index_chunk(
     source: &IndexSource,
     stage: &SearchStageInput,
     entry: PreparedEntry,
+    check: &dyn Fn() -> Result<(), String>,
 ) -> Result<SearchChunkInput, String> {
     let binding = source
         .job
@@ -197,11 +189,9 @@ fn index_chunk(
         .iter()
         .find(|b| b.id == entry.episode.binding_id)
         .ok_or("Фрагмент не принадлежит разрешённой привязке.")?;
-    let doc = decode_revision(source.version, &source.origin, &entry.original)?;
-    if !selected(std::slice::from_ref(binding), &doc)? {
-        return Err("Фрагмент вне разрешённой области источника.".into());
-    }
-    let timestamp = doc.created_at.as_deref().map(date_ms).transpose()?;
+    let timestamp = source
+        .adapter
+        .selected_timestamp(&entry.original, binding, check)?;
     let span = &entry.chunk.spans[0];
     Ok(SearchChunkInput {
         stage_id: stage.stage_id.clone(),

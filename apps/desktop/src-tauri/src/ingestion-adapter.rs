@@ -41,3 +41,71 @@ pub(super) fn content_type(preview: &StoredPreview) -> Result<&'static str, Stri
         _ => Err("Неподдерживаемый формат сохранённой страницы.".into()),
     }
 }
+
+pub(super) enum CompletedAdapter {
+    Telegram {
+        version: ArchiveVersion,
+        origin: String,
+    },
+    SavedPage(Box<StoredPreview>),
+}
+impl CompletedAdapter {
+    pub fn resolve(
+        job: &crate::corpus_database::StoredJob,
+        preview: &StoredPreview,
+        provider: JobProvider,
+        now: i64,
+    ) -> Result<Self, String> {
+        let adapter = Adapter::resolve(preview)?;
+        if adapter.provider() != provider
+            || job.state.checkpoint.adapter_version != preview.adapter_version
+        {
+            return Err("Источник принадлежит другому адаптеру.".into());
+        }
+        match adapter {
+            Adapter::Telegram => Ok(Self::Telegram {
+                version: ArchiveVersion::from_adapter(&preview.adapter_version)?,
+                origin: super::telegram_worker::completed_origin(job, &preview.fingerprint, now)?,
+            }),
+            Adapter::SavedPage => {
+                super::page_worker::completed(job, preview, now)?;
+                Ok(Self::SavedPage(Box::new(preview.clone())))
+            }
+        }
+    }
+    pub fn preparation_version(&self) -> &'static str {
+        match self {
+            Self::Telegram { .. } => "telegramPreparation:1",
+            Self::SavedPage(_) => "savedPagePreparation:1",
+        }
+    }
+    pub fn selected_timestamp(
+        &self,
+        revision: &crate::corpus_database::StoredRevision,
+        binding: &crate::corpus_database::JobBinding,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<Option<i64>, String> {
+        check()?;
+        let (selected, created) = match self {
+            Self::Telegram { version, origin } => {
+                let doc = super::telegram_document::decode_revision(*version, origin, revision)?;
+                (
+                    super::telegram_worker::selected(std::slice::from_ref(binding), &doc)?,
+                    doc.created_at,
+                )
+            }
+            Self::SavedPage(preview) => {
+                let doc = super::page_source::decode_revision(preview, revision, check)?;
+                (
+                    super::page_source::selected(std::slice::from_ref(binding), &doc)?,
+                    doc.published_at,
+                )
+            }
+        };
+        check()?;
+        if !selected {
+            return Err("Фрагмент вне разрешённой области источника.".into());
+        }
+        created.as_deref().map(super::period::date_ms).transpose()
+    }
+}

@@ -10,8 +10,8 @@ use super::{
 };
 use crate::{
     corpus_database::{
-        Acquisition, HashAlgorithm, JobBatch, JobCheckpoint, JobPhase, JobProvider, JobStatus,
-        ProvenanceLimitation, RecordInput, RevisionInput, SourceProvenance, StoredJob,
+        JobBatch, JobCheckpoint, JobPhase, JobProvider, JobStatus, RecordInput, RevisionInput,
+        StoredJob,
     },
     sources::Sources,
 };
@@ -144,7 +144,7 @@ fn acquire<R: Read>(
     {
         return Err("Исходная страница изменилась. Выберите её заново.".into());
     }
-    let selected = selected(&session.job, &document)?;
+    let selected = super::page_source::selected(&session.job.state.selection.bindings, &document)?;
     let bytes = if selected {
         document.original.len() as i64
     } else {
@@ -265,36 +265,6 @@ impl<F: Fn() -> i64> Session<'_, F> {
         })
     }
 }
-fn selected(job: &StoredJob, doc: &PageDocument) -> Result<bool, String> {
-    for binding in &job.state.selection.bindings {
-        if binding.resource_id != doc.source_key || !binding.allow_unknown_context {
-            continue;
-        }
-        let Some(created) = &doc.published_at else {
-            if binding.period.include_undated {
-                return Ok(true);
-            }
-            continue;
-        };
-        let date = super::period::date_ms(created)?;
-        let from = binding
-            .period
-            .from
-            .as_deref()
-            .map(super::period::date_ms)
-            .transpose()?;
-        let to = binding
-            .period
-            .to
-            .as_deref()
-            .map(super::period::date_ms)
-            .transpose()?;
-        if from.is_none_or(|from| date >= from) && to.is_none_or(|to| date <= to) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
 fn record(
     job: &StoredJob,
     preview: &StoredPreview,
@@ -307,12 +277,7 @@ fn record(
         documents: vec![RevisionInput {
             source_key: document.source_key.clone(), document_id: document.id.clone(),
             document_json: serde_json::to_string(&document).map_err(|_| INVALID)?,
-            provenance: SourceProvenance {
-                acquisition: Acquisition::SavedPage, adapter_version: preview.adapter_version.clone(),
-                source_format: preview.source_format.clone(), original_object_id: None,
-                original_byte_length: Some(document.original.len() as u64), hash_algorithm: HashAlgorithm::Sha256,
-                limitations: vec![ProvenanceLimitation::OriginalObjectIdUnavailable, ProvenanceLimitation::AttachmentsUnavailable, ProvenanceLimitation::RelationsIncomplete],
-            },
+            provenance: super::page_source::provenance(preview, document.original.len() as u64),
         }],
     })
 }
@@ -338,4 +303,18 @@ pub(super) fn restore_origin(
         Some(PageOrigin::SavedPage { source_origin, .. }) => Ok(source_origin.clone()),
         _ => Err(INVALID.into()),
     }
+}
+
+pub(super) fn completed(job: &StoredJob, preview: &StoredPreview, now: i64) -> Result<(), String> {
+    if job.status != JobStatus::Completed
+        || !job.state.coverage.complete
+        || job.state.published_snapshot_id.is_none()
+        || job.state.error.is_some()
+    {
+        return Err(INVALID.into());
+    }
+    let cursor: Cursor =
+        serde_json::from_str(job.state.checkpoint.cursor.as_deref().ok_or(INVALID)?)
+            .map_err(|_| INVALID)?;
+    validate_cursor(job, preview, &cursor, now)
 }

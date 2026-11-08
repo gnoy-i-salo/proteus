@@ -1,14 +1,10 @@
 //! Native-authorized source projection. No frontend-authored episode assignments.
 //! Source I/O is guarded; relation analysis runs outside the shared database gate.
 use super::{
-    grants::preview_deadline,
-    operations::Operation,
-    period::date_ms,
-    preview_store::read_preview,
-    telegram_document::decode_revision,
-    telegram_identity::ArchiveVersion,
-    telegram_relations::resolve_checked,
-    telegram_worker::{completed_origin, selected},
+    adapter::CompletedAdapter, grants::preview_deadline, operations::Operation, period::date_ms,
+    preview_store::read_preview, telegram_document::decode_revision,
+    telegram_identity::ArchiveVersion, telegram_relations::resolve_checked,
+    telegram_worker::selected,
 };
 use crate::{
     corpus_database::{episodes::EpisodeDocument, Snapshot},
@@ -16,6 +12,7 @@ use crate::{
 };
 pub struct Projection {
     pub source: Snapshot,
+    pub preparation_version: &'static str,
     pub documents: Vec<EpisodeDocument>,
 }
 const LIMIT: &str = "Превышен бюджет подготовки исходных сообщений.";
@@ -36,17 +33,13 @@ pub(super) fn project_checked(
 ) -> Result<Projection, String> {
     check_extra()?;
     let started = now_ms();
-    let (job, version, origin, source, originals, deadline) =
+    let (job, adapter, source, originals, deadline) =
         sources.with_ingestion_database(operation, |db| {
             let job = super::job_workflow::read_job(db, job_id)?;
             // Resolve current permissions before snapshot() reads any originals.
             super::job_workflow::validate_selection(db, &job.state.selection, started)?;
             let preview = read_preview(db, &job.state.selection.preview_id)?;
-            let version = ArchiveVersion::from_adapter(&job.state.checkpoint.adapter_version)?;
-            if preview.adapter_version != version.adapter() {
-                return Err("Версии задачи и предпросмотра не совпадают.".into());
-            }
-            let origin = completed_origin(&job, &preview.fingerprint, started)?;
+            let adapter = CompletedAdapter::resolve(&job, &preview, operation.provider(), started)?;
             let deadline = job
                 .state
                 .selection
@@ -86,54 +79,21 @@ pub(super) fn project_checked(
                 originals.push(original);
             }
             check()?;
-            Ok((job, version, origin, source, originals, deadline))
+            Ok((job, adapter, source, originals, deadline))
         })?;
     let check = || {
         check_extra()?;
         access(operation, started, deadline, now_ms())
     };
-    let mut decoded = Vec::with_capacity(originals.len());
-    for original in originals {
-        check()?;
-        decoded.push((
-            original.reference.clone(),
-            decode_revision(version, &origin, &original)?,
-        ));
-    }
-    let relations = resolve_checked(version, &origin, &decoded, &check)?;
-    let mut documents = Vec::new();
-    let mut bytes = 0usize;
-    let mut edges = 0usize;
-    for ((reference, doc), relation) in decoded.into_iter().zip(relations) {
-        check()?;
-        let mut assigned = false;
-        for binding in &job.state.selection.bindings {
-            if !selected(std::slice::from_ref(binding), &doc)? {
-                continue;
-            }
-            bytes += doc.text.len();
-            edges += relation.related.len();
-            if documents.len() >= 100000 || bytes > 128 * 1024 * 1024 || edges > 1_000_000 {
-                return Err(LIMIT.into());
-            }
-            documents.push(EpisodeDocument {
-                reference: reference.clone(),
-                source_key: doc.source_key.clone(),
-                binding_id: binding.id.clone(),
-                conversation_id: conversation_key(&origin, &doc.resource_id)?,
-                thread_id: None,
-                timestamp_ms: doc.created_at.as_deref().map(date_ms).transpose()?,
-                text: doc.text.clone(),
-                related: relation.related.clone(),
-                relations_complete: relation.complete,
-                holdout: false,
-            });
-            assigned = true;
+    let preparation_version = adapter.preparation_version();
+    let documents = match &adapter {
+        CompletedAdapter::Telegram { version, origin } => {
+            project_telegram(*version, origin, &job, originals, &check)?
         }
-        if !assigned {
-            return Err("Ревизия не входит в разрешённую область задачи.".into());
+        CompletedAdapter::SavedPage(preview) => {
+            super::page_source::project(&job, preview, originals, &check)?
         }
-    }
+    };
     // A completed receipt and an earlier successful grant check are not access
     // tokens. Deletion/revocation while analyzing must win before returning data.
     sources.with_ingestion_database(operation, |db| {
@@ -148,7 +108,11 @@ pub(super) fn project_checked(
         }
         check()
     })?;
-    Ok(Projection { source, documents })
+    Ok(Projection {
+        source,
+        documents,
+        preparation_version,
+    })
 }
 pub(super) fn access(
     operation: &Operation,
@@ -171,4 +135,56 @@ fn conversation_key(origin: &str, resource: &str) -> Result<String, String> {
         "telegramConversation:1:{:x}",
         Sha256::digest(bytes)
     ))
+}
+
+fn project_telegram(
+    version: ArchiveVersion,
+    origin: &str,
+    job: &crate::corpus_database::StoredJob,
+    originals: Vec<crate::corpus_database::StoredRevision>,
+    check: &dyn Fn() -> Result<(), String>,
+) -> Result<Vec<EpisodeDocument>, String> {
+    let mut decoded = Vec::with_capacity(originals.len());
+    for original in originals {
+        check()?;
+        decoded.push((
+            original.reference.clone(),
+            decode_revision(version, origin, &original)?,
+        ));
+    }
+    let relations = resolve_checked(version, origin, &decoded, check)?;
+    let mut documents = Vec::new();
+    let mut bytes = 0usize;
+    let mut edges = 0usize;
+    for ((reference, doc), relation) in decoded.into_iter().zip(relations) {
+        check()?;
+        let mut assigned = false;
+        for binding in &job.state.selection.bindings {
+            if !selected(std::slice::from_ref(binding), &doc)? {
+                continue;
+            }
+            bytes += doc.text.len();
+            edges += relation.related.len();
+            if documents.len() >= 100000 || bytes > 128 * 1024 * 1024 || edges > 1_000_000 {
+                return Err(LIMIT.into());
+            }
+            documents.push(EpisodeDocument {
+                reference: reference.clone(),
+                source_key: doc.source_key.clone(),
+                binding_id: binding.id.clone(),
+                conversation_id: conversation_key(origin, &doc.resource_id)?,
+                thread_id: None,
+                timestamp_ms: doc.created_at.as_deref().map(date_ms).transpose()?,
+                text: doc.text.clone(),
+                related: relation.related.clone(),
+                relations_complete: relation.complete,
+                holdout: false,
+            });
+            assigned = true;
+        }
+        if !assigned {
+            return Err("Ревизия не входит в разрешённую область задачи.".into());
+        }
+    }
+    Ok(documents)
 }

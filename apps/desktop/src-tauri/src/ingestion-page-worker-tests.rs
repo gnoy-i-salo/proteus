@@ -8,7 +8,7 @@ use crate::ingestion::{
     SelectedInputs,
 };
 
-fn prepare_page(
+pub(super) fn prepare_page(
     sources: &Sources,
     dir: &std::path::Path,
     original: &str,
@@ -253,7 +253,7 @@ fn saved_page_restore_keeps_original_identity_and_label_after_file_is_moved() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
-fn start_page(
+pub(super) fn start_page(
     sources: &Sources,
     inputs: &SelectedInputs,
     selection: JobSelection,

@@ -51,7 +51,7 @@ pub fn prepare(
     };
     check_budget()?;
     let projection = project_checked(sources, operation, input.job_id, &now_ms, &check_budget)?;
-    let publication = publication_id(&projection.source, input)?;
+    let publication = publication_id(&projection.source, projection.preparation_version, input)?;
     let request = PreparationRequest {
         source_snapshot_id: &projection.source.id,
         publication_id: &publication,
@@ -120,11 +120,15 @@ pub fn prepare(
         coverage: job.state.coverage,
     })
 }
-fn publication_id(source: &Snapshot, input: &PrepareInput<'_>) -> Result<String, String> {
+fn publication_id(
+    source: &Snapshot,
+    version: &str,
+    input: &PrepareInput<'_>,
+) -> Result<String, String> {
     // Bump this scenario version if projection semantics change. Time budget
     // affects whether work completes, never the identity of the completed result.
     let bytes = serde_json::to_vec(&(
-        "telegramPreparation:1",
+        version,
         &source.id,
         input.split.time_gap_ms,
         input.split.holdout_basis_points,
@@ -133,5 +137,5 @@ fn publication_id(source: &Snapshot, input: &PrepareInput<'_>) -> Result<String,
         chunk_policy_fingerprint(input.tokenizer, input.chunks)?,
     ))
     .map_err(|_| "Не удалось определить версию подготовки.")?;
-    Ok(format!("telegramPreparation:1:{:x}", Sha256::digest(bytes)))
+    Ok(format!("{version}:{:x}", Sha256::digest(bytes)))
 }

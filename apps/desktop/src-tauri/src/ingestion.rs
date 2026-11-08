@@ -16,6 +16,8 @@ pub mod operations;
 pub mod page_document;
 #[path = "ingestion-page-preview.rs"]
 pub mod page_preview;
+#[path = "ingestion-page-source.rs"]
+mod page_source;
 #[path = "ingestion-page-worker.rs"]
 pub mod page_worker;
 #[path = "ingestion-period.rs"]

@@ -2,12 +2,12 @@
 //! grant/binding pairs always come from the persisted native job. Corpus access
 //! here does not authorize sending results to a model or exporting originals.
 use super::{
+    adapter::CompletedAdapter,
     grants::preview_deadline,
     job_workflow::{read_job, validate_selection},
     operations::Operation,
     preview_store::read_preview,
     search::policy,
-    telegram_worker::completed_origin,
 };
 use crate::{
     corpus_database::search::{
@@ -83,10 +83,7 @@ pub fn query(
         let now = now_ms();
         validate_selection(db, &job.state.selection, now)?;
         let preview = read_preview(db, &job.state.selection.preview_id)?;
-        completed_origin(&job, &preview.fingerprint, now)?;
-        if preview.adapter_version != job.state.checkpoint.adapter_version {
-            return Err("Версии задачи и предпросмотра не совпадают.".into());
-        }
+        CompletedAdapter::resolve(&job, &preview, operation.provider(), now)?;
         let bindings = job
             .state
             .selection

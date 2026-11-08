@@ -2,14 +2,15 @@
 //! is not an authorization service; native callers check grants on every access.
 #[path = "corpus-preparation-compile.rs"]
 mod compile;
+#[path = "corpus-preparation-cursor.rs"]
+mod cursor;
+pub use cursor::{PreparedCursor, PreparedEntry};
 #[path = "corpus-preparation-read.rs"]
 mod read;
 use super::{
     episodes::*,
     record_store::read_revision,
-    snapshot_store::{
-        fork_snapshot, publication_snapshot_id, read_snapshot, read_snapshot_checked,
-    },
+    snapshot_store::{fork_snapshot, publication_snapshot_id, read_snapshot_checked},
     sql_error,
     types::digest,
     CorpusDatabase, Snapshot, INVALID,
@@ -72,6 +73,22 @@ fn manifest_hash(
     ))
 }
 impl CorpusDatabase {
+    /// Metadata only: callers establish ownership before reading any originals.
+    pub fn prepared_source_snapshot_id(&self, id: &str) -> Result<String, String> {
+        if id.is_empty() || id.len() > 256 {
+            return Err(INVALID.into());
+        }
+        self.connection
+            .query_row(
+                "SELECT source_snapshot_id FROM corpus_preparations WHERE snapshot_id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(sql_error)?
+            .ok_or_else(|| "Подготовленный снимок не найден или отозван.".into())
+    }
+
     pub fn publish_prepared(
         &mut self,
         request: &PreparationRequest<'_>,

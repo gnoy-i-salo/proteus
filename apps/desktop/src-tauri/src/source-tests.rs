@@ -286,3 +286,6 @@ mod preparation_tests;
 
 #[path = "ingestion-prepared-publication-tests.rs"]
 mod prepared_publication_tests;
+
+#[path = "ingestion-search-tests.rs"]
+mod ingestion_search;

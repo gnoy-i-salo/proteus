@@ -230,6 +230,15 @@ pub fn commit_stage(
     stage_id: &str,
     manifest: &StageManifest,
 ) -> Result<SearchIndexReceipt, String> {
+    commit_stage_checked(connection, stage_id, manifest, &|| Ok(()))
+}
+pub(super) fn commit_stage_checked(
+    connection: &mut Connection,
+    stage_id: &str,
+    manifest: &StageManifest,
+    check: &dyn Fn() -> Result<(), String>,
+) -> Result<SearchIndexReceipt, String> {
+    check()?;
     ensure_search_schema(connection)?;
     if invalid_id(stage_id) {
         return Err(invalid_data("Недопустимый идентификатор этапа индекса."));
@@ -238,6 +247,7 @@ pub fn commit_stage(
     let tx = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(sql_error)?;
+    check()?;
     let stage = tx
         .query_row(
             "SELECT snapshot_id,snapshot_generation,state,policy_fingerprint,\
@@ -335,6 +345,7 @@ pub fn commit_stage(
             ));
         }
         // No writes were performed; the transaction is dropped unused.
+        check()?;
         return Ok(SearchIndexReceipt {
             snapshot_id,
             snapshot_generation: generation_snapshot,
@@ -371,6 +382,7 @@ pub fn commit_stage(
     let mut hasher = Sha256::new();
     let mut count = 0i64;
     for row in rows {
+        check()?;
         let (_, digest) = row.map_err(sql_error)?;
         hasher.update(digest.as_bytes());
         count += 1;
@@ -397,6 +409,7 @@ pub fn commit_stage(
             |row| row.get(0),
         )
         .map_err(sql_error)?;
+    check()?;
     tx.execute(
         "INSERT INTO search_chunks(rowid,snapshot_id,index_generation,chunk_id,document_id,\
          revision_id,span_start,span_end,persona_id,grant_id,binding_id,record_id,\
@@ -407,6 +420,7 @@ pub fn commit_stage(
         params![base, snapshot_id, index_generation, stage_id],
     )
     .map_err(sql_error)?;
+    check()?;
     tx.execute(
         "INSERT INTO search_fts(rowid,text) SELECT c.rowid+?1,f.text FROM search_stage_chunks c \
          JOIN search_stage_fts f ON f.rowid=c.rowid WHERE c.stage_id=?2",
@@ -414,6 +428,7 @@ pub fn commit_stage(
     )
     .map_err(sql_error)?;
     let created_at = now_seconds();
+    check()?;
     tx.execute(
         "INSERT INTO search_generations(snapshot_id,index_generation,snapshot_generation,\
          policy_fingerprint,content_sha256,chunk_count,created_at) \
@@ -428,6 +443,7 @@ pub fn commit_stage(
         ],
     )
     .map_err(sql_error)?;
+    check()?;
     tx.execute(
         "INSERT INTO search_active(snapshot_id,index_generation) VALUES(?1,?2) \
          ON CONFLICT(snapshot_id) DO UPDATE SET index_generation=excluded.index_generation",
@@ -458,6 +474,7 @@ pub fn commit_stage(
         chunk_count: manifest.chunk_count,
         created_at,
     };
+    check()?;
     tx.commit().map_err(sql_error)?;
     Ok(receipt)
 }

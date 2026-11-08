@@ -28,6 +28,8 @@ pub mod projection;
 pub mod publication;
 #[path = "ingestion-restore-workflow.rs"]
 pub mod restore_workflow;
+#[path = "ingestion-search.rs"]
+pub mod search;
 #[path = "telegram-archive-json.rs"]
 pub mod telegram_archive_json;
 #[path = "telegram-document.rs"]

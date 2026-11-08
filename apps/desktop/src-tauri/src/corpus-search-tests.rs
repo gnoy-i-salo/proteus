@@ -2251,3 +2251,172 @@ fn shared_span_scope_cannot_replace_an_existing_chunk_identity() {
     drop(connection);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn checked_index_commit_rolls_back_when_access_expires_inside_the_transaction() {
+    use std::cell::Cell;
+    let (connection, dir) = setup();
+    let mut db = crate::corpus_database::CorpusDatabase { connection };
+    let original = publish(
+        &mut db.connection,
+        SNAPSHOT_A,
+        SNAPSHOT_GEN,
+        "old",
+        &fixture_chunks(),
+    );
+    db.begin_search_stage(&stage_input("checked")).unwrap();
+    let mut input = fixture_chunks().remove(0);
+    input.stage_id = "checked".into();
+    db.stage_search_chunk(&input).unwrap();
+    let manifest = content_manifest(&[(input.chunk_id.clone(), chunk_content_hash(&input))]);
+    let calls = Cell::new(0);
+    let result = db.commit_search_stage("checked", &manifest, &|| {
+        calls.set(calls.get() + 1);
+        if calls.get() > 1 {
+            Err("expired during commit".into())
+        } else {
+            Ok(())
+        }
+    });
+    assert_eq!(result.err().as_deref(), Some("expired during commit"));
+    assert_eq!(
+        active_generation(&db.connection, SNAPSHOT_A)
+            .unwrap()
+            .unwrap()
+            .0,
+        original.index_generation
+    );
+    assert_eq!(
+        db.connection
+            .query_row(
+                "SELECT count(*) FROM search_stage_chunks WHERE stage_id='checked'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        1
+    );
+    assert!(db.connection.is_autocommit());
+    assert_eq!(
+        db.commit_search_stage("checked", &manifest, &|| Ok(()))
+            .unwrap()
+            .index_generation,
+        original.index_generation + 1
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn russian_numero_yo_and_complex_urls_have_explicit_lexical_results() {
+    let (mut db, dir) = setup();
+    let input = chunk(
+        "query-review",
+        "Договор № 7: Алёна встретит 田中太郎. https://example.test:8080/a?b=c&d=e",
+        PERSONA_A,
+        GRANT_A,
+        BINDING_A,
+        (None, None),
+    );
+    publish(&mut db, SNAPSHOT_A, SNAPSHOT_GEN, "query-review", &[input]);
+    let request = |query: &str| SearchRequest {
+        scope: scope_a(),
+        query_text: query.into(),
+        limit: 10,
+        offset: 0,
+    };
+    assert!(
+        !'№'.is_alphanumeric(),
+        "verify the review's Unicode premise against this compiler"
+    );
+    for query in [
+        "договор №",
+        "договор №7",
+        "алёна",
+        "田中太郎",
+        "https://example.test:8080/a?b=c&d=e",
+    ] {
+        assert_eq!(
+            search_ids(&db, &request(query)),
+            vec!["query-review"],
+            "{query}"
+        );
+    }
+    for query in ["алена", "田中", "договр"] {
+        assert!(search_ids(&db, &request(query)).is_empty(), "{query}");
+    }
+    let error = search(&db, &request("№")).unwrap_err();
+    assert_ne!(error, super::sql_error(rusqlite::Error::InvalidQuery));
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn final_index_commit_guard_restores_old_rows_pointer_and_staging_after_all_writes() {
+    use std::cell::Cell;
+    let (connection, dir) = setup();
+    let mut db = crate::corpus_database::CorpusDatabase { connection };
+    let mut input = fixture_chunks().remove(0);
+    let mut last = 0;
+    let total = Cell::new(0);
+    for (stage, deny) in [("first-checked", false), ("late-denied", true)] {
+        db.begin_search_stage(&stage_input(stage)).unwrap();
+        input.stage_id = stage.into();
+        db.stage_search_chunk(&input).unwrap();
+        let manifest = content_manifest(&[(input.chunk_id.clone(), chunk_content_hash(&input))]);
+        let calls = Cell::new(0);
+        let result = db.commit_search_stage(stage, &manifest, &|| {
+            calls.set(calls.get() + 1);
+            if deny && calls.get() == total.get() {
+                Err("expired immediately before commit".into())
+            } else {
+                Ok(())
+            }
+        });
+        if deny {
+            assert_eq!(
+                result.err().as_deref(),
+                Some("expired immediately before commit")
+            );
+            assert_eq!(
+                active_generation(&db.connection, SNAPSHOT_A)
+                    .unwrap()
+                    .unwrap()
+                    .0,
+                last
+            );
+            assert_eq!(
+                db.connection
+                    .query_row(
+                        "SELECT count(*) FROM search_generations WHERE snapshot_id=?1",
+                        [SNAPSHOT_A],
+                        |r| r.get::<_, i64>(0)
+                    )
+                    .unwrap(),
+                1
+            );
+            assert_eq!(
+                db.connection
+                    .query_row(
+                        "SELECT count(*) FROM search_stage_chunks WHERE stage_id=?1",
+                        [stage],
+                        |r| r.get::<_, i64>(0)
+                    )
+                    .unwrap(),
+                1
+            );
+            assert_eq!(
+                db.commit_search_stage(stage, &manifest, &|| Ok(()))
+                    .unwrap()
+                    .index_generation,
+                last + 1
+            );
+        } else {
+            last = result.unwrap().index_generation;
+            total.set(calls.get());
+            assert!(total.get() > 5);
+        }
+    }
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}

@@ -1,10 +1,18 @@
 use super::*;
 pub(super) fn snapshot(connection: &Connection, id: &str) -> Result<PreparedSnapshot, String> {
+    snapshot_checked(connection, id, &|| Ok(()))
+}
+pub(super) fn snapshot_checked(
+    connection: &Connection,
+    id: &str,
+    check: &dyn Fn() -> Result<(), String>,
+) -> Result<PreparedSnapshot, String> {
+    check()?;
     let stored:Option<(String,String,String,String,String)>=connection.query_row("SELECT source_snapshot_id,split_version,tokenizer_version,chunking_version,canonical_sha256 FROM corpus_preparations WHERE snapshot_id=?1",[id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(sql_error)?;
     let (source_snapshot_id, split_version, tokenizer_version, chunking_version, hash) =
         stored.ok_or("Подготовленный снимок не найден или отозван.")?;
-    let snapshot = read_snapshot(connection, id)?;
-    let source = read_snapshot(connection, &source_snapshot_id)?;
+    let snapshot = read_snapshot_checked(connection, id, check)?;
+    let source = read_snapshot_checked(connection, &source_snapshot_id, check)?;
     if snapshot.parent_id.as_deref() != Some(source_snapshot_id.as_str())
         || snapshot.records != source.records
         || snapshot.documents != source.documents
@@ -12,8 +20,8 @@ pub(super) fn snapshot(connection: &Connection, id: &str) -> Result<PreparedSnap
     {
         return Err(INVALID.into());
     }
-    let episodes=row_digests(connection,id,"SELECT position,episode_id,canonical_sha256 FROM corpus_episodes WHERE snapshot_id=?1 ORDER BY position",100_000)?;
-    let chunks=row_digests(connection,id,"SELECT position,chunk_id,canonical_sha256 FROM corpus_prepared_chunks WHERE snapshot_id=?1 ORDER BY position",1_000_000)?;
+    let episodes=row_digests(connection,id,"SELECT position,episode_id,canonical_sha256 FROM corpus_episodes WHERE snapshot_id=?1 ORDER BY position",100_000,check)?;
+    let chunks=row_digests(connection,id,"SELECT position,chunk_id,canonical_sha256 FROM corpus_prepared_chunks WHERE snapshot_id=?1 ORDER BY position",1_000_000,check)?;
     if manifest_hash(
         &source_snapshot_id,
         &split_version,
@@ -25,6 +33,7 @@ pub(super) fn snapshot(connection: &Connection, id: &str) -> Result<PreparedSnap
     {
         return Err(INVALID.into());
     }
+    check()?;
     Ok(PreparedSnapshot {
         snapshot,
         source_snapshot_id,
@@ -35,16 +44,18 @@ pub(super) fn snapshot(connection: &Connection, id: &str) -> Result<PreparedSnap
         chunk_count: chunks.len(),
     })
 }
-fn row_digests(
+pub(super) fn row_digests(
     connection: &Connection,
     id: &str,
     sql: &str,
     limit: usize,
+    check: &dyn Fn() -> Result<(), String>,
 ) -> Result<Vec<(String, String)>, String> {
     let mut query = connection.prepare(sql).map_err(sql_error)?;
     let mut rows = query.query([id]).map_err(sql_error)?;
     let mut out = Vec::new();
     while let Some(row) = rows.next().map_err(sql_error)? {
+        check()?;
         if out.len() >= limit || row.get::<_, i64>(0).map_err(sql_error)? != out.len() as i64 {
             return Err(INVALID.into());
         }

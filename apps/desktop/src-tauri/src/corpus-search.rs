@@ -54,6 +54,8 @@
 //! versioned corpus migration (`corpus-search-schema.sql`). This module never
 //! migrates lazily and never touches `user_version`; opening an unmigrated
 //! database fails closed with an explicit error.
+#[path = "corpus-search-db.rs"]
+mod database;
 #[path = "corpus-search-query.rs"]
 mod query;
 #[path = "corpus-search-read.rs"]

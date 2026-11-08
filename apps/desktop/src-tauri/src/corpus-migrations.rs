@@ -64,3 +64,18 @@ pub(super) fn upgrade_vectors(connection: &mut Connection) -> Result<(), String>
         .map_err(sql_error)?;
     tx.commit().map_err(sql_error)
 }
+
+/// Research, frozen manifests and simulation share one additive migration.
+/// A conflicting object rolls back all new tables; originals stay byte-exact.
+pub(super) fn upgrade_memory(connection: &mut Connection) -> Result<(), String> {
+    let tx = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sql_error)?;
+    tx.execute_batch(include_str!("corpus-memory-schema.sql"))
+        .map_err(sql_error)?;
+    tx.execute_batch(include_str!("corpus-simulation-schema.sql"))
+        .map_err(sql_error)?;
+    tx.pragma_update(None, "user_version", 7)
+        .map_err(sql_error)?;
+    tx.commit().map_err(sql_error)
+}

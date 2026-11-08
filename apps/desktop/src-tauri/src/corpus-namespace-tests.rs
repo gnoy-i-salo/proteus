@@ -89,7 +89,7 @@ fn actual_v2_fixture_upgrades_without_rewriting_legacy_payload_or_hash() {
         db.connection
             .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
             .unwrap(),
-        6
+        7
     );
     let saved = db.read("legacy").unwrap().unwrap();
     assert_eq!(saved.namespace, RecordNamespace::SourceService);

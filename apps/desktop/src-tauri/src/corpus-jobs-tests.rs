@@ -660,7 +660,7 @@ fn review_version_one_database_upgrades_atomically_and_preserves_exact_records()
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 6);
+    assert_eq!(version, 7);
     assert_eq!(db.read("legacy").unwrap().unwrap(), before);
     db.create_job(&job_input("upgraded")).unwrap();
     db.start_job("upgraded").unwrap();
@@ -711,7 +711,7 @@ fn review_actual_v1_fixture_migrates_but_unsupported_job_data_is_retained_and_re
                 .connection
                 .pragma_query_value(None, "user_version", |row| row.get(0))
                 .unwrap();
-            assert_eq!(version, 6);
+            assert_eq!(version, 7);
         }
         std::fs::remove_dir_all(dir).unwrap();
     }

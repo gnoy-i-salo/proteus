@@ -12,14 +12,14 @@ fn version(connection: &Connection) -> i64 {
         .unwrap()
 }
 fn schema(connection: &Connection, include_vectors: bool) -> Vec<(String, String)> {
-    connection.prepare("SELECT name,sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND (?1 OR name NOT LIKE 'vector_%') ORDER BY name").unwrap()
+    connection.prepare("SELECT name,sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND (?1 OR (name NOT LIKE 'vector_%' AND name NOT LIKE 'memory_%' AND name NOT LIKE 'simulation_%')) ORDER BY name").unwrap()
         .query_map([include_vectors],|row| Ok((row.get(0)?,row.get(1)?))).unwrap().collect::<Result<_,_>>().unwrap()
 }
 #[test]
 fn fresh_database_installs_vector_generations_entries_and_active_pointer() {
     let dir = directory();
     let db = CorpusDatabase::open(&dir.join("corpus.db"), &[31; 32]).unwrap();
-    assert_eq!(version(&db.connection), 6);
+    assert_eq!(version(&db.connection), 7);
     assert_eq!(db.connection.query_row("SELECT count(*) FROM sqlite_schema WHERE type='table' AND name IN ('vector_generations','vector_entries','vector_active')",[],|r| r.get::<_,i64>(0)).unwrap(),3);
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
@@ -58,7 +58,7 @@ fn v5_upgrade_preserves_originals_fts_job_bytes_and_existing_schema_across_resta
     drop(db);
     for _ in 0..2 {
         let db = CorpusDatabase::open(&dir.join("corpus.db"), &[31; 32]).unwrap();
-        assert_eq!(version(&db.connection), 6);
+        assert_eq!(version(&db.connection), 7);
         assert_eq!(schema(&db.connection, false), before_schema);
         assert_eq!(db.read("record").unwrap().unwrap(), before);
         assert_eq!(db.snapshot(&snapshot.id).unwrap(), snapshot);
@@ -116,7 +116,7 @@ fn vector_schema_conflict_rolls_back_new_tables_and_keeps_exact_v5_data() {
         .unwrap();
     drop(connection);
     let db = CorpusDatabase::open(&dir.join("corpus.db"), &[31; 32]).unwrap();
-    assert_eq!(version(&db.connection), 6);
+    assert_eq!(version(&db.connection), 7);
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }

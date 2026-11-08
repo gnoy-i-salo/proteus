@@ -56,9 +56,6 @@ impl TestDir {
         fs::create_dir(&path).expect("test dir");
         Self(path)
     }
-    fn path(&self) -> &Path {
-        &self.0
-    }
     fn cache(&self) -> PathBuf {
         self.0.join("cache")
     }
@@ -300,9 +297,9 @@ fn inspect_refuses_directory_at_an_artifact_path() {
 fn inspect_and_install_refuse_symlinked_cache_directory() {
     use std::os::unix::fs::symlink;
     let dir = TestDir::new("symlinked-cache");
-    let real = dir.path().join("real-cache");
+    let real = dir.0.join("real-cache");
     fs::create_dir(&real).expect("real cache dir");
-    let link = dir.path().join("linked-cache");
+    let link = dir.0.join("linked-cache");
     symlink(&real, &link).expect("cache symlink");
     let package = synthetic_package();
     let error = inspect_package_status(&link, &package.descriptor, &|| Ok(()))

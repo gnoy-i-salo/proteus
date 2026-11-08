@@ -108,6 +108,8 @@ jobs:
         run: pnpm prepare:tdlib
       - name: Verify pinned local tokenizer
         run: pnpm prepare:models
+      - name: Verify pinned CPU model for native inference tests
+        run: pnpm prepare:embedding-model
       - run: pnpm build
       - run: pnpm check:rust
       - name: Build installer

@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use tokenizers::Tokenizer;
 #[path = "e5-tokenizer-pin.rs"]
-mod package;
+pub(super) mod package;
 const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_SEQUENCE_TOKENS: usize = 512;
 const INVALID: &str = "Локальный токенизатор E5 отсутствует, повреждён или имеет другую версию.";

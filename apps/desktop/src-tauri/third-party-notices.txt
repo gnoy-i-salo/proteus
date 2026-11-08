@@ -269,3 +269,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 tokenizers 0.23.2
 https://github.com/huggingface/tokenizers
 Licensed under the Apache License, Version 2.0 (full license text above).
+
+
+Candle (candle-core, candle-nn, candle-transformers) 0.11.1
+https://github.com/huggingface/candle
+Licensed under the Apache License, Version 2.0 (full license text above).
+The local E5 model/config used for native inference share the multilingual-e5-small
+revision and upstream MIT attribution listed above; weights are not bundled yet.

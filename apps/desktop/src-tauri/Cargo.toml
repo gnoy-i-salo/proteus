@@ -15,6 +15,9 @@ cmake = "0.1"
 openssl-src = "300"
 
 [dependencies]
+candle-core = { version = "=0.11.1", default-features = false }
+candle-nn = { version = "=0.11.1", default-features = false }
+candle-transformers = { version = "=0.11.1", default-features = false }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -56,3 +59,26 @@ panic = "abort"
 dbg_macro = "deny"
 todo = "deny"
 unimplemented = "deny"
+
+# CPU inference needs optimized tensor kernels in both tests and release builds.
+
+[profile.dev.package.candle-core]
+opt-level = 3
+debug = false
+
+[profile.release.package.candle-core]
+opt-level = 3
+
+[profile.dev.package.candle-nn]
+opt-level = 3
+debug = false
+
+[profile.release.package.candle-nn]
+opt-level = 3
+
+[profile.dev.package.candle-transformers]
+opt-level = 3
+debug = false
+
+[profile.release.package.candle-transformers]
+opt-level = 3

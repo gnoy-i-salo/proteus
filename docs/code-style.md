@@ -46,7 +46,7 @@ block[__element][_modifier]
 
 `architecture/proteus.c4` остаётся источником зависимостей; manifests и проверки меняются с моделью. Между пакетами допустим только публичный `@proteus-int/<package>` API, без deep/relative cross-package imports и циклов. `index.ts` содержит явные `export`/`export type`, без реализации и side effects. Внутри пакета импорт идёт прямо к модулю владельца, без self-import через barrel. Локальные типы остаются с владельцем; `contracts` содержит межпакетные договорённости.
 
-Целевые группы отражают ответственность, а не требование создать каждый файл заранее:
+Группы ниже отражают ответственность, а не требование создать каждый файл заранее. Фактические владельцы и проверенные примеры — в [путеводителе](code-owners.md):
 
 | Пакет              | Разделение                                                                                                                                               |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -73,7 +73,7 @@ Tauri commands проверяют вход/контекст и вызывают 
 
 1. Зафиксировать owner, поддерживаемые версии, reader/writer и mapping каждого поля: TS, IPC/events, Rust serde, model JSON/prompts/skills, `.proteus`, results, localStorage, encrypted source storage и новые RAG данные.
 2. Добавить schema-aware decoder legacy → canonical camelCase и отдельный новый encoder. Сначала тесты old/new, null/optional, invalid/oversize, unknown version и conflicting aliases. Не применять recursive generic `kebabToCamel`, `as unknown as` вместо валидации или aliases в domain interfaces.
-3. Не менять формат под прежним номером. В текущем baseline experiment result имеет `schema-version: 3`, scoring version 2, preset `.proteus` version 1. Для нового writer выбрать свободную версию по актуальному коду. Не обещать reader результатов, пока он не реализован.
+3. Не менять формат под прежним номером. Текущий writer experiment result имеет `schemaVersion: 4`, `scoringVersion: 2`, preset `.proteus` version 2; исходный inventory v3/v1 сохранён в [совместимости](code-compatibility.md). Для следующего writer выбрать свободную версию по актуальному коду. Не обещать reader результатов, пока он не реализован.
 4. Переключить TS contracts и всех consumers одним зелёным срезом без смысловой декомпозиции; временный legacy native wire нормализует TS adapter. Затем согласованно переключить Rust DTO, frontend boundary и writers. Storage migration атомарна/идемпотентна, исходник сохраняется до проверки нового состояния; сбой допускает повтор и recovery.
 5. Декомпозировать пакеты, UI и native отдельно. Общие RAG/UX contracts, source picker, storage и MemoryPort реализуются один раз; соседние эпики не создают копии.
 

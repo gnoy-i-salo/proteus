@@ -12,3 +12,10 @@ Run these as scoped review exercises against the current repository or an isolat
 | Simplify a one-line pure helper                          | Keep it with its owner unless independent responsibility warrants extraction                                                                              | New layer/type hierarchy merely to shorten file                                                |
 
 Mechanical validation checks frontmatter, name and scaffolding; it does not establish these behavioral outcomes. Report commands actually run and any untested cases. Product fixes require their own regression tests, not only these review exercises.
+
+Current owner decisions and rejected alternatives are recorded in the
+[code map](../../../../docs/code-owners.md). Inspect the actual code, then run
+existing connection-session, person-fabric, persona-preset-codec and wire-codec
+regressions plus the naming/style/architecture harness fixtures. A green fixture
+checks that behavior; it does not prove independent agent judgment or replace
+final e2e/native/Pages acceptance.

@@ -1,47 +1,56 @@
-# Examples from PROTEUS
+# Examples from the current PROTEUS tree
 
-These examples describe the intended extraction from the observed baseline; they are not claims that the final modules already exist. Resolve current paths when applying them. Preserve outputs before changing names or behavior.
+Use these owners as starting points, not a requirement to reproduce an old directory sketch.
+The maintained [code map](../../../../docs/code-owners.md) links the actual modules and
+review exercises. Preserve behavior before changing names or responsibilities.
 
 ## Package: Person Fabric
 
-Before: `packages/person-fabric/src/index.ts` contains `FabricatedPerson`, `parseRules`, long prompt schemas, `fabricatePerson`, `adaptPerson` and neutral-profile operations. Rules validate evidence references, disallow unknown/conflicting support, and distinguish profile rules from task skills.
+`fabricate-person.ts` owns task-free baseline orchestration and its prompt;
+`adapt-person.ts` owns task adaptation; `parse-rules.ts` validates evidence-linked
+rules; `parse-style.ts` handles style data; `neutral-profile.ts` owns the control.
+`index.ts` explicitly exports the public API. The parser stays internal: tests and
+internal consumers import its owner directly, without a new npm package or barrel.
 
-After: `fabricate-person.ts` owns baseline orchestration and its prompt; `adapt-person.ts` owns task adaptation; `parse-rules.ts` owns evidence-linked validation; `neutral-profile.ts` owns the control. The local result type stays with its owning module. `index.ts` explicitly exports the public API. `parseRules` does not become public only to simplify internal imports. A tightly related helper can stay with its caller.
-
-```ts
-// index.ts after extraction
-export { fabricatePerson } from './fabricate-person';
-export type { FabricatedPerson } from './fabricate-person';
-export { adaptPerson } from './adapt-person';
-```
-
-Characterization: run existing person-fabric tests first; capture task-free baseline request, adaptation input, evidence IDs/status and exact source strings. Repeat after extraction with `pnpm check:package person-fabric`. Keep prompt changes and all-consumer field migration out of the pure move.
+Characterize baseline requests, adaptation inputs, evidence IDs/status and exact
+source strings with the existing person-fabric tests. Repeat after a pure move
+with `pnpm check:package person-fabric`. Prompt semantics and all-consumer field
+migration are separate changes. A small related helper can remain with its caller.
 
 ## UI: ConnectionsPanel
 
-Before: `apps/desktop/src/features/connections/ui/connections-panel.tsx` owns JSX plus polling, `revision`, `disposed`, pending GitHub timing, QR clearing, import and deletion. An asynchronous reply is applied only when its revision is current and the owner remains alive.
+`apps/desktop/src/features/connections/model/connection-session.ts` owns polling,
+revision/disposal, pending GitHub timing, action state and QR clearing.
+`connection-materials.ts` owns import and confirmed deletion through the same
+activity gate. The UI owns rendering and local form/disclosure state; native
+adapters remain in `shared/lib/connections.ts`.
 
-After: `model/connection-polling.ts` owns polling/timer lifetime; action state belongs to a narrowly scoped model when independently useful. UI owns rendering and disclosure state. The adapter remains `shared/lib/connections.ts`. Preserve revision checks and QR removal on action/error/disposal; don't put all existing code unchanged into one controller.
+The current UI constructs these models inside its SolidJS owner:
 
 ```tsx
-// Called while the component's owner is active. Props stay reactive.
-const polling = createConnectionPolling({
-  selected: () => props.provider,
-  statuses: connectionStatuses,
+const session = createConnectionSession(() => setEditing(false));
+const materials = createConnectionMaterials(session.selected, session.activity, {
+  onImported: (provider, source) => props.onImported?.(provider, source),
+  onDataCleared: (provider) => props.onDataCleared?.(provider),
 });
-return <Show when={polling.error()}>{polling.error()}</Show>;
 ```
 
-This is an interface sketch, not a replacement polling implementation. The model registers cleanup beside its timer/subscription, ignores late responses and handles rejected promises. Tests dispose the owner during a pending request, change selection before a reply and simulate pending polling intervals. Existing e2e verifies busy/error/QR states and keyboard behavior. No network is needed.
+Pass changing values as getters, not `session.selected()` snapshots. Keep cleanup
+with the timer/subscription. Existing `connection-session.test.ts` exercises late
+polls, disconnect/import races, disposal, errors and provider deadlines with
+synthetic ports and the real SolidJS client lifecycle. Do not introduce React
+hooks, another `connection-polling.ts` merely to shorten a file, or a global store.
 
-## Native: connection commands
+## Native: connection commands and external DTOs
 
-Before: `apps/desktop/src-tauri/src/connections.rs` mixes connection state, provider-specific transitions and command wrappers; `social-oauth.rs`, `social-http.rs`, `social-storage.rs` already exist. The extraction must reuse them.
+`connections.rs` registers modules and keeps Tauri wrappers thin. The wrappers
+clone the shared connection handle, run blocking scenarios and map errors safely.
+`connection-session.rs`, provider-specific modules and the existing `social-http`,
+`social-oauth`, `social-storage` owners retain their responsibilities.
 
-After: keep `configure_connection`/`begin_connection` as thin Tauri boundaries calling typed scenarios, preserve existing blocking-task strategy, and move independent provider branches to their owner. The command still validates inputs and maps failures without exposing tokens. Keep state locks away from long I/O when the actual concurrency invariant permits it. Do not replace a required serialization gate merely to make a lint happy.
+Own Rust symbols stay snake_case; own wire fields are camelCase:
 
 ```rust
-// Own new DTO only; existing storage needs a versioned decoder first.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConnectionTiming {
@@ -49,4 +58,9 @@ struct ConnectionTiming {
 }
 ```
 
-An OAuth response with `access_token` retains that external spelling in its provider DTO. Rust `poll_after_ms` stays snake_case, while the own wire key is `pollAfterMs`. Test serialized keys and optional/null handling on both boundaries, plus timeout/cancel/provider failures. Run Rust gates and the native build; browser mocks cannot establish actual native behavior.
+This is a naming example, not a request to add a timing DTO. External OAuth
+`access_token` retains its required spelling. Stored data needs an explicit
+versioned decoder; changing serde does not migrate an existing Keychain record.
+Use shared TS/Rust wire fixtures plus legacy/collision tests, without live secrets.
+Run Rust gates and the native build; browser mocks do not establish native behavior.
+Keep required serialization gates and process-tree cleanup when moving code.

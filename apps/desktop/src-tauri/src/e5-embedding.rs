@@ -6,6 +6,7 @@ mod batch;
 mod math;
 #[path = "e5-embedding-package.rs"]
 mod package;
+pub use package::receipt_fingerprint;
 pub use package::{cache_descriptor, download_descriptor, DownloadDescriptor, ModelFiles};
 use std::time::{Duration, Instant};
 pub const RESIDENT_RESERVATION_BYTES: u64 = 1536 * 1024 * 1024;

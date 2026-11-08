@@ -240,3 +240,82 @@ fn recall_caps_disclosures_by_remaining_candidates_episodes_bytes_and_tokens() {
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn hybrid_recall_accounts_cumulative_disclosure_bytes_and_tokens_before_next_inference() {
+    let (sources, dir) = local();
+    let (op, snapshot, _) = indexed(&sources, &dir, 0);
+    enable_model(&sources, &op);
+    build(
+        &sources,
+        &op,
+        &request(&snapshot),
+        &Model::new(&|_| Ok(())),
+        || 70002,
+    )
+    .unwrap();
+    let model = QueryModel::new(&|| Ok(()));
+    let bind = |cap| {
+        let operation = sources
+            .begin_ingestion_operation("memory", crate::corpus_database::JobProvider::Telegram)
+            .unwrap();
+        MemorySession::bind_hybrid(
+            sources.clone(),
+            operation,
+            SessionInput {
+                job_id: "job",
+                snapshot_id: &snapshot.id,
+                persona_id: "personA",
+                period: input(&snapshot).period,
+                limits: cap,
+            },
+            &model,
+            request(&snapshot).budget,
+            || 70002,
+        )
+        .unwrap()
+    };
+    let measured = bind(limits())
+        .recall("word_absent", Some(&model), || 70003)
+        .unwrap();
+    assert!(measured.source_bytes > 1);
+    assert!(measured.context_tokens > 1);
+    for bytes in [true, false] {
+        let mut cap = limits();
+        if bytes {
+            cap.max_source_bytes = measured.source_bytes;
+        } else {
+            cap.max_context_tokens = measured.context_tokens;
+        }
+        let mut bound = bind(cap);
+        let first = bound.recall("word_absent", Some(&model), || 70003).unwrap();
+        assert_eq!(first.source_bytes, measured.source_bytes);
+        assert_eq!(first.context_tokens, measured.context_tokens);
+        let used = bound.usage();
+        let calls = model.calls.get();
+        assert!(bound
+            .recall("word_absent", Some(&model), || panic!(
+                "exhausted hybrid budget reached authority/inference"
+            ))
+            .is_err());
+        assert_eq!(model.calls.get(), calls);
+        assert_eq!(bound.usage(), used);
+    }
+    for bytes in [true, false] {
+        let mut cap = limits();
+        if bytes {
+            cap.max_source_bytes = 1;
+        } else {
+            cap.max_context_tokens = 1;
+        }
+        let mut bound = bind(cap);
+        assert!(bound.recall("word_absent", Some(&model), || 70003).is_err());
+        assert_eq!(
+            bound.usage(),
+            (1, crate::memory::budget::RetrievalCharge::default())
+        );
+    }
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}

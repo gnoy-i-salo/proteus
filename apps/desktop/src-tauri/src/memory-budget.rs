@@ -56,6 +56,15 @@ impl RecallLedger {
     pub fn usage(&self) -> (usize, RetrievalCharge) {
         (self.calls, self.used)
     }
+    /// Recheck authority after admitted work without charging another retrieval.
+    /// This also closes the session on late expiry/revocation before disclosure.
+    pub fn verify(&mut self, now_ms: impl Fn() -> Result<i64, String>) -> Result<i64, String> {
+        if self.blocked {
+            return Err("Сессия памяти завершена или её время истекло.".into());
+        }
+        let remaining = self.observe_checked(now_ms())?;
+        Ok(self.deadline - remaining)
+    }
     fn observe(&mut self, now: i64) -> Result<i64, String> {
         if self.blocked || now < self.last_ms || now >= self.deadline {
             self.blocked = true;

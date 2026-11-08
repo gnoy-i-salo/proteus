@@ -379,6 +379,64 @@ fn real_e5_vectors_connect_authorized_import_preparation_and_hybrid_search() {
                         && hit.semantic_rank.is_some()
                         && hit.lexical_rank.is_some()
                 }));
+                let memory_operation = sources
+                    .begin_ingestion_operation(
+                        "real-memory-receipt",
+                        crate::corpus_database::JobProvider::Telegram,
+                    )
+                    .unwrap();
+                let mut memory = crate::memory::session::MemorySession::bind_hybrid(
+                    sources.clone(),
+                    memory_operation,
+                    crate::memory::session::SessionInput {
+                        job_id: "job",
+                        snapshot_id: &snapshot.id,
+                        persona_id: "personA",
+                        period: super::input(&snapshot).period,
+                        limits: crate::memory::budget::RecallLimits {
+                            max_calls: 2,
+                            max_candidates: 100,
+                            max_episodes: 100,
+                            max_source_bytes: 65536,
+                            max_context_tokens: 10000,
+                            max_duration_ms: 60000,
+                        },
+                    },
+                    model,
+                    input.budget,
+                    || 70003,
+                )
+                .unwrap();
+                let recorded = memory
+                    .recall_recorded("контекст", Some(model), || 70004)
+                    .unwrap();
+                assert_eq!(recorded.receipt.mode, "hybrid");
+                let profile = recorded.receipt.embedding_fingerprint.as_ref().unwrap();
+                assert_eq!(profile.model_sha256, descriptor.weights.sha256);
+                assert_eq!(profile.tokenizer_sha256, descriptor.tokenizer.sha256);
+                assert_eq!(profile.dimensions, 384);
+                assert!(profile.chunking_version.starts_with("episodeChunks:1:"));
+                assert!(recorded
+                    .receipt
+                    .hits
+                    .iter()
+                    .any(|hit| hit.semantic_rank.is_some()));
+                assert!(recorded
+                    .sources
+                    .iter()
+                    .any(|source| source.text == "  контекст\r\n"));
+                let expanded = memory
+                    .read_episode_recorded(&recorded.receipt.hits[0].episode_id, || 70004)
+                    .unwrap();
+                assert_eq!(
+                    expanded.receipt.embedding_fingerprint.as_ref(),
+                    Some(profile)
+                );
+                assert!(expanded
+                    .receipt
+                    .hits
+                    .iter()
+                    .all(|hit| hit.lexical_rank.is_none() && hit.semantic_rank.is_none()));
                 Ok((model.fingerprint().to_string(), query))
             },
         )

@@ -7,6 +7,9 @@ pub(super) mod package;
 const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_SEQUENCE_TOKENS: usize = 512;
 const INVALID: &str = "Локальный токенизатор E5 отсутствует, повреждён или имеет другую версию.";
+pub(super) fn fingerprint(revision: &str, sha256: &str) -> String {
+    format!("e5Tokenizer:1:{revision}:{sha256}:tokenizers:0.23.2:queryPassage:1:specialTokens:1")
+}
 #[derive(Clone, Copy)]
 pub enum InputKind {
     Query,
@@ -40,7 +43,10 @@ impl E5Tokenizer {
         tokenizer.with_truncation(None).map_err(|_| INVALID)?;
         tokenizer.with_padding(None);
         let revision = package::pin()?.revision;
-        Ok(Self { tokenizer, fingerprint:format!("e5Tokenizer:1:{revision}:{expected_hash}:tokenizers:0.23.2:queryPassage:1:specialTokens:1") })
+        Ok(Self {
+            tokenizer,
+            fingerprint: fingerprint(&revision, expected_hash),
+        })
     }
     pub fn fingerprint(&self) -> &str {
         &self.fingerprint

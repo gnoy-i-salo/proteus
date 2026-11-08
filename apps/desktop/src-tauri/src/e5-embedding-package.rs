@@ -142,6 +142,43 @@ pub fn download_descriptor() -> Result<DownloadDescriptor, EmbeddingError> {
         descriptor,
     })
 }
+/// Describe only the exact native runtime/tokenizer identity pinned by a session.
+pub fn receipt_fingerprint(
+    runtime_identity: &str,
+    tokenizer_identity: &str,
+    chunking_version: &str,
+) -> Result<crate::memory::types::EmbeddingFingerprint, EmbeddingError> {
+    use crate::memory::types::{EmbeddingFingerprint, Normalization, Pooling};
+    let model = pin()?;
+    let tokenizer = crate::local_embedding::tokenizer::package::pin()
+        .map_err(|_| EmbeddingError::ProfileMismatch)?;
+    if tokenizer.revision != model.revision
+        || tokenizer_identity
+            != crate::local_embedding::tokenizer::fingerprint(
+                &tokenizer.revision,
+                &tokenizer.sha256,
+            )
+        || runtime_identity != fingerprint(&model, tokenizer_identity)?
+    {
+        return Err(EmbeddingError::ProfileMismatch);
+    }
+    let profile = EmbeddingFingerprint {
+        model_id: model.model_id,
+        model_revision: model.revision,
+        model_sha256: model.weights.sha256,
+        tokenizer_sha256: tokenizer.sha256,
+        dimensions: model.dimensions as u64,
+        pooling: Pooling::Mean,
+        normalization: Normalization::L2,
+        query_template: "query: {text}".into(),
+        passage_template: "passage: {text}".into(),
+        chunking_version: chunking_version.into(),
+    };
+    profile
+        .validate()
+        .map_err(|_| EmbeddingError::ProfileMismatch)?;
+    Ok(profile)
+}
 fn descriptor(
     model: ModelPin,
     tokenizer: crate::local_embedding::tokenizer::package::TokenizerPin,
@@ -163,6 +200,31 @@ fn descriptor(
 #[cfg(test)]
 mod cache_tests {
     use super::*;
+    #[test]
+    fn receipt_profile_uses_checked_pins_and_refuses_an_unrelated_runtime() {
+        let pin = pin().unwrap();
+        let tokenizer = crate::local_embedding::tokenizer::package::pin().unwrap();
+        let tokenizer_id = format!(
+            "e5Tokenizer:1:{}:{}:tokenizers:0.23.2:queryPassage:1:specialTokens:1",
+            tokenizer.revision, tokenizer.sha256
+        );
+        let runtime_id = fingerprint(&pin, &tokenizer_id).unwrap();
+        let result = receipt_fingerprint(&runtime_id, &tokenizer_id, "chunks:1").unwrap();
+        assert_eq!(result.model_sha256, pin.weights.sha256);
+        assert_eq!(result.tokenizer_sha256, tokenizer.sha256);
+        assert_eq!(result.model_revision, pin.revision);
+        assert_eq!(result.dimensions, 384);
+        assert_eq!(result.query_template, "query: {text}");
+        assert_eq!(result.passage_template, "passage: {text}");
+        assert_eq!(result.chunking_version, "chunks:1");
+        for (runtime, tokenizer, chunks) in [
+            ("foreign", tokenizer_id.as_str(), "chunks:1"),
+            (runtime_id.as_str(), "foreign", "chunks:1"),
+            (runtime_id.as_str(), tokenizer_id.as_str(), ""),
+        ] {
+            assert!(receipt_fingerprint(runtime, tokenizer, chunks).is_err());
+        }
+    }
     #[test]
     fn cache_descriptor_uses_all_three_runtime_pins_exactly() {
         let actual = cache_descriptor().unwrap();

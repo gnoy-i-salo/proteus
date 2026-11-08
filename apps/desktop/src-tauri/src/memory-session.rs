@@ -2,6 +2,8 @@
 //! orchestration; model actions can only select a query or an episode ID.
 #[path = "memory-recall.rs"]
 mod recall;
+#[path = "memory-receipts.rs"]
+mod receipts;
 use super::budget::{RecallLedger, RecallLimits, RetrievalCharge};
 use crate::{
     corpus_database::search::{SearchIndexReceipt, SearchPeriod},
@@ -14,6 +16,7 @@ use crate::{
     sources::Sources,
 };
 pub use recall::{NativeRecallHit, NativeRecallResult};
+pub use receipts::{RecordedRetrieval, RetrievalReceipt};
 pub struct SessionInput<'a> {
     pub job_id: &'a str,
     pub snapshot_id: &'a str,

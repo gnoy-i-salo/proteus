@@ -15,6 +15,8 @@ cmake = "0.1"
 openssl-src = "300"
 
 [dependencies]
+dom_query = { version = "=0.28.0", default-features = false }
+html5ever = "=0.39.0"
 candle-core = { version = "=0.11.1", default-features = false }
 candle-nn = { version = "=0.11.1", default-features = false }
 candle-transformers = { version = "=0.11.1", default-features = false }

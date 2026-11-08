@@ -3682,6 +3682,8 @@ dependencies = [
  "chacha20poly1305",
  "chrono",
  "cmake",
+ "dom_query",
+ "html5ever",
  "keyring",
  "libc",
  "openssl-src",

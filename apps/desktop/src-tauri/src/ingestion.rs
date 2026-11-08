@@ -10,6 +10,8 @@ pub mod job_commands;
 pub mod job_workflow;
 #[path = "ingestion-operations.rs"]
 pub mod operations;
+#[path = "page-document.rs"]
+pub mod page_document;
 #[path = "ingestion-preparation.rs"]
 pub mod preparation;
 #[path = "ingestion-preparation-workflow.rs"]
@@ -34,6 +36,8 @@ pub mod search;
 pub mod search_query;
 #[path = "selected-page.rs"]
 pub mod selected_page;
+#[path = "selected-page-content.rs"]
+pub mod selected_page_content;
 #[path = "telegram-archive-json.rs"]
 pub mod telegram_archive_json;
 #[path = "telegram-document.rs"]

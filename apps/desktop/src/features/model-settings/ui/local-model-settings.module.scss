@@ -3,15 +3,18 @@
   line-height: 1.5;
 
   h3 {
-    margin: 12px 0 8px;
+    margin: 8px 0 4px;
   }
 
   p {
-    margin: 6px 0;
+    margin: 4px 0;
   }
 
   dl {
-    margin: 10px 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 12px;
+    margin: 8px 0;
   }
 
   dl > div {
@@ -42,7 +45,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-top: 8px;
+    margin-top: 6px;
+
+    p {
+      margin: 0;
+    }
 
     button {
       flex-shrink: 0;

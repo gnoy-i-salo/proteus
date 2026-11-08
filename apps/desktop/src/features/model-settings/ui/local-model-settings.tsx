@@ -90,19 +90,16 @@ export function LocalModelSettings(props: { onBack: () => void }) {
           <div class={styles.localModel__activity}>
             <p role="status">
               {manager.stopping() ? 'Ожидаем остановки…' : actions[busy() as keyof typeof actions]}
+              <Show when={!manager.stopping() && manager.progress()}>
+                {(progress) =>
+                  ` Проверено файлов: ${progress().artifactsVerified} из 3. Счётчик обновляется после проверки файла.`
+                }
+              </Show>
             </p>
             <button type="button" disabled={manager.stopping()} onClick={manager.cancel}>
               Отменить операцию
             </button>
           </div>
-        )}
-      </Show>
-      <Show when={Boolean(manager.busy()) && manager.progress()}>
-        {(progress) => (
-          <p>
-            Проверено файлов: {progress().artifactsVerified} из 3. Счётчик обновляется после
-            проверки файла.
-          </p>
         )}
       </Show>
       <Show when={!manager.busy() && manager.message()}>

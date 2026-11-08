@@ -243,7 +243,7 @@ fn fresh_schema_contains_atomic_immutable_preparation_tables() {
         db.connection
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        5
+        6
     );
     assert_eq!(db.connection.query_row("SELECT count(*) FROM sqlite_schema WHERE name IN ('corpus_preparations','corpus_episodes','corpus_prepared_chunks')",[],|r|r.get::<_,i64>(0)).unwrap(),3);
     drop(db);
@@ -375,7 +375,7 @@ fn v4_migration_preserves_original_job_and_search_bytes_and_is_idempotent() {
             db.connection
                 .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
                 .unwrap(),
-            5
+            6
         );
         assert_eq!(db.read("record").unwrap().unwrap(), before);
         assert_eq!(
@@ -439,7 +439,7 @@ fn failed_v4_migration_restores_ddl_version_and_conflicting_user_data() {
         db.connection
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        5
+        6
     );
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();

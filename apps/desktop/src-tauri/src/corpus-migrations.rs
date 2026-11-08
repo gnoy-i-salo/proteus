@@ -52,3 +52,15 @@ pub(super) fn upgrade_preparations(connection: &mut Connection) -> Result<(), St
         .map_err(sql_error)?;
     tx.commit().map_err(sql_error)
 }
+
+/// Add recoverable vector generations without rewriting source/FTS/job bytes.
+pub(super) fn upgrade_vectors(connection: &mut Connection) -> Result<(), String> {
+    let tx = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(sql_error)?;
+    tx.execute_batch(include_str!("corpus-vector-schema.sql"))
+        .map_err(sql_error)?;
+    tx.pragma_update(None, "user_version", 6)
+        .map_err(sql_error)?;
+    tx.commit().map_err(sql_error)
+}

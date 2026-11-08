@@ -67,7 +67,7 @@ impl CorpusDatabase {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .map_err(sql_error)?;
-        if !(0..=5).contains(&version) {
+        if !(0..=6).contains(&version) {
             return Err(INVALID.into());
         }
         if version == 0 {
@@ -84,7 +84,9 @@ impl CorpusDatabase {
                 .map_err(sql_error)?;
             tx.execute_batch(include_str!("corpus-preparation-schema.sql"))
                 .map_err(sql_error)?;
-            tx.pragma_update(None, "user_version", 5)
+            tx.execute_batch(include_str!("corpus-vector-schema.sql"))
+                .map_err(sql_error)?;
+            tx.pragma_update(None, "user_version", 6)
                 .map_err(sql_error)?;
             tx.commit().map_err(sql_error)?;
         }
@@ -106,6 +108,9 @@ impl CorpusDatabase {
         if (1..=4).contains(&version) {
             migrations::upgrade_preparations(&mut connection)?;
         }
+        if (1..=5).contains(&version) {
+            migrations::upgrade_vectors(&mut connection)?;
+        }
         Ok(Self { connection })
     }
 }
@@ -122,3 +127,7 @@ mod tests;
 #[cfg(test)]
 #[path = "corpus-search-migration-tests.rs"]
 mod search_migration_tests;
+
+#[cfg(test)]
+#[path = "corpus-vector-migration-tests.rs"]
+mod vector_migration_tests;

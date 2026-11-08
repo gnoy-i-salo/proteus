@@ -24,6 +24,15 @@ describe('bounded source excerpt projection', () => {
       speakerRelation: 'target',
       canSupportOwnWords: true,
       relations: revision.relations,
+      sourceMetadata: {
+        schemaVersion: 1,
+        sourceFormat: 'tdlib-message',
+        resourceLabel: null,
+        title: null,
+        authorLabels: ['Анна'],
+        originalObjectId: 'object-1',
+        limitations: [],
+      },
     });
     expect(value.document).not.toHaveProperty('text');
     expect(value).not.toHaveProperty('revisionId');
@@ -113,6 +122,36 @@ describe('bounded source excerpt projection', () => {
     const enrichedSpan = { ...span, grantId: 'synthetic-secret' };
     const value = projectBoundExcerpt(binding, enriched, enrichedSpan);
     expect(JSON.stringify(value)).not.toContain('synthetic-secret');
+  });
+  it('keeps missing source attribution explicit without inventing names or changing the revision', () => {
+    const original = {
+      ...revision,
+      document: {
+        ...revision.document,
+        authorId: null,
+        authorLabel: null,
+        authorship: 'unknown' as const,
+      },
+      provenance: {
+        ...revision.provenance,
+        originalObjectId: null,
+        limitations: ['originalObjectIdUnavailable' as const],
+      },
+    };
+    const before = structuredClone(original);
+    const value = projectBoundExcerpt({ ...binding, allowUnknownContext: true }, original, span);
+    expect(value).toHaveProperty('sourceMetadata', {
+      schemaVersion: 1,
+      sourceFormat: 'tdlib-message',
+      resourceLabel: null,
+      title: null,
+      authorLabels: [],
+      originalObjectId: null,
+      limitations: ['originalObjectIdUnavailable'],
+    });
+    expect(value.canSupportOwnWords).toBe(false);
+    expect(value.text).toBe(original.document.text);
+    expect(original).toEqual(before);
   });
 });
 

@@ -55,5 +55,14 @@ export function projectBoundExcerpt(
     speakerRelation: projected.speakerRelation,
     canSupportOwnWords: projected.canSupportOwnWords,
     relations: projected.relations,
+    sourceMetadata: {
+      schemaVersion: 1,
+      sourceFormat: revision.provenance.sourceFormat,
+      resourceLabel: null,
+      title: null,
+      authorLabels: document.authorLabel === null ? [] : [document.authorLabel],
+      originalObjectId: revision.provenance.originalObjectId,
+      limitations: [...revision.provenance.limitations],
+    },
   };
 }

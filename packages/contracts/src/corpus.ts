@@ -175,12 +175,25 @@ export interface ModelSourceDocument {
   readonly relations: readonly DocumentRelation[];
 }
 
+export interface SourceExcerptMetadata {
+  readonly schemaVersion: 1;
+  readonly sourceFormat: string;
+  readonly resourceLabel: string | null;
+  readonly title: string | null;
+  readonly authorLabels: readonly string[];
+  readonly originalObjectId: string | null;
+  readonly limitations: readonly string[];
+}
+
 // Exact bounded text with the existing attribution projection; full document text
 // and its duplicate revisionId are omitted. The span is the sole revision reference.
 export type SourceExcerpt = Omit<ModelSourceDocument, 'document' | 'revisionId'> & {
   readonly span: SourceSpan;
   readonly text: string;
   readonly document: Omit<ModelSourceDocument['document'], 'text'>;
+  // Optional for existing excerpts; new native projections retain plural labels
+  // without merging them into one inferred person identity.
+  readonly sourceMetadata?: SourceExcerptMetadata;
 };
 
 // Structural projection only: never an authorization token or a substitute for

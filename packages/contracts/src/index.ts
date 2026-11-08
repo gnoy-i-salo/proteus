@@ -79,6 +79,7 @@ export type {
   CorpusPort,
   ModelSourceDocument,
   SourceExcerpt,
+  SourceExcerptMetadata,
 } from './corpus';
 export { projectBoundRevision } from './corpus';
 export { projectBoundExcerpt } from './source-excerpt';

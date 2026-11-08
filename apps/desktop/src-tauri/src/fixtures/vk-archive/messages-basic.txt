@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PROTEUS synthetic VK archive page</title>
+<style>.message { color: black; }</style>
+<script>var decoy = '<div class="message">not a real message</div>';</script>
+</head>
+<body>
+<div class="wrap">
+<div class="message">
+<div class="message__header"><a href="https://vk.com/synthetic.alice">Алиса Синтетикова</a>, 3 мар 2021 в 14:25:07</div>
+<div>Привет, мир! 🌍✨<br>Вторая строка с entity: fish &amp; chips</div>
+</div>
+<div class="message">
+<div class="message__header"><a href="https://vk.com/id100000001&amp;ref=syn">Боб Манекен</a>, 3 мар 2021 в 14:26:11<span class="message-edited">(ред.)</span></div>
+<div>É́модзи и комбини́рующие метки 🎉<br>ок<div class="attachment"><a class="attachment__link" href="https://vk.com/doc100000001_456239017?hash=ab12&amp;dl=cd34">документ.pdf</a><div class="attachment__description">Прикреплённый файл, не читается парсером</div></div><div class="kludges">Служебная пометка экспорта</div></div>
+</div>
+<div class="message">
+<div class="message__header"><a href="https://vk.com/id100000001&amp;ref=syn">Боб Манекен</a>, 3 мар 2021 в 14:26:11<span class="message-edited">(ред.)</span></div>
+<div>É́модзи и комбини́рующие метки 🎉<br>ок<div class="attachment"><a class="attachment__link" href="https://vk.com/doc100000001_456239017?hash=ab12&amp;dl=cd34">документ.pdf</a><div class="attachment__description">Прикреплённый файл, не читается парсером</div></div><div class="kludges">Служебная пометка экспорта</div></div>
+</div>
+<div class="message">
+<div class="message__header"><a href="https://vk.com/synthetic.alice">Алиса Синтетикова</a>, 3 мар 2021 в 15:01:58</div>
+<div></div>
+</div>
+</div>
+</body>
+</html>

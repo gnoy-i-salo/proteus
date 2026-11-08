@@ -1,0 +1,2 @@
+# Raw archive fixture: preserve CRLF bytes on every platform.
+apps/desktop/src-tauri/src/fixtures/vk-archive/messages-basic.txt -text whitespace=cr-at-eol

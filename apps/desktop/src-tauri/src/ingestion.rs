@@ -66,6 +66,8 @@ pub mod telegram_worker;
 pub mod url_input;
 #[path = "ingestion-url-preview.rs"]
 pub mod url_preview;
+#[path = "vk-archive-html.rs"]
+pub mod vk_archive_html;
 #[path = "ingestion-worker-outcome.rs"]
 pub mod worker_outcome;
 pub use input::SelectedInputs;

@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>synthetic</title></head>
+<body>
+<div class="message" data-id="9007199254740993">
+<div class="message__header"><a href="https://vk.com/id200000002">Кэрол Выдуманная</a>, 17 авг 2023 в 09:05:41</div>
+<div>Первое сообщение нового формата<br>со строкой ниже</div>
+</div>
+<div class="message" data-id="9007199254740994">
+<div class="message__header"><a href="https://vk.com/id200000003">Дэйв Примерный</a>, 17 авг 2023 в 09:07:02</div>
+<div>Смотри пересылку ниже<div class="attachment"><div class="attachment__description">Файл без ссылки: файл не читается</div></div><div class="message"><div class="message__header"><a href="https://vk.com/id300000003">Оригинальный Автор</a>, 16 авг 2023 в 20:00:00</div><div>Пересланный текст, не приписывать Дэйву</div></div></div>
+</div>
+</body>
+</html>

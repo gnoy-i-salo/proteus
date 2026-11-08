@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[path = "archive-zip.rs"]
+pub mod archive_zip;
 #[path = "corpus-database.rs"]
 pub mod corpus_database;
 pub mod ingestion;

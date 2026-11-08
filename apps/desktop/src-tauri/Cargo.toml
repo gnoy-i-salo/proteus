@@ -15,6 +15,7 @@ cmake = "0.1"
 openssl-src = "300"
 
 [dependencies]
+zip = { version = "=9.4.2", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 dom_query = { version = "=0.28.0", default-features = false }
 html5ever = "=0.39.0"
 candle-core = { version = "=0.11.1", default-features = false }

@@ -5,6 +5,7 @@ mod recall;
 #[path = "memory-receipts.rs"]
 mod receipts;
 use super::budget::{RecallLedger, RecallLimits, RetrievalCharge};
+pub use super::context_input::PreparedModelInput;
 use crate::{
     corpus_database::search::{SearchIndexReceipt, SearchPeriod},
     ingestion::{
@@ -27,6 +28,7 @@ pub struct SessionInput<'a> {
 pub struct MemorySession {
     scope: MemoryScope,
     ledger: RecallLedger,
+    history: super::receipt_history::ReceiptHistory,
 }
 struct MemoryScope {
     deadline: i64,
@@ -94,6 +96,7 @@ impl MemorySession {
                 hybrid: None,
             },
             ledger,
+            history: Default::default(),
         })
     }
     pub fn read_episode(

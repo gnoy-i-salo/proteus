@@ -2,10 +2,14 @@
 //! job; accounting alone never grants source or model-processing permission.
 #[path = "memory-budget.rs"]
 pub mod budget;
+#[path = "memory-context-input.rs"]
+mod context_input;
 #[path = "memory-model-budget.rs"]
 pub mod model_budget;
 #[path = "memory-model-input.rs"]
 pub mod model_input;
+#[path = "memory-receipt-history.rs"]
+mod receipt_history;
 #[path = "memory-session-registry.rs"]
 pub mod registry;
 #[path = "memory-session.rs"]

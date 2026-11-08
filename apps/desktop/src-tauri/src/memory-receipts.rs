@@ -5,7 +5,7 @@ use crate::{
     local_embedding::model::EmbeddingModel, memory::types::EmbeddingFingerprint,
 };
 use serde::Serialize;
-use std::cell::Cell;
+use std::{cell::Cell, sync::Arc};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,12 +42,43 @@ pub struct RecordedRetrieval {
     pub sources: Vec<SourceExcerpt>,
 }
 impl MemorySession {
+    pub fn prepare_research_input(
+        &mut self,
+        ids: &[String],
+        system_prompt: &str,
+        task: &str,
+        now: impl Fn() -> i64,
+    ) -> Result<super::PreparedModelInput, String> {
+        let receipts = self.authorized_receipts(ids, &now)?;
+        let input = crate::memory::context_input::prepare(system_prompt, task, &receipts, &[])?;
+        self.verify_current(now)?;
+        Ok(input)
+    }
+
+    pub(crate) fn authorized_receipts(
+        &mut self,
+        ids: &[String],
+        now: impl Fn() -> i64,
+    ) -> Result<Vec<Arc<RecordedRetrieval>>, String> {
+        let selected = self.history.select(ids)?;
+        self.verify_current(now)?;
+        Ok(selected)
+    }
+    fn retain_recorded(
+        &mut self,
+        record: RecordedRetrieval,
+        now: impl Fn() -> i64,
+    ) -> Result<Arc<RecordedRetrieval>, String> {
+        let record = self.history.insert(record)?;
+        self.verify_current(now)?;
+        Ok(record)
+    }
     pub fn recall_recorded(
         &mut self,
         query: &str,
         model: Option<&dyn EmbeddingModel>,
         now_ms: impl Fn() -> i64,
-    ) -> Result<RecordedRetrieval, String> {
+    ) -> Result<Arc<RecordedRetrieval>, String> {
         let started = Cell::new(None);
         let clock = || {
             let now = now_ms();
@@ -79,13 +110,13 @@ impl MemorySession {
             .checked_sub(started)
             .filter(|v| *v >= receipt.elapsed_ms)
             .ok_or("Неверное время квитанции поиска.")?;
-        Ok(RecordedRetrieval { receipt, sources })
+        self.retain_recorded(RecordedRetrieval { receipt, sources }, now_ms)
     }
     pub fn read_episode_recorded(
         &mut self,
         episode_id: &str,
         now_ms: impl Fn() -> i64,
-    ) -> Result<RecordedRetrieval, String> {
+    ) -> Result<Arc<RecordedRetrieval>, String> {
         let started = Cell::new(None);
         let clock = || {
             let now = now_ms();
@@ -117,10 +148,13 @@ impl MemorySession {
             .checked_sub(started)
             .filter(|v| *v >= receipt.elapsed_ms)
             .ok_or("Неверное время квитанции поиска.")?;
-        Ok(RecordedRetrieval {
-            receipt,
-            sources: result.excerpts,
-        })
+        self.retain_recorded(
+            RecordedRetrieval {
+                receipt,
+                sources: result.excerpts,
+            },
+            now_ms,
+        )
     }
     fn receipt(
         &mut self,

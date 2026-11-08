@@ -43,6 +43,21 @@ pub fn prepare<'a>(
             )
         })
         .collect();
+    let scoped_refs: HashMap<_, _> = documents
+        .iter()
+        .enumerate()
+        .map(|(i, d)| {
+            (
+                (
+                    d.reference.document_id.as_str(),
+                    d.reference.revision_id.as_str(),
+                    d.binding_id.as_str(),
+                    d.conversation_id.as_str(),
+                ),
+                i,
+            )
+        })
+        .collect();
     let mut threads = HashMap::new();
     let mut context_threads = HashMap::new();
     let mut sources = HashMap::new();
@@ -96,10 +111,15 @@ pub fn prepare<'a>(
                 refs.get(&(relation.document_id.as_str(), relation.revision_id.as_str()))
             {
                 leakage.join(i, other);
-                if doc.binding_id == documents[other].binding_id
-                    && doc.conversation_id == documents[other].conversation_id
-                {
-                    assembly.join(i, other);
+                // The same original can have several authorized assignments.
+                // Global leakage follows any copy; assembly stays in this binding.
+                if let Some(&scoped) = scoped_refs.get(&(
+                    relation.document_id.as_str(),
+                    relation.revision_id.as_str(),
+                    doc.binding_id.as_str(),
+                    doc.conversation_id.as_str(),
+                )) {
+                    assembly.join(i, scoped);
                 }
             } else {
                 flags[i].insert("unresolvedRelation");
@@ -168,7 +188,9 @@ pub fn prepare<'a>(
                 &documents[i].reference.revision_id,
             )
         });
-        let references: Vec<_> = members.iter().map(|&i| &documents[i].reference).collect();
+        let mut references: Vec<_> = members.iter().map(|&i| &documents[i].reference).collect();
+        // A new permission for the same original must not resample evaluation.
+        references.dedup();
         let hash = digest(serde_json::to_vec(&(&policy_hash, references)).map_err(|_| INVALID)?);
         let bucket = u32::from_str_radix(&hash[..8], 16).map_err(|_| INVALID)? % 10000;
         let limitations: BTreeSet<_> = members
@@ -257,7 +279,13 @@ pub fn prepare<'a>(
 // does not reshuffle an existing group's random assignment.
 fn split_fingerprint(documents: &[EpisodeDocument], policy_hash: &str) -> Result<String, String> {
     let mut ordered: Vec<_> = documents.iter().collect();
-    ordered.sort_by_key(|d| (&d.reference.document_id, &d.reference.revision_id));
+    ordered.sort_by_key(|d| {
+        (
+            &d.reference.document_id,
+            &d.reference.revision_id,
+            &d.binding_id,
+        )
+    });
     let mut hashes = Vec::with_capacity(ordered.len());
     for doc in ordered {
         let mut related: Vec<_> = doc.related.iter().collect();
@@ -301,7 +329,7 @@ fn validate(
         return Err(INVALID.into());
     }
     let mut refs = BTreeSet::new();
-    let mut revisions = BTreeSet::new();
+    let mut revisions: HashMap<&str, &EpisodeDocument> = HashMap::new();
     let mut bytes = 0usize;
     let mut relations = 0usize;
     for doc in documents {
@@ -324,14 +352,28 @@ fn validate(
             || bytes > 128 * 1024 * 1024
             || doc.related.len() > 128
             || relations > 1_000_000
-            || !refs.insert((&doc.reference.document_id, &doc.reference.revision_id))
-            || !revisions.insert(&doc.reference.revision_id)
+            || !refs.insert((
+                &doc.reference.document_id,
+                &doc.reference.revision_id,
+                &doc.binding_id,
+            ))
             || doc
                 .related
                 .iter()
                 .any(|r| !valid_id(&r.document_id) || !valid_id(&r.revision_id))
         {
             return Err(INVALID.into());
+        }
+        if let Some(original) = revisions.insert(&doc.reference.revision_id, doc) {
+            if original.reference != doc.reference
+                || original.source_key != doc.source_key
+                || original.text != doc.text
+                || original.conversation_id != doc.conversation_id
+                || original.thread_id != doc.thread_id
+                || original.timestamp_ms != doc.timestamp_ms
+            {
+                return Err(INVALID.into());
+            }
         }
     }
     Ok(())

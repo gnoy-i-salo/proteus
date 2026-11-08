@@ -567,3 +567,51 @@ fn corrupted_chunk_body_is_rejected_without_releasing_partial_content_or_leaking
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn shared_originals_persist_distinct_binding_episodes_without_duplicating_raw_revisions() {
+    let (mut db, dir, raw, mut docs) = setup();
+    let mut shared = docs[0].clone();
+    shared.binding_id = "secondBinding".into();
+    docs.push(shared);
+    let mut forged = docs.clone();
+    forged.last_mut().unwrap().text.push('!');
+    assert!(publish(&mut db, &raw, &forged, "forged").is_err());
+    let missing = vec![docs[0].clone(), docs[2].clone()];
+    assert!(publish(&mut db, &raw, &missing, "missing").is_err());
+    let prepared = publish(&mut db, &raw, &docs, "shared-bindings").unwrap();
+    assert_eq!(prepared.snapshot.documents, raw.documents);
+    let mut reconstructed = std::collections::BTreeMap::<String, String>::new();
+    let mut chunk_ids = std::collections::BTreeSet::new();
+    for id in &prepared.episode_ids {
+        let episode = db.prepared_episode(&prepared.snapshot.id, id).unwrap();
+        if episode.partition == Partition::Reference {
+            for chunk in db
+                .prepared_chunks(&prepared.snapshot.id, id, 0, 100, 1024 * 1024)
+                .unwrap()
+            {
+                assert!(chunk_ids.insert(chunk.id));
+                assert_eq!(chunk.spans[0].document_id, docs[0].reference.document_id);
+                reconstructed
+                    .entry(episode.binding_id.clone())
+                    .or_default()
+                    .push_str(&chunk.text);
+            }
+        }
+    }
+    assert_eq!(reconstructed.len(), 2);
+    assert!(reconstructed.values().all(|text| *text == docs[0].text));
+    docs.reverse();
+    assert_eq!(
+        publish(&mut db, &raw, &docs, "shared-bindings").unwrap(),
+        prepared
+    );
+    drop(db);
+    let db = CorpusDatabase::open(&dir.join("corpus.db"), &[31; 32]).unwrap();
+    assert_eq!(
+        db.prepared_snapshot(&prepared.snapshot.id).unwrap(),
+        prepared
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}

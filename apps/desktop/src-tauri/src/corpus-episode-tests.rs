@@ -392,3 +392,82 @@ fn separate_author_bindings_in_one_conversation_cannot_split_holdout_context() {
         3
     );
 }
+
+#[test]
+fn shared_revisions_keep_each_binding_and_assemble_its_own_reply_chain() {
+    let a = document("a", "Original shared text", 0);
+    let mut b = document("b", "Reply", 10000);
+    b.related.push(a.reference.clone());
+    let mut a2 = a.clone();
+    a2.binding_id = "secondBinding".into();
+    let mut b2 = b.clone();
+    b2.binding_id = "secondBinding".into();
+    let mut docs = vec![a, b, a2, b2];
+    let prepared = prepare("snapshot", &docs, &policy()).unwrap();
+    assert_eq!(prepared.episodes().len(), 2);
+    for episode in prepared.episodes() {
+        assert_eq!(episode.document_refs.len(), 2);
+        assert_eq!(episode.partition, Partition::Reference);
+    }
+    let expected = prepared.episodes().to_vec();
+    let split = prepared.split_version().to_string();
+    docs.reverse();
+    let reordered = prepare("snapshot", &docs, &policy()).unwrap();
+    assert_eq!(reordered.episodes(), expected);
+    assert_eq!(reordered.split_version(), split);
+}
+
+#[test]
+fn additional_binding_never_reshuffles_sampling_or_escapes_another_bindings_holdout() {
+    for seed in 0..32 {
+        let a = document("shared", "Same original", 0);
+        let mut b = a.clone();
+        b.binding_id = "secondBinding".into();
+        let mut policy = policy();
+        policy.seed = format!("seed:{seed}");
+        policy.holdout_basis_points = 5000;
+        let single = vec![a.clone()];
+        let expected = prepare("snapshot", &single, &policy).unwrap().episodes()[0].partition;
+        let docs = vec![a.clone(), b.clone()];
+        let prepared = prepare("snapshot", &docs, &policy).unwrap();
+        assert!(prepared.episodes().iter().all(|e| e.partition == expected));
+        b.holdout = true;
+        let docs = vec![a, b];
+        assert!(prepare("snapshot", &docs, &policy)
+            .unwrap()
+            .episodes()
+            .iter()
+            .all(|e| e.partition == Partition::Holdout));
+    }
+}
+
+#[test]
+fn shared_revision_assignments_reject_duplicate_bindings_and_conflicting_originals() {
+    let a = document("a", "Exact original", 0);
+    assert!(prepare("snapshot", &[a.clone(), a.clone()], &policy()).is_err());
+    let mut b = a.clone();
+    b.binding_id = "secondBinding".into();
+    assert!(prepare("snapshot", &[a.clone(), b.clone()], &policy()).is_ok());
+    for field in [
+        "text",
+        "source",
+        "document",
+        "conversation",
+        "thread",
+        "time",
+    ] {
+        let mut bad = b.clone();
+        match field {
+            "text" => bad.text.push('!'),
+            "source" => bad.source_key.push('!'),
+            "document" => bad.reference.document_id.push('!'),
+            "conversation" => bad.conversation_id.push('!'),
+            "thread" => bad.thread_id = Some("other".into()),
+            _ => bad.timestamp_ms = Some(1),
+        }
+        assert!(
+            prepare("snapshot", &[a.clone(), bad], &policy()).is_err(),
+            "{field}"
+        );
+    }
+}

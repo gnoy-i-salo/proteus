@@ -2119,3 +2119,135 @@ fn nonempty_search_text_cannot_claim_an_empty_original_span() {
     drop(connection);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn shared_spans_keep_independent_scopes_and_excluded_rows_never_consume_a_page() {
+    let (mut connection, directory) = setup();
+    let text = "  Общий договор é\r\n👩‍💻  ";
+    let mut chunks = vec![
+        chunk(
+            "0foreign",
+            text,
+            PERSONA_B,
+            GRANT_B,
+            BINDING_B,
+            (Some(1), Some(1)),
+        ),
+        chunk(
+            "1allowed",
+            text,
+            PERSONA_A,
+            GRANT_A,
+            BINDING_A,
+            (Some(1), Some(1)),
+        ),
+        chunk(
+            "2allowed",
+            text,
+            PERSONA_A,
+            GRANT_C,
+            BINDING_C,
+            (Some(1), Some(1)),
+        ),
+    ];
+    for chunk in &mut chunks {
+        chunk.document_id = "shared:document".into();
+        chunk.revision_id = "shared:revision".into();
+    }
+    let receipt = publish(
+        &mut connection,
+        SNAPSHOT_A,
+        SNAPSHOT_GEN,
+        "shared:stage",
+        &chunks,
+    );
+    let mut request = SearchRequest {
+        scope: scope_a(),
+        query_text: "договор".into(),
+        limit: 1,
+        offset: 0,
+    };
+    request.scope.grant_ids = vec![GRANT_A.into(), GRANT_B.into(), GRANT_C.into()];
+    request.scope.binding_ids = vec![BINDING_A.into(), BINDING_B.into(), BINDING_C.into()];
+    let first = search(&connection, &request).unwrap();
+    assert_eq!(first.hits[0].chunk_id, "1allowed");
+    assert!(first.has_more);
+    request.offset = 1;
+    let second = search(&connection, &request).unwrap();
+    assert_eq!(second.hits[0].chunk_id, "2allowed");
+    assert!(!second.has_more);
+    for hit in first.hits.iter().chain(&second.hits) {
+        assert_eq!(hit.document_id, "shared:document");
+        assert_eq!(hit.revision_id, "shared:revision");
+        assert_eq!((hit.span_start, hit.span_end), (0, text.len() as i64));
+        assert_eq!(
+            indexed_text(
+                &connection,
+                SNAPSHOT_A,
+                receipt.index_generation,
+                &hit.chunk_id
+            )
+            .unwrap()
+            .as_deref(),
+            Some(text)
+        );
+    }
+    request.offset = 0;
+    request.scope = scope_a();
+    let narrow = search(&connection, &request).unwrap();
+    assert_eq!(narrow.hits[0].chunk_id, "1allowed");
+    assert!(!narrow.has_more);
+    request.scope.persona_id = PERSONA_B.into();
+    request.scope.grant_ids = vec![GRANT_B.into()];
+    request.scope.binding_ids = vec![BINDING_B.into()];
+    assert_eq!(search_ids(&connection, &request), vec!["0foreign"]);
+    drop(connection);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn shared_span_scope_cannot_replace_an_existing_chunk_identity() {
+    let (mut connection, directory) = setup();
+    begin_stage(&mut connection, &stage_input("scope-collision")).unwrap();
+    let mut original = chunk(
+        "shared",
+        "Общий договор",
+        PERSONA_A,
+        GRANT_A,
+        BINDING_A,
+        (None, None),
+    );
+    original.stage_id = "scope-collision".into();
+    stage_chunk(&mut connection, &original).unwrap();
+    for field in ["persona", "grant", "binding"] {
+        let mut changed = original.clone();
+        match field {
+            "persona" => changed.persona_id = PERSONA_B.into(),
+            "grant" => changed.grant_id = GRANT_B.into(),
+            _ => changed.binding_id = BINDING_B.into(),
+        }
+        assert!(stage_chunk(&mut connection, &changed).is_err(), "{field}");
+    }
+    let receipt = commit_stage(
+        &mut connection,
+        "scope-collision",
+        &content_manifest(&[(original.chunk_id.as_str(), chunk_content_hash(&original))]),
+    )
+    .unwrap();
+    assert_eq!(receipt.chunk_count, 1);
+    let response = search(
+        &connection,
+        &SearchRequest {
+            scope: scope_a(),
+            query_text: "договор".into(),
+            limit: 1,
+            offset: 0,
+        },
+    )
+    .unwrap();
+    assert_eq!(response.hits[0].persona_id, PERSONA_A);
+    assert_eq!(response.hits[0].grant_id, GRANT_A);
+    assert_eq!(response.hits[0].binding_id, BINDING_A);
+    drop(connection);
+    std::fs::remove_dir_all(directory).unwrap();
+}

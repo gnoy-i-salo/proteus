@@ -78,9 +78,11 @@ impl CorpusDatabase {
             return Err(INVALID.into());
         }
         let source = read_snapshot(&self.connection, request.source_snapshot_id)?;
-        validate_originals(&self.connection, &source, request.documents)?;
         let id = publication_snapshot_id(&source.corpus_id, request.publication_id)?;
         let prepared = super::episodes::prepare(&id, request.documents, request.split)?;
+        // Validate assignment caps/consistency before repeated original reads;
+        // verify all exact originals before tokenizing any reference content.
+        validate_originals(&self.connection, &source, request.documents)?;
         let chunks = prepared.chunks(request.tokenizer, request.chunks)?;
         let split = prepared.split_version();
         let chunking = chunk_policy_fingerprint(request.tokenizer, request.chunks)?;
@@ -178,14 +180,18 @@ fn validate_originals(
         .iter()
         .map(|r| (&r.document_id, &r.revision_id))
         .collect();
-    let actual: std::collections::BTreeSet<_> = documents
+    let mut actual: std::collections::BTreeSet<_> = documents
         .iter()
         .map(|d| (&d.reference.document_id, &d.reference.revision_id))
         .collect();
-    if expected != actual || documents.len() != expected.len() {
+    if expected != actual {
         return Err("Подготовка должна учитывать все ревизии исходного снимка.".into());
     }
     for doc in documents {
+        // prepare() already checked consistent immutable fields across bindings.
+        if !actual.remove(&(&doc.reference.document_id, &doc.reference.revision_id)) {
+            continue;
+        }
         let original = read_revision(connection, &doc.reference)?;
         let value: serde_json::Value =
             serde_json::from_str(&original.document_json).map_err(|_| INVALID)?;

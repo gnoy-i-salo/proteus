@@ -8,6 +8,16 @@
 - Use `bd prime` for the installed version's workflow. Husky owns Git hooks; initialize Beads with `--skip-hooks --skip-agents`.
 - Main branch is `trunk`. All npm packages are private and named `@proteus-int/*`.
 
+## Kimi subagents
+
+- Use the installed Kimi CLI as a subagent for independent, bounded implementation, testing or review tasks within the user's authorized scope. Run independent assignments in parallel while the main agent advances other work; keep dependent steps sequential.
+- Check `kimi --help` for the installed version. Use a fresh non-interactive invocation (`kimi --prompt "<assignment>" --output-format stream-json`); do not resume an unrelated session. If Kimi is unavailable or cannot authenticate, report the limitation and continue locally without claiming delegation succeeded.
+- Give each subagent the Beads issue ID, relevant context, required repository instructions and skills, explicit allowed files, acceptance criteria and required checks. Include `AGENTS.md` and the Start reading requirements; do not assume the CLI inherits this chat's context.
+- Use a separate worktree for delegated edits, based on the agreed source state. Preserve existing uncommitted work and ensure required changes are present in that baseline. Assign one owner per file; shared contracts, manifests, architecture and migrations need one coordinated owner. Read-only reviews may use the current tree.
+- The main agent owns Beads transitions and snapshot exports, coordinates assignments, reviews diffs and integrates accepted changes. Delegation does not expand permission to commit, push, publish, access accounts or change unrelated files.
+- Keep credentials and private source corpora out of assignments and logs. Installed CLIs own authentication; never read or copy token files. Repository TDD, product boundaries and quality gates apply equally to Kimi.
+- Require a handoff with changed files, behavior, actual check results and remaining limitations. Reject out-of-scope edits, weakened checks and unsupported claims that tests passed. The main agent inspects the result and runs relevant checks on the combined tree before closing the issue; a successful CLI exit alone is not acceptance.
+
 ## Small changes and atomic commits
 
 - One task and one independently reviewable concern per change. Avoid unrelated refactors and dependency churn.

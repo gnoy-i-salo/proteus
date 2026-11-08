@@ -1,15 +1,20 @@
 //! Immutable prepared snapshots in the canonical encrypted database. This layer
 //! is not an authorization service; native callers check grants on every access.
+#[path = "corpus-preparation-compile.rs"]
+mod compile;
 #[path = "corpus-preparation-read.rs"]
 mod read;
 use super::{
     episodes::*,
     record_store::read_revision,
-    snapshot_store::{fork_snapshot, publication_snapshot_id, read_snapshot},
+    snapshot_store::{
+        fork_snapshot, publication_snapshot_id, read_snapshot, read_snapshot_checked,
+    },
     sql_error,
     types::digest,
     CorpusDatabase, Snapshot, INVALID,
 };
+pub use compile::{CompiledPreparation, VerifiedPreparation};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{de::DeserializeOwned, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -71,48 +76,75 @@ impl CorpusDatabase {
         &mut self,
         request: &PreparationRequest<'_>,
     ) -> Result<PreparedSnapshot, String> {
+        let verified = self.verify_preparation(request)?;
+        let compiled = verified.compile(request.tokenizer, request.chunks)?;
+        self.commit_prepared(&compiled)
+    }
+    pub fn verify_preparation<'a>(
+        &self,
+        request: &PreparationRequest<'a>,
+    ) -> Result<VerifiedPreparation<'a>, String> {
+        self.verify_preparation_checked(request, &|| Ok(()))
+    }
+    pub fn verify_preparation_checked<'a>(
+        &self,
+        request: &PreparationRequest<'a>,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<VerifiedPreparation<'a>, String> {
+        check()?;
         if request.publication_id.is_empty()
             || request.publication_id.len() > 256
             || request.publication_id.chars().any(char::is_control)
         {
             return Err(INVALID.into());
         }
-        let source = read_snapshot(&self.connection, request.source_snapshot_id)?;
+        let source = read_snapshot_checked(&self.connection, request.source_snapshot_id, check)?;
         let id = publication_snapshot_id(&source.corpus_id, request.publication_id)?;
         let prepared = super::episodes::prepare(&id, request.documents, request.split)?;
         // Validate assignment caps/consistency before repeated original reads;
         // verify all exact originals before tokenizing any reference content.
-        validate_originals(&self.connection, &source, request.documents)?;
-        let chunks = prepared.chunks(request.tokenizer, request.chunks)?;
-        let split = prepared.split_version();
-        let chunking = chunk_policy_fingerprint(request.tokenizer, request.chunks)?;
-        let tokenizer = request.tokenizer.version();
-        let episodes = prepared
-            .episodes()
-            .iter()
-            .map(|e| row(&e.id, "", e))
-            .collect::<Result<Vec<_>, _>>()?;
-        let chunks = chunks
-            .iter()
-            .map(|c| row(&c.id, &c.episode_id, c))
-            .collect::<Result<Vec<_>, _>>()?;
-        let hash = manifest_hash(
-            &source.id,
+        check()?;
+        validate_originals(&self.connection, &source, request.documents, check)?;
+        check()?;
+        Ok(VerifiedPreparation {
+            source,
+            id,
+            publication_id: request.publication_id.into(),
+            prepared,
+        })
+    }
+    pub fn commit_prepared(
+        &mut self,
+        compiled: &CompiledPreparation,
+    ) -> Result<PreparedSnapshot, String> {
+        self.commit_prepared_checked(compiled, &|| Ok(()))
+    }
+    pub fn commit_prepared_checked(
+        &mut self,
+        compiled: &CompiledPreparation,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<PreparedSnapshot, String> {
+        check()?;
+        let CompiledPreparation {
+            source,
+            publication_id,
+            id,
             split,
             tokenizer,
-            &chunking,
-            &digests(&episodes),
-            &digests(&chunks),
-        )?;
+            chunking,
+            hash,
+            episodes,
+            chunks,
+        } = compiled;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(sql_error)?;
         // A revocation while tokenizing cannot restore any old prepared material.
-        if read_snapshot(&tx, &source.id)? != source {
+        if read_snapshot_checked(&tx, &source.id, check)? != *source {
             return Err(INVALID.into());
         }
-        let existing:Option<String>=tx.query_row("SELECT snapshot_id FROM publication_receipts WHERE corpus_id=?1 AND publication_id=?2",params![source.corpus_id,request.publication_id],|r|r.get(0)).optional().map_err(sql_error)?;
+        let existing:Option<String>=tx.query_row("SELECT snapshot_id FROM publication_receipts WHERE corpus_id=?1 AND publication_id=?2",params![source.corpus_id,publication_id],|r|r.get(0)).optional().map_err(sql_error)?;
         if let Some(existing) = existing {
             let stored: Option<String> = tx
                 .query_row(
@@ -122,22 +154,29 @@ impl CorpusDatabase {
                 )
                 .optional()
                 .map_err(sql_error)?;
-            if existing != id || stored.as_deref() != Some(hash.as_str()) {
+            if existing != *id || stored.as_deref() != Some(hash.as_str()) {
                 return Err("Публикация уже закреплена за другим составом подготовки.".into());
             }
+            check()?;
             let result = read::snapshot(&tx, &existing)?;
+            check()?;
             tx.commit().map_err(sql_error)?;
             return Ok(result);
         }
-        let snapshot = fork_snapshot(&tx, &source, request.publication_id)?;
+        check()?;
+        let snapshot = fork_snapshot(&tx, source, publication_id)?;
         tx.execute("INSERT INTO corpus_preparations(snapshot_id,source_snapshot_id,split_version,tokenizer_version,chunking_version,canonical_sha256) VALUES(?1,?2,?3,?4,?5,?6)",params![snapshot.id,source.id,split,tokenizer,chunking,hash]).map_err(sql_error)?;
         for (position, row) in episodes.iter().enumerate() {
+            check()?;
             tx.execute("INSERT INTO corpus_episodes(snapshot_id,episode_id,position,data_json,canonical_sha256) VALUES(?1,?2,?3,?4,?5)",params![snapshot.id,row.id,position as i64,row.json,row.hash]).map_err(sql_error)?;
         }
         for (position, row) in chunks.iter().enumerate() {
+            check()?;
             tx.execute("INSERT INTO corpus_prepared_chunks(snapshot_id,chunk_id,episode_id,position,data_json,canonical_sha256) VALUES(?1,?2,?3,?4,?5,?6)",params![snapshot.id,row.id,row.parent,position as i64,row.json,row.hash]).map_err(sql_error)?;
         }
+        check()?;
         let result = read::snapshot(&tx, &snapshot.id)?;
+        check()?;
         tx.commit().map_err(sql_error)?;
         Ok(result)
     }
@@ -174,6 +213,7 @@ fn validate_originals(
     connection: &Connection,
     snapshot: &Snapshot,
     documents: &[EpisodeDocument],
+    check: &dyn Fn() -> Result<(), String>,
 ) -> Result<(), String> {
     let expected: std::collections::BTreeSet<_> = snapshot
         .documents
@@ -188,6 +228,7 @@ fn validate_originals(
         return Err("Подготовка должна учитывать все ревизии исходного снимка.".into());
     }
     for doc in documents {
+        check()?;
         // prepare() already checked consistent immutable fields across bindings.
         if !actual.remove(&(&doc.reference.document_id, &doc.reference.revision_id)) {
             continue;

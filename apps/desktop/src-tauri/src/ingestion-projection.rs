@@ -24,6 +24,16 @@ pub fn project(
     job_id: &str,
     now_ms: impl Fn() -> i64,
 ) -> Result<Projection, String> {
+    project_checked(sources, operation, job_id, now_ms, &|| Ok(()))
+}
+pub(super) fn project_checked(
+    sources: &Sources,
+    operation: &Operation,
+    job_id: &str,
+    now_ms: impl Fn() -> i64,
+    check_extra: &dyn Fn() -> Result<(), String>,
+) -> Result<Projection, String> {
+    check_extra()?;
     let started = now_ms();
     let (job, version, origin, source, originals, deadline) =
         sources.with_ingestion_database(operation, |db| {
@@ -46,7 +56,10 @@ pub fn project(
                 .into_iter()
                 .min()
                 .ok_or("Нет разрешённых привязок.")?;
-            let check = || access(operation, started, deadline, now_ms());
+            let check = || {
+                check_extra()?;
+                access(operation, started, deadline, now_ms())
+            };
             let source = db.snapshot_checked(
                 job.state
                     .published_snapshot_id
@@ -74,7 +87,10 @@ pub fn project(
             check()?;
             Ok((job, version, origin, source, originals, deadline))
         })?;
-    let check = || access(operation, started, deadline, now_ms());
+    let check = || {
+        check_extra()?;
+        access(operation, started, deadline, now_ms())
+    };
     let mut decoded = Vec::with_capacity(originals.len());
     for original in originals {
         check()?;
@@ -133,7 +149,12 @@ pub fn project(
     })?;
     Ok(Projection { source, documents })
 }
-fn access(operation: &Operation, started: i64, deadline: i64, now: i64) -> Result<(), String> {
+pub(super) fn access(
+    operation: &Operation,
+    started: i64,
+    deadline: i64,
+    now: i64,
+) -> Result<(), String> {
     operation.check()?;
     if now < started || now >= deadline {
         return Err("Разрешение источника истекло во время подготовки.".into());

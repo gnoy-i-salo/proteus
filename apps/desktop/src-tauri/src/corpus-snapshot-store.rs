@@ -162,7 +162,7 @@ fn write_snapshot(
 pub(super) fn read_snapshot(connection: &Connection, id: &str) -> Result<Snapshot, String> {
     read_snapshot_checked(connection, id, &|| Ok(()))
 }
-fn read_snapshot_checked(
+pub(super) fn read_snapshot_checked(
     connection: &Connection,
     id: &str,
     check: &dyn Fn() -> Result<(), String>,

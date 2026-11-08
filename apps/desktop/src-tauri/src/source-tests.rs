@@ -283,3 +283,6 @@ mod peer_identity_tests;
 
 #[path = "ingestion-preparation-tests.rs"]
 mod preparation_tests;
+
+#[path = "ingestion-prepared-publication-tests.rs"]
+mod prepared_publication_tests;

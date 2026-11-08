@@ -634,3 +634,209 @@ fn snapshot_access_guard_interrupts_original_reads_without_mutating_snapshot() {
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+fn compile_fixture(
+    db: &CorpusDatabase,
+    source: &Snapshot,
+    docs: &[EpisodeDocument],
+    publication: &str,
+) -> CompiledPreparation {
+    let (split, chunks) = policies();
+    db.verify_preparation(&PreparationRequest {
+        source_snapshot_id: &source.id,
+        publication_id: publication,
+        documents: docs,
+        split: &split,
+        tokenizer: &Tokenizer,
+        chunks: &chunks,
+    })
+    .unwrap()
+    .compile(&Tokenizer, &chunks)
+    .unwrap()
+}
+#[test]
+fn prepared_commit_initial_guard_prevents_any_new_receipt() {
+    let (mut db, dir, source, docs) = setup();
+    let compiled = compile_fixture(&db, &source, &docs, "guarded");
+    assert_eq!(
+        db.commit_prepared_checked(&compiled, &|| Err("cancelled".into()))
+            .unwrap_err(),
+        "cancelled"
+    );
+    assert_eq!(
+        db.connection
+            .query_row("SELECT count(*) FROM snapshots", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        db.connection
+            .query_row("SELECT count(*) FROM corpus_preparations", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn prepared_commit_last_guard_rolls_back_all_rows_and_allows_retry() {
+    let (mut db, dir, source, docs) = setup();
+    let trial = compile_fixture(&db, &source, &docs, "trial");
+    let calls = std::cell::Cell::new(0);
+    db.commit_prepared_checked(&trial, &|| {
+        calls.set(calls.get() + 1);
+        Ok(())
+    })
+    .unwrap();
+    assert!(
+        calls.get() > 1,
+        "Publication must check access before commit as well as entry"
+    );
+    let last = calls.get();
+    let compiled = compile_fixture(&db, &source, &docs, "guarded");
+    let before: (i64, i64, i64, i64) = db.connection.query_row(
+        "SELECT (SELECT count(*) FROM snapshots),(SELECT count(*) FROM publication_receipts),(SELECT count(*) FROM corpus_episodes),(SELECT count(*) FROM corpus_prepared_chunks)",
+        [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
+    ).unwrap();
+    calls.set(0);
+    assert_eq!(
+        db.commit_prepared_checked(&compiled, &|| {
+            calls.set(calls.get() + 1);
+            if calls.get() == last {
+                Err("expired before commit".into())
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap_err(),
+        "expired before commit"
+    );
+    let after: (i64, i64, i64, i64) = db.connection.query_row(
+        "SELECT (SELECT count(*) FROM snapshots),(SELECT count(*) FROM publication_receipts),(SELECT count(*) FROM corpus_episodes),(SELECT count(*) FROM corpus_prepared_chunks)",
+        [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
+    ).unwrap();
+    assert_eq!(after, before);
+    assert_eq!(db.snapshot(&source.id).unwrap(), source);
+    let result = db.commit_prepared_checked(&compiled, &|| Ok(())).unwrap();
+    assert_eq!(
+        db.commit_prepared_checked(&compiled, &|| Ok(())).unwrap(),
+        result
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn prepared_access_guard_runs_before_missing_original_lookup() {
+    let (db, dir, _, docs) = setup();
+    let (split, chunks) = policies();
+    let request = PreparationRequest {
+        source_snapshot_id: "missing",
+        publication_id: "prepared",
+        documents: &docs,
+        split: &split,
+        tokenizer: &Tokenizer,
+        chunks: &chunks,
+    };
+    assert_eq!(
+        db.verify_preparation_checked(&request, &|| Err("denied before source".into()))
+            .err()
+            .unwrap(),
+        "denied before source"
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn prepared_access_guard_stops_before_and_immediately_after_tokenizer_call() {
+    use std::cell::Cell;
+    struct Counting {
+        calls: Cell<usize>,
+        expired: Cell<bool>,
+    }
+    impl EpisodeTokenizer for Counting {
+        fn version(&self) -> &str {
+            "syntheticCounting:1"
+        }
+        fn count(&self, text: &str) -> Result<usize, String> {
+            self.calls.set(self.calls.get() + 1);
+            self.expired.set(true);
+            Ok(text.chars().count() + 2)
+        }
+    }
+    for initially_denied in [true, false] {
+        let (db, dir, source, docs) = setup();
+        let (split, chunks) = policies();
+        let tokenizer = Counting {
+            calls: Cell::new(0),
+            expired: Cell::new(initially_denied),
+        };
+        let verified = db
+            .verify_preparation(&PreparationRequest {
+                source_snapshot_id: &source.id,
+                publication_id: "guarded",
+                documents: &docs,
+                split: &split,
+                tokenizer: &tokenizer,
+                chunks: &chunks,
+            })
+            .unwrap();
+        assert_eq!(tokenizer.calls.get(), 0);
+        let result = verified.compile_checked(&tokenizer, &chunks, &|| {
+            if tokenizer.expired.get() {
+                Err("expired while tokenizing".into())
+            } else {
+                Ok(())
+            }
+        });
+        assert_eq!(result.err().unwrap(), "expired while tokenizing");
+        assert_eq!(tokenizer.calls.get(), if initially_denied { 0 } else { 1 });
+        assert_eq!(db.snapshot(&source.id).unwrap(), source);
+        drop(db);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[test]
+fn prepared_publication_rejects_tokenizer_version_change_without_writes() {
+    struct Changing(std::cell::Cell<bool>);
+    impl EpisodeTokenizer for Changing {
+        fn version(&self) -> &str {
+            if self.0.get() {
+                "syntheticChanging:2"
+            } else {
+                "syntheticChanging:1"
+            }
+        }
+        fn count(&self, text: &str) -> Result<usize, String> {
+            self.0.set(true);
+            Ok(text.chars().count() + 2)
+        }
+    }
+    let (mut db, dir, raw, docs) = setup();
+    let (split, chunks) = policies();
+    let tokenizer = Changing(std::cell::Cell::new(false));
+    let result = db.publish_prepared(&PreparationRequest {
+        source_snapshot_id: &raw.id,
+        publication_id: "changing",
+        documents: &docs,
+        split: &split,
+        tokenizer: &tokenizer,
+        chunks: &chunks,
+    });
+    assert!(
+        result.is_err(),
+        "A changing tokenizer must never publish mixed versions"
+    );
+    assert!(tokenizer.0.get());
+    assert_eq!(db.snapshot(&raw.id).unwrap(), raw);
+    assert_eq!(
+        db.connection
+            .query_row("SELECT count(*) FROM snapshots", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}

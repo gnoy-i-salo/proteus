@@ -390,3 +390,6 @@ fn native_query_rechecks_source_deletion_after_the_pinned_search_before_returnin
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[path = "ingestion-vectors-tests.rs"]
+mod vector_tests;

@@ -174,3 +174,20 @@ These are native database primitives, not the production MemoryPort or a grant
 issuer. Model availability, host-owned scope, live permission rechecks, hybrid
 orchestration, bounded episode expansion and retrieval receipts still need their
 own integration and acceptance checks.
+
+## Индексирование разрешённого корпуса
+
+`ingestion::vectors::build` связывает завершённую native-задачу, подготовленный
+снимок и локальный embedding-адаптер. Общий `IndexAuthority` используется также
+лексическим индексированием и поиском; он проверяет владельца снимка, живые grants
+и полный receipt. Для векторного построения отдельно требуется model-processing
+permission всех выбранных привязок и совпадение токенизатора подготовки с моделью.
+
+Текст читается порциями до восьми reference-чанков и 32 MiB. Inference выполняется
+вне блокировки базы; до, во время и после него проверяются отзыв доступа, отмена,
+deadline и текущий индекс. Публикация требует полного набора векторов исходного
+receipt. Незавершённая стадия сохраняется: повтор проверяет прежние строки и
+вычисляет только отсутствующие; опубликованная стадия возвращает тот же receipt
+без повторного inference. Отложенные данные не передаются модели. Общий лимит RAM
+для нескольких runtime, запуск из IPC/UI, очистка старых стадий и MemoryPort
+остаются ответственностью интеграционного сценария.

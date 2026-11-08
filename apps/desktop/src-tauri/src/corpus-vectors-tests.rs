@@ -478,3 +478,48 @@ fn corrupt_sealed_manifest_is_rejected_without_repairing_original_metadata() {
 
 #[path = "corpus-vectors-query-tests.rs"]
 mod query_tests;
+
+#[test]
+fn stage_presence_requires_the_exact_source_and_retains_the_existing_vector() {
+    let (mut db, input) = fixture();
+    assert!(has_stage_vector(&mut db, &input, "first", &ok).is_err());
+    begin_stage(&mut db, &input, &ok).unwrap();
+    assert!(!has_stage_vector(&mut db, &input, "first", &ok).unwrap());
+    append_vector(
+        &mut db,
+        &input,
+        "first",
+        &input.model_fingerprint,
+        &[1., 0.],
+        &ok,
+    )
+    .unwrap();
+    assert!(has_stage_vector(&mut db, &input, "first", &ok).unwrap());
+    assert!(!has_stage_vector(&mut db, &input, "second", &ok).unwrap());
+    let mut foreign = input.clone();
+    foreign.model_fingerprint = "foreign".into();
+    assert!(has_stage_vector(&mut db, &foreign, "first", &ok).is_err());
+    assert_eq!(
+        has_stage_vector(&mut db, &input, "first", &|| Err(
+            "cancel staged row  ".into()
+        ))
+        .unwrap_err(),
+        "cancel staged row  "
+    );
+    assert!(has_stage_vector(&mut db, &input, "first", &ok).unwrap());
+}
+#[test]
+fn stage_presence_refuses_corrupted_vectors_without_repairing_them() {
+    let (mut db, input) = fixture();
+    complete(&mut db, &input);
+    db.execute_batch("DROP TRIGGER vector_entries_immutable; UPDATE vector_entries SET vector=zeroblob(8) WHERE chunk_id='first';").unwrap();
+    assert!(has_stage_vector(&mut db, &input, "first", &ok).is_err());
+    let bytes: Vec<u8> = db
+        .query_row(
+            "SELECT vector FROM vector_entries WHERE chunk_id='first'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(bytes, vec![0; 8]);
+}

@@ -2,12 +2,7 @@
 //! The source gate is released between bounded pages; no frontend-authored text,
 //! persona/grant pairing or source span is accepted by this scenario.
 use super::{
-    adapter::CompletedAdapter,
-    grants::preview_deadline,
-    job_workflow::{read_job, validate_selection},
-    operations::Operation,
-    preview_store::read_preview,
-    projection::access,
+    grants::GrantUse, index_authority::IndexAuthority, operations::Operation, projection::access,
 };
 use crate::{
     corpus_database::{
@@ -16,7 +11,6 @@ use crate::{
             chunk_content_hash, content_manifest, SearchChunkInput, SearchIndexReceipt,
             SearchStageInput,
         },
-        CorpusDatabase, StoredJob,
     },
     sources::Sources,
 };
@@ -25,19 +19,6 @@ pub struct IndexInput<'a> {
     pub job_id: &'a str,
     pub snapshot_id: &'a str,
     pub max_duration_ms: i64,
-}
-struct IndexSource {
-    job: StoredJob,
-    adapter: CompletedAdapter,
-    deadline: i64,
-}
-impl IndexSource {
-    fn current(&self, db: &CorpusDatabase, now: i64) -> Result<(), String> {
-        if read_job(db, &self.job.id)? != self.job {
-            return Err("Исходная задача изменилась.".into());
-        }
-        validate_selection(db, &self.job.state.selection, now)
-    }
 }
 pub fn rebuild(
     sources: &Sources,
@@ -63,44 +44,24 @@ pub fn rebuild(
     budget()?;
     let (source, mut cursor) = sources.with_ingestion_database(operation, |db| {
         budget()?;
-        let job = read_job(db, input.job_id)?;
-        let now = now_ms();
-        validate_selection(db, &job.state.selection, now)?;
-        let preview = read_preview(db, &job.state.selection.preview_id)?;
-        let adapter = CompletedAdapter::resolve(&job, &preview, operation.provider(), now)?;
-        let deadline = job
-            .state
-            .selection
-            .bindings
-            .iter()
-            .map(|b| preview_deadline(db, b, &preview.id, now))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .min()
-            .ok_or("Нет разрешённых привязок.")?;
+        let source = IndexAuthority::resolve(db, operation, input.job_id, None, now_ms())?;
         let check = || {
             budget()?;
-            access(operation, started, deadline, now_ms())
+            access(operation, started, source.deadline, now_ms())
         };
         let source_id = db.prepared_source_snapshot_id(input.snapshot_id)?;
-        if job.state.published_snapshot_id.as_deref() != Some(source_id.as_str()) {
+        if source.job.state.published_snapshot_id.as_deref() != Some(source_id.as_str()) {
             return Err("Подготовленный снимок не принадлежит задаче.".into());
         }
         let cursor = db.prepared_cursor(input.snapshot_id, &check)?;
         let prepared = cursor.snapshot();
-        if job.state.published_snapshot_id.as_deref() != Some(prepared.source_snapshot_id.as_str())
+        if source.job.state.published_snapshot_id.as_deref()
+            != Some(prepared.source_snapshot_id.as_str())
             || prepared.snapshot.corpus_id != format!("corpus:{}", input.job_id)
         {
             return Err("Подготовленный снимок не принадлежит задаче.".into());
         }
-        Ok((
-            IndexSource {
-                job,
-                adapter,
-                deadline,
-            },
-            cursor,
-        ))
+        Ok((source, cursor))
     })?;
     let check = || {
         budget()?;
@@ -117,14 +78,14 @@ pub fn rebuild(
     let result = (|| {
         sources.with_ingestion_database(operation, |db| {
             check()?;
-            source.current(db, now_ms())?;
+            source.current(db, now_ms(), GrantUse::Corpus)?;
             db.begin_search_stage(&stage)
         })?;
         let mut hashes = Vec::with_capacity(cursor.snapshot().chunk_count);
         while !cursor.is_complete() {
             let page_hashes = sources.with_ingestion_database(operation, |db| {
                 check()?;
-                source.current(db, now_ms())?;
+                source.current(db, now_ms(), GrantUse::Corpus)?;
                 let page = db.prepared_page(&mut cursor, 100, 64 * 1024 * 1024, &check)?;
                 let mut hashes = Vec::with_capacity(page.len());
                 for entry in page {
@@ -140,7 +101,7 @@ pub fn rebuild(
         }
         sources.with_ingestion_database(operation, |db| {
             check()?;
-            source.current(db, now_ms())?;
+            source.current(db, now_ms(), GrantUse::Corpus)?;
             db.validate_prepared_cursor(&cursor, &check)?;
             let manifest = content_manifest(&hashes);
             db.commit_search_stage(&stage.stage_id, &manifest, &check)
@@ -176,7 +137,7 @@ pub(super) fn policy(snapshot: &PreparedSnapshot) -> Result<String, String> {
     Ok(format!("nativeFts:1:{:x}", Sha256::digest(bytes)))
 }
 fn index_chunk(
-    source: &IndexSource,
+    source: &IndexAuthority,
     stage: &SearchStageInput,
     entry: PreparedEntry,
     check: &dyn Fn() -> Result<(), String>,

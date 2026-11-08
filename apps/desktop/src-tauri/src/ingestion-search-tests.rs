@@ -27,6 +27,17 @@ fn prepared(
     crate::ingestion::operations::Operation,
     crate::ingestion::publication::SnapshotView,
 ) {
+    prepared_with_tokenizer(sources, dir, holdout, &Tokenizer)
+}
+fn prepared_with_tokenizer(
+    sources: &Sources,
+    dir: &std::path::Path,
+    holdout: u16,
+    tokenizer: &dyn EpisodeTokenizer,
+) -> (
+    crate::ingestion::operations::Operation,
+    crate::ingestion::publication::SnapshotView,
+) {
     let raw = archive().replace(
         "\"type\":\"message\"",
         "\"type\":\"message\",\"date_unixtime\":\"1704067200\"",
@@ -54,7 +65,7 @@ fn prepared(
                 max_tokens: 512,
                 max_bytes: 4096,
             },
-            tokenizer: &Tokenizer,
+            tokenizer,
             max_duration_ms: 60000,
         },
         || 70000,

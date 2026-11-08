@@ -3,6 +3,8 @@
 pub mod cache;
 #[path = "local-model-manager.rs"]
 pub mod manager;
+#[path = "embedding-model.rs"]
+pub mod model;
 #[path = "e5-embedding.rs"]
 pub mod runtime;
 #[path = "embedding-search.rs"]

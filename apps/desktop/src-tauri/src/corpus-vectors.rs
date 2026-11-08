@@ -15,7 +15,7 @@ pub use query::search_vectors;
 #[path = "corpus-vectors-read.rs"]
 mod read;
 use super::search::SearchIndexReceipt;
-pub use read::active_receipt;
+pub use read::{active_receipt, has_stage_vector};
 use rusqlite::Connection;
 #[derive(Clone, Debug, PartialEq)]
 pub struct VectorStageInput {
@@ -371,6 +371,14 @@ impl super::CorpusDatabase {
         check: &dyn Fn() -> Result<(), String>,
     ) -> Result<Option<VectorReceipt>, String> {
         active_receipt(&mut self.connection, snapshot_id, check)
+    }
+    pub fn has_stage_vector(
+        &mut self,
+        input: &VectorStageInput,
+        chunk_id: &str,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<bool, String> {
+        has_stage_vector(&mut self.connection, input, chunk_id, check)
     }
     pub fn begin_vector_stage(
         &mut self,

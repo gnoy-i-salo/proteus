@@ -119,3 +119,49 @@ pub(super) fn load_active(
         published_at,
     }))
 }
+
+/// Resume only an already valid row of the exact pinned stage. The caller still
+/// authorizes the source chunk; this returns no source content or access grant.
+pub fn has_stage_vector(
+    connection: &mut Connection,
+    input: &VectorStageInput,
+    chunk_id: &str,
+    check: &dyn Fn() -> Result<(), String>,
+) -> Result<bool, String> {
+    check()?;
+    validate(input)?;
+    if !valid_id(chunk_id) {
+        return Err(INVALID.into());
+    }
+    let tx = connection.savepoint().map_err(sql_error)?;
+    super::require_source(&tx, input)?;
+    let stage = super::load_stage(&tx, input)?.ok_or_else(|| INVALID.to_string())?;
+    let row = tx
+        .query_row(
+            "SELECT length(vector), CASE WHEN length(vector)=?3 THEN vector ELSE NULL END \
+         FROM vector_entries WHERE generation=?1 AND chunk_id=?2",
+            rusqlite::params![stage.generation, chunk_id, (input.dimensions * 4) as i64],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<Vec<u8>>>(1)?)),
+        )
+        .optional()
+        .map_err(sql_error)?;
+    let found = if let Some((size, bytes)) = row {
+        let bytes = bytes.ok_or_else(|| INVALID.to_string())?;
+        if size != (input.dimensions * 4) as i64 {
+            return Err(INVALID.into());
+        }
+        let values: Vec<_> = bytes
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|b| f32::from_le_bytes(*b))
+            .collect();
+        super::encode_vector(&values, input.dimensions)?;
+        true
+    } else {
+        false
+    };
+    check()?;
+    tx.commit().map_err(sql_error)?;
+    Ok(found)
+}

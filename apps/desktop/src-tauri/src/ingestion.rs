@@ -4,6 +4,8 @@ pub mod adapter;
 pub mod fingerprint;
 #[path = "ingestion-grants.rs"]
 pub mod grants;
+#[path = "ingestion-index-authority.rs"]
+mod index_authority;
 #[path = "ingestion-input.rs"]
 mod input;
 #[path = "ingestion-job-commands.rs"]
@@ -66,6 +68,8 @@ pub mod telegram_worker;
 pub mod url_input;
 #[path = "ingestion-url-preview.rs"]
 pub mod url_preview;
+#[path = "ingestion-vectors.rs"]
+pub mod vectors;
 #[path = "vk-archive-html.rs"]
 pub mod vk_archive_html;
 #[path = "ingestion-worker-outcome.rs"]

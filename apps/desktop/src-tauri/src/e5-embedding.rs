@@ -37,7 +37,7 @@ pub enum EmbeddingError {
     InferenceFailed,
 }
 impl EmbeddingBudget {
-    fn validate(&self) -> Result<(), EmbeddingError> {
+    pub(crate) fn validate(&self) -> Result<(), EmbeddingError> {
         if !(1..=MAX_BATCH_ITEMS).contains(&self.max_batch_items)
             || !(1..=MAX_BATCH_TOKENS).contains(&self.max_batch_tokens)
             || self.max_resident_bytes == 0
@@ -125,6 +125,9 @@ impl E5Runtime {
             model,
             tokenizer,
         })
+    }
+    pub fn tokenizer_fingerprint(&self) -> &str {
+        self.tokenizer.fingerprint()
     }
     pub fn fingerprint(&self) -> &str {
         &self.fingerprint

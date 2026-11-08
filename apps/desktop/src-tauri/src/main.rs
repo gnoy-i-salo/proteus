@@ -3,6 +3,8 @@
 #[path = "corpus-database.rs"]
 pub mod corpus_database;
 pub mod ingestion;
+#[path = "local-embedding.rs"]
+pub mod local_embedding;
 
 mod cli;
 #[path = "cli-policy.rs"]

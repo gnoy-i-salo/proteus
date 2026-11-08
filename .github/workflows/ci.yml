@@ -54,7 +54,8 @@ jobs:
         # Use the Intel pool; release.yml retains both macOS release targets.
         os: [macos-26-intel, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    # Cold TDLib + CPU model builds exceeded 90 minutes on the Intel runner.
+    timeout-minutes: 180
     env:
       CARGO_BUILD_JOBS: 2
     steps:

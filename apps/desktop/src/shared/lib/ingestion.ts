@@ -37,12 +37,14 @@ async function request<T>(
   decode: (value: unknown) => T,
   signal?: AbortSignal,
   operation?: Cancellation,
+  discard?: (value: unknown) => Promise<void>,
 ): Promise<T> {
   if (!isDesktop()) throw new Error('Импорт доступен в настольном приложении PROTEUS.');
   signal?.throwIfAborted();
   let earlyCancellation: Promise<void> | undefined;
   let received = false;
   let decoded = false;
+  let receivedValue: unknown;
   let result: T;
   const cancel = () => {
     // A failed early attempt is retried and checked after the native response;
@@ -56,6 +58,7 @@ async function request<T>(
   try {
     const value = await invoke<unknown>(command, args);
     received = true;
+    receivedValue = value;
     signal?.throwIfAborted();
     result = decode(value);
     decoded = true;
@@ -65,11 +68,21 @@ async function request<T>(
   } finally {
     signal?.removeEventListener('abort', cancel);
     await earlyCancellation;
-    if (operation && (signal?.aborted || (received && !decoded && operation.jobId)))
-      await confirmCancellation(operation, received);
+    try {
+      if (operation && (signal?.aborted || (received && !decoded && operation.jobId)))
+        await confirmCancellation(operation, received);
+    } finally {
+      if (received && (!decoded || signal?.aborted)) await discard?.(receivedValue);
+    }
   }
   signal?.throwIfAborted();
   return result;
+}
+async function discardUrlPreview(value: unknown): Promise<void> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  const handle = (value as Record<string, unknown>).sourceHandle;
+  if (typeof handle !== 'string' || !/^url:[\w-]{32}$/.test(handle)) return;
+  await invoke<void>('release_ingestion_source', { sourceHandle: handle });
 }
 function jobId(value: string): string {
   if (!value.trim() || new TextEncoder().encode(value).length > 128)
@@ -99,6 +112,42 @@ function jobAction(
 // durable job is controlled explicitly by pause/cancel. Metadata reads and the
 // atomic binding write suppress late delivery without rolling back native state.
 export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
+  async previewUrl(selectedUrl, budget, signal) {
+    const url = new URL(selectedUrl);
+    if (
+      selectedUrl.trim() !== selectedUrl ||
+      new TextEncoder().encode(selectedUrl).length > 8192 ||
+      [...selectedUrl].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) ||
+      !['https:', 'http:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.port
+    )
+      throw new Error('Выберите публичную HTTP(S)-страницу без учётных данных.');
+    const operationId = crypto.randomUUID();
+    return request(
+      'preview_ingestion_url',
+      { request: { operationId, selectedUrl, budget: decodeIngestionBudget(budget) } },
+      (value) => {
+        const result = decodeIngestionPreview(value);
+        const resource = result.resources[0];
+        if (
+          !validateIngestionSourceHandle(result.sourceHandle).startsWith('url:') ||
+          !['selectedUrlHtml', 'selectedUrlText', 'selectedUrlMarkdown'].includes(
+            result.sourceFormat,
+          ) ||
+          result.resources.length !== 1 ||
+          resource?.estimatedDocuments !== 1 ||
+          resource.authorIds.length !== 0
+        )
+          throw new Error('Предпросмотр не соответствует выбранному URL.');
+        return result;
+      },
+      signal,
+      { operationId },
+      discardUrlPreview,
+    );
+  },
   async previewSavedPage(handle, contentType, budget, signal) {
     const sourceHandle = validateIngestionSourceHandle(handle);
     const sourceFormat =

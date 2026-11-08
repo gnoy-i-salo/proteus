@@ -45,6 +45,6 @@ function invalidSelection(): Error {
   return new Error('Неверный ответ выбора источника.');
 }
 export function validateIngestionSourceHandle(value: unknown): string {
-  if (typeof value !== 'string' || !/^[\w-]{32}$/.test(value)) throw invalidSelection();
+  if (typeof value !== 'string' || !/^(?:url:)?[\w-]{32}$/.test(value)) throw invalidSelection();
   return value;
 }

@@ -41,6 +41,11 @@ pub(super) trait Transport {
     fn get(&self, url: &Url, addresses: &[IpAddr], timeout: Duration) -> Result<Response, String>;
 }
 
+/// Shape and literal-address checks only; acquisition still validates every DNS hop.
+pub(super) fn validate_selection(selected_url: &str) -> Result<(), String> {
+    policy::parse(selected_url).map(|_| ())
+}
+
 /// The caller owns selection/grant validation. This transport never uses account
 /// credentials and returns source bytes, not evidence of personal authorship.
 pub fn fetch(

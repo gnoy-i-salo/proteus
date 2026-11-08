@@ -53,14 +53,18 @@ pub fn issue_page_preview(
     fingerprint: InputFingerprint,
     resources: Vec<PreviewResource>,
 ) -> Result<StoredPreview, String> {
+    let (provider, schema_version) = match &origin {
+        PageOrigin::SavedPage { .. } => ("savedPage", 3),
+        PageOrigin::SelectedUrl { .. } => ("web", 4),
+    };
     let mut value = issue_preview(
-        "savedPage".into(),
+        provider.into(),
         source_format,
         adapter_version,
         fingerprint,
         resources,
     )?;
-    value.schema_version = 3;
+    value.schema_version = schema_version;
     value.origin = Some(origin);
     value.id = preview_id(&value)?;
     validate(&value)?;
@@ -78,7 +82,7 @@ pub fn preview_id(value: &StoredPreview) -> Result<String, String> {
     match value.schema_version {
         // Keep the exact v1 hash algorithm and stored bytes for old checkpoints.
         1 => Ok(format!("preview:{:x}", Sha256::digest(encode(&content)?))),
-        2 | 3 => {
+        2..=4 => {
             let nonce = value
                 .id
                 .strip_prefix("preview:")
@@ -91,7 +95,7 @@ pub fn preview_id(value: &StoredPreview) -> Result<String, String> {
                             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
                 })
                 .ok_or(INVALID)?;
-            let bytes = if value.schema_version == 3 {
+            let bytes = if value.schema_version >= 3 {
                 encode(&(nonce, content, &value.origin))?
             } else {
                 encode(&(nonce, content))?
@@ -102,7 +106,7 @@ pub fn preview_id(value: &StoredPreview) -> Result<String, String> {
     }
 }
 fn validate(value: &StoredPreview) -> Result<(), String> {
-    if !matches!(value.schema_version, 1..=3)
+    if !matches!(value.schema_version, 1..=4)
         || !matches!(
             value.provider.as_str(),
             "telegram" | "vk" | "github" | "instagram" | "web" | "savedPage"
@@ -122,7 +126,7 @@ fn validate(value: &StoredPreview) -> Result<(), String> {
     {
         return Err(INVALID.into());
     }
-    if value.schema_version == 3 {
+    if value.schema_version >= 3 {
         validate_page_origin(value)?;
     } else if value.origin.is_some() {
         return Err(INVALID.into());
@@ -163,13 +167,26 @@ fn validate(value: &StoredPreview) -> Result<(), String> {
 }
 fn validate_page_origin(value: &StoredPreview) -> Result<(), String> {
     let origin = value.origin.as_ref().ok_or(INVALID)?;
-    if !matches!(origin, PageOrigin::SavedPage { .. })
-        || value.provider != "savedPage"
-        || !matches!(
-            value.source_format.as_str(),
-            "savedPageHtml" | "savedPageText" | "savedPageMarkdown"
-        )
-        || value.adapter_version != super::page_preview::ADAPTER_VERSION
+    let supported = match (value.schema_version, origin) {
+        (3, PageOrigin::SavedPage { .. }) => {
+            value.provider == "savedPage"
+                && matches!(
+                    value.source_format.as_str(),
+                    "savedPageHtml" | "savedPageText" | "savedPageMarkdown"
+                )
+                && value.adapter_version == super::page_preview::ADAPTER_VERSION
+        }
+        (4, PageOrigin::SelectedUrl { .. }) => {
+            value.provider == "web"
+                && matches!(
+                    value.source_format.as_str(),
+                    "selectedUrlHtml" | "selectedUrlText" | "selectedUrlMarkdown"
+                )
+                && value.adapter_version == super::page_preview::URL_ADAPTER_VERSION
+        }
+        _ => false,
+    };
+    if !supported
         || value.resources.len() != 1
         || !(1..=super::selected_page_content::MAX_BYTES as u64)
             .contains(&value.fingerprint.byte_length)
@@ -187,7 +204,7 @@ fn validate_page_origin(value: &StoredPreview) -> Result<(), String> {
 }
 pub fn save_preview(db: &mut CorpusDatabase, value: &StoredPreview) -> Result<(), String> {
     validate(value)?;
-    if !matches!(value.schema_version, 2 | 3) {
+    if !matches!(value.schema_version, 2..=4) {
         return Err("Новые предпросмотры требуют текущую версию записи.".into());
     }
     if db.read(&value.id)?.is_some() {

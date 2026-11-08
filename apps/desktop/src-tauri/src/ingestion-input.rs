@@ -15,7 +15,10 @@ const MAX_SAFE_BYTES: u64 = 9_007_199_254_740_991;
 const STATE_ERROR: &str = "Не удалось открыть состояние выбранных источников.";
 
 #[derive(Default)]
-pub struct SelectedInputs(Mutex<HashMap<String, InputEntry>>);
+pub struct SelectedInputs {
+    files: Mutex<HashMap<String, InputEntry>>,
+    pub(crate) urls: super::url_input::UrlInputs,
+}
 struct InputEntry {
     file: File,
     origin: String,
@@ -45,11 +48,11 @@ impl SelectedInputs {
     // Only the native picker calls insert. A caller-supplied path is never resolved
     // by read; handles are random, session-scoped capabilities issued by the host.
     pub fn insert(&self, handle: String, path: &Path) -> Result<(String, u64), String> {
-        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
+        let mut files = self.files.lock().map_err(|_| STATE_ERROR)?;
         if files.len() >= MAX_SELECTIONS {
             return Err("Выбрано слишком много файлов. Освободите предыдущие источники.".into());
         }
-        if handle.is_empty() || files.contains_key(&handle) {
+        if handle.is_empty() || handle.starts_with("url:") || files.contains_key(&handle) {
             return Err("Идентификатор выбранного источника уже занят или неверен.".into());
         }
         let metadata =
@@ -102,7 +105,7 @@ impl SelectedInputs {
         handle: &str,
         action: impl FnOnce(&mut File, &str) -> Result<T, String>,
     ) -> Result<T, String> {
-        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
+        let mut files = self.files.lock().map_err(|_| STATE_ERROR)?;
         let entry = files
             .get_mut(handle)
             .ok_or("Выберите исходный файл заново.")?;
@@ -114,7 +117,7 @@ impl SelectedInputs {
         handle: &str,
         action: impl FnOnce(&mut File, &str, &str) -> Result<T, String>,
     ) -> Result<T, String> {
-        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
+        let mut files = self.files.lock().map_err(|_| STATE_ERROR)?;
         let entry = files
             .get_mut(handle)
             .ok_or("Выберите исходный файл заново.")?;
@@ -125,7 +128,10 @@ impl SelectedInputs {
         read_entry(entry, |file, origin| action(file, origin, &label))
     }
     pub fn associate_preview(&self, handle: &str, preview_id: &str) -> Result<(), String> {
-        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
+        if handle.starts_with("url:") {
+            return self.urls.associate_preview(handle, preview_id);
+        }
+        let mut files = self.files.lock().map_err(|_| STATE_ERROR)?;
         associate(&mut files, handle, preview_id, None)
     }
     /// Verification and association share the input lock. A failed verification
@@ -136,7 +142,7 @@ impl SelectedInputs {
         preview_id: &str,
         verify: impl FnOnce(&mut File, &str) -> Result<(String, T), String>,
     ) -> Result<T, String> {
-        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
+        let mut files = self.files.lock().map_err(|_| STATE_ERROR)?;
         let entry = files
             .get_mut(handle)
             .ok_or("Выберите исходный файл заново.")?;
@@ -146,18 +152,19 @@ impl SelectedInputs {
         Ok(result)
     }
     pub fn forget_preview(&self, preview_id: &str) -> Result<(), String> {
-        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
+        let mut files = self.files.lock().map_err(|_| STATE_ERROR)?;
         for entry in files.values_mut() {
             entry.previews.retain(|receipt| receipt.id != preview_id);
         }
-        Ok(())
+        drop(files);
+        self.urls.forget_preview(preview_id)
     }
     pub fn read_preview<T>(
         &self,
         preview_id: &str,
         action: impl FnOnce(&mut File, &str) -> Result<T, String>,
     ) -> Result<T, String> {
-        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
+        let mut files = self.files.lock().map_err(|_| STATE_ERROR)?;
         let entry = files
             .values_mut()
             .find(|entry| {
@@ -177,7 +184,10 @@ impl SelectedInputs {
         read_entry(entry, |file, _| action(file, &origin))
     }
     pub fn release(&self, handle: &str) -> Result<(), String> {
-        self.0.lock().map_err(|_| STATE_ERROR)?.remove(handle);
+        if handle.starts_with("url:") {
+            return self.urls.release(handle);
+        }
+        self.files.lock().map_err(|_| STATE_ERROR)?.remove(handle);
         Ok(())
     }
 }

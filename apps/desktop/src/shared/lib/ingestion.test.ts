@@ -390,3 +390,94 @@ it('cancels preparation and suppresses late results without cancelling the compl
   expect(native.invoke).toHaveBeenCalledWith('cancel_ingestion_operation', { operationId });
   expect(native.invoke).not.toHaveBeenCalledWith('cancel_ingestion_job', expect.anything());
 });
+
+it.each(['selectedUrlHtml', 'selectedUrlText', 'selectedUrlMarkdown'])(
+  'previews one explicitly selected URL as %s without sending an original or authority',
+  async (sourceFormat) => {
+    const selectedUrl = 'https://example.com/Точный?x=1#цитата';
+    const page = {
+      ...preview,
+      sourceFormat,
+      sourceHandle: `url:${sourceHandle}`,
+      resources: [
+        { id: 'pageSource:1:web:abc', label: exact, authorIds: [], estimatedDocuments: 1 },
+      ],
+    };
+    native.invoke.mockResolvedValue(page);
+    expect(await nativeIngestion.previewUrl(selectedUrl, budget)).toEqual(page);
+    expect(native.invoke).toHaveBeenCalledExactlyOnceWith('preview_ingestion_url', {
+      request: { operationId, selectedUrl, budget },
+    });
+  },
+);
+it('rejects malformed URL previews and preserves abort before IPC', async () => {
+  for (const url of [
+    '',
+    'file:///private/file',
+    'https://user:password@example.com/',
+    ' https://example.com/',
+    'https://example.com:444/',
+  ]) {
+    await expect(nativeIngestion.previewUrl(url, budget)).rejects.toThrow();
+  }
+  expect(native.invoke).not.toHaveBeenCalled();
+  await expect(
+    nativeIngestion.previewUrl(
+      'https://example.com/',
+      budget,
+      AbortSignal.abort(new Error('stopped')),
+    ),
+  ).rejects.toThrow('stopped');
+  expect(native.invoke).not.toHaveBeenCalled();
+  native.invoke.mockResolvedValue(preview);
+  await expect(nativeIngestion.previewUrl('https://example.com/', budget)).rejects.toThrow();
+});
+it.each(['aborted', 'invalid'] as const)(
+  'releases a newly fetched URL capability when delivery is %s',
+  async (mode) => {
+    const controller = new AbortController();
+    const handle = `url:${sourceHandle}`;
+    native.invoke.mockImplementation((command: string) => {
+      if (command === 'preview_ingestion_url') {
+        if (mode === 'aborted') controller.abort(new Error('stopped'));
+        return Promise.resolve({
+          ...preview,
+          sourceHandle: handle,
+          sourceFormat: mode === 'invalid' ? 'savedPageText' : 'selectedUrlText',
+          resources: [{ id: 'page:1', label: exact, authorIds: [], estimatedDocuments: 1 }],
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    await expect(
+      nativeIngestion.previewUrl('https://example.com/', budget, controller.signal),
+    ).rejects.toThrow();
+    expect(native.invoke).toHaveBeenCalledWith('release_ingestion_source', {
+      sourceHandle: handle,
+    });
+  },
+);
+it('releases URL originals when cancellation arrives after decoding but before delivery', async () => {
+  const controller = new AbortController();
+  const handle = `url:${sourceHandle}`;
+  const response = {
+    ...preview,
+    sourceHandle: handle,
+    sourceFormat: 'selectedUrlText',
+    resources: [{ id: 'page:1', label: exact, authorIds: [], estimatedDocuments: 1 }],
+  };
+  Object.defineProperty(response, 'id', {
+    enumerable: true,
+    get() {
+      queueMicrotask(() => controller.abort(new Error('late stop')));
+      return preview.id;
+    },
+  });
+  native.invoke.mockImplementation((command: string) =>
+    Promise.resolve(command === 'preview_ingestion_url' ? response : undefined),
+  );
+  await expect(
+    nativeIngestion.previewUrl('https://example.com/', budget, controller.signal),
+  ).rejects.toThrow('late stop');
+  expect(native.invoke).toHaveBeenCalledWith('release_ingestion_source', { sourceHandle: handle });
+});

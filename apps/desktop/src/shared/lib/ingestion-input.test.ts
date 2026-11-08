@@ -57,3 +57,15 @@ it.each(['', '/private/file', 'A'.repeat(31), 'A'.repeat(33), ' '.repeat(32)])(
     expect(native.invoke).not.toHaveBeenCalled();
   },
 );
+
+it('releases an opaque native URL capability without accepting an actual URL', async () => {
+  const handle = `url:${selected.sourceHandle}`;
+  native.invoke.mockResolvedValue(undefined);
+  await releaseIngestionSource(handle);
+  expect(native.invoke).toHaveBeenCalledExactlyOnceWith('release_ingestion_source', {
+    sourceHandle: handle,
+  });
+  native.invoke.mockClear();
+  await expect(releaseIngestionSource('url:https://example.com/')).rejects.toThrow();
+  expect(native.invoke).not.toHaveBeenCalled();
+});

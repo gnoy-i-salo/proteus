@@ -348,3 +348,86 @@ fn page_origin_is_part_of_receipt_identity_and_cannot_be_injected_into_legacy_re
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+fn selected_url_value() -> StoredPreview {
+    let origin = PageOrigin::SelectedUrl {
+        selected_url: "https://example.com/article#part".into(),
+        final_url: "https://www.example.com/article".into(),
+        redirects: vec!["https://www.example.com/article".into()],
+        retrieved_at: "2026-11-08T09:00:00Z".into(),
+    };
+    let doc = crate::ingestion::page_document::normalize(
+        origin.clone(),
+        "text/html".into(),
+        "<p>  Точный источник 🦉</p>".into(),
+        &mut || Ok(()),
+    )
+    .unwrap();
+    issue_page_preview(
+        origin,
+        "selectedUrlHtml".into(),
+        "selectedUrl:1:selectedPageText:1:domQuery0.28.0:html5ever0.39.0".into(),
+        InputFingerprint {
+            sha256: doc.sha256,
+            byte_length: doc.original.len() as u64,
+        },
+        vec![PreviewResource {
+            id: doc.source_key,
+            label: "Точный источник 🦉".into(),
+            author_ids: vec![],
+            estimated_documents: Some(1),
+        }],
+    )
+    .unwrap()
+}
+#[test]
+fn selected_url_preview_v4_keeps_redirect_identity_and_fetch_time_without_original_body() {
+    let (mut db, dir) = setup();
+    let page = selected_url_value();
+    assert_eq!(page.schema_version, 4);
+    assert_eq!(page.provider, "web");
+    save_preview(&mut db, &page).unwrap();
+    let original = db.read(&page.id).unwrap().unwrap();
+    assert!(original.input.documents.is_empty());
+    assert!(!original.input.state_json.contains("<p>"));
+    drop(db);
+    let mut db = CorpusDatabase::open(&dir.join("corpus.db"), &[32; 32]).unwrap();
+    assert_eq!(read_preview(&db, &page.id).unwrap(), page);
+    save_preview(&mut db, &page).unwrap();
+    assert_eq!(db.read(&page.id).unwrap().unwrap(), original);
+    assert_eq!(page_value().schema_version, 3);
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn selected_url_preview_rejects_origin_changes_downgrades_and_fabricated_authors() {
+    let (mut db, dir) = setup();
+    let page = selected_url_value();
+    save_preview(&mut db, &page).unwrap();
+    let before = db.read(&page.id).unwrap().unwrap();
+    for case in 0..7 {
+        let mut invalid = page.clone();
+        match case {
+            0 => invalid.schema_version = 3,
+            1 => invalid.origin = page_value().origin,
+            2 => invalid.provider = "savedPage".into(),
+            3 => invalid.source_format = "savedPageHtml".into(),
+            4 => invalid.adapter_version = "future".into(),
+            5 => invalid.resources[0]
+                .author_ids
+                .push("invented-author".into()),
+            _ => invalid.resources[0].estimated_documents = Some(2),
+        }
+        invalid.id = preview_id(&invalid).unwrap();
+        assert!(save_preview(&mut db, &invalid).is_err(), "case {case}");
+    }
+    let mut changed = page.clone();
+    if let Some(PageOrigin::SelectedUrl { retrieved_at, .. }) = &mut changed.origin {
+        *retrieved_at = "2026-11-08T09:01:00Z".into();
+    }
+    assert_ne!(preview_id(&changed).unwrap(), page.id);
+    assert!(save_preview(&mut db, &changed).is_err());
+    assert_eq!(db.read(&page.id).unwrap().unwrap(), before);
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}

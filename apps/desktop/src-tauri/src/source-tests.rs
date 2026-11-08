@@ -296,3 +296,6 @@ mod ingestion_search;
 
 #[path = "ingestion-page-projection-tests.rs"]
 mod page_projection_tests;
+
+#[path = "ingestion-url-preview-tests.rs"]
+mod url_preview_tests;

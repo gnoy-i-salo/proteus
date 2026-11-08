@@ -17,6 +17,8 @@ use std::{
     io::Read,
     time::{Duration, Instant},
 };
+pub const URL_ADAPTER_VERSION: &str =
+    "selectedUrl:1:selectedPageText:1:domQuery0.28.0:html5ever0.39.0";
 pub const ADAPTER_VERSION: &str = "savedPage:1:selectedPageText:1:domQuery0.28.0:html5ever0.39.0";
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

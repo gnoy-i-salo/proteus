@@ -211,3 +211,9 @@ provenance. Изменённый, перепривязанный или выда
 операции и удаление источника не обходятся успешным старым receipt. Эти операции
 не дают права на модельную обработку или экспорт. Подключение к MemoryPort и UI
 остаётся последующей интеграцией общего релиза.
+
+## Native URL preview
+
+`preview_ingestion_url` accepts one explicit URL and a bounded budget, never a caller-supplied body, origin, identity or grant. The shared public HTTP reader checks DNS and each redirect; preview limits acquisition to 4 MiB and 60 seconds (or the smaller requested budget). The canonical envelope must also fit the requested batch/expanded budget. The original, MIME, exact selected/final URL, redirects, retrieval time and digest are retained in a volatile native capability, with at most eight selections and 32 MiB of original/metadata bytes in total. Each selection permits at most 16 preview associations. Derived text is not retained in this registry.
+
+URL preview metadata uses storage version 4 (`web`, `selectedUrlHtml`/`selectedUrlText`/`selectedUrlMarkdown`); saved-page writers remain version 3. Earlier preview identities stay unchanged. Metadata includes one resource, its exact title or selected URL, original fingerprint and origin, without source body or inferred author identity. The opaque `url:` handle is released explicitly or when a late/cancelled IPC response is discarded; failed persistence releases the registry entry. Preview does not authorize model processing or export and does not claim corpus loading/indexing. The page queue's URL worker, restart/refetch flow and source-picker UI are still pending.

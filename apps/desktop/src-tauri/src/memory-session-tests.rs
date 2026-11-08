@@ -1,4 +1,6 @@
 use super::*;
+#[path = "memory-recall-tests.rs"]
+mod recall_tests;
 use crate::memory::{
     budget::RecallLimits,
     session::{MemorySession, SessionInput},
@@ -173,6 +175,37 @@ fn binding_requires_model_permission_and_failed_ids_still_consume_calls() {
         ))
         .is_err());
     drop(bound);
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn binding_cannot_return_a_session_after_its_own_deadline() {
+    let (sources, dir) = local();
+    let (op, snapshot, _) = indexed(&sources, &dir, 0);
+    enable_model(&sources, &op);
+    let operation = sources
+        .begin_ingestion_operation("memory", crate::corpus_database::JobProvider::Telegram)
+        .unwrap();
+    let clock = Cell::new(70002);
+    assert!(MemorySession::bind(
+        sources.clone(),
+        operation,
+        SessionInput {
+            job_id: "job",
+            snapshot_id: &snapshot.id,
+            persona_id: "personA",
+            period: input(&snapshot).period,
+            limits: limits(),
+        },
+        || {
+            let now = clock.get();
+            clock.set(130002);
+            now
+        }
+    )
+    .is_err());
     drop(op);
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();

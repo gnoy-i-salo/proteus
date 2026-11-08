@@ -139,26 +139,10 @@ pub fn read(
         let mut context_tokens = 0usize;
         for (chunk, entry) in chunks.iter().zip(&entries) {
             check()?;
-            let timestamp =
-                authority
-                    .adapter
-                    .selected_timestamp(&entry.original, binding, &check)?;
-            let span = &entry.chunk.spans[0];
-            if entry.episode.id != input.episode_id
-                || entry.episode.binding_id != binding.id
-                || chunk.chunk_id != entry.chunk.id
-                || chunk.text != entry.chunk.text
-                || chunk.document_id != span.document_id
-                || chunk.revision_id != span.revision_id
-                || usize::try_from(chunk.span_start).ok() != Some(span.start)
-                || usize::try_from(chunk.span_end).ok() != Some(span.end)
-                || chunk.binding_id != binding.id
-                || chunk.grant_id != binding.grant_id
-                || chunk.period_from != timestamp
-                || chunk.period_to != timestamp
-            {
+            if entry.episode.id != input.episode_id || entry.episode.binding_id != binding.id {
                 return Err("Эпизод не соответствует проверенным оригиналам.".into());
             }
+            authority.verify_reference_entry(chunk, entry, input.persona_id, &check)?;
             source_bytes = source_bytes
                 .checked_add(entry.chunk.text.len())
                 .ok_or("Превышен бюджет чтения.")?;

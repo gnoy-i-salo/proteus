@@ -12,6 +12,7 @@ struct Model<'a> {
     seen: RefCell<Vec<Vec<String>>>,
     on_call: &'a dyn Fn(usize) -> Result<(), EmbeddingError>,
     tokenizer: &'static str,
+    fingerprint: &'static str,
     short: bool,
 }
 impl<'a> Model<'a> {
@@ -20,13 +21,14 @@ impl<'a> Model<'a> {
             seen: RefCell::new(Vec::new()),
             on_call,
             tokenizer: "syntheticSearch:1",
+            fingerprint: "syntheticEmbedding:1",
             short: false,
         }
     }
 }
 impl EmbeddingModel for Model<'_> {
     fn fingerprint(&self) -> &str {
-        "syntheticEmbedding:1"
+        self.fingerprint
     }
     fn tokenizer_fingerprint(&self) -> &str {
         self.tokenizer

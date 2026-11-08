@@ -1,12 +1,12 @@
 use super::*;
 use crate::ingestion::hybrid_query::{query as hybrid_query, HybridQueryInput};
 
-struct QueryModel<'a> {
-    calls: Cell<usize>,
+pub(super) struct QueryModel<'a> {
+    pub(super) calls: Cell<usize>,
     on_call: &'a dyn Fn() -> Result<(), EmbeddingError>,
 }
 impl<'a> QueryModel<'a> {
-    fn new(on_call: &'a dyn Fn() -> Result<(), EmbeddingError>) -> Self {
+    pub(super) fn new(on_call: &'a dyn Fn() -> Result<(), EmbeddingError>) -> Self {
         Self {
             calls: Cell::new(0),
             on_call,

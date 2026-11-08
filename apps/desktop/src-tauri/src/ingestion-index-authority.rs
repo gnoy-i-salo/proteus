@@ -90,6 +90,41 @@ impl IndexAuthority {
             tokenizer_version: prepared.tokenizer_version,
         })
     }
+    pub fn verify_reference_entry(
+        &self,
+        chunk: &crate::corpus_database::search::ReferenceChunk,
+        entry: &crate::corpus_database::preparation::PreparedEntry,
+        persona_id: &str,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<(), String> {
+        check()?;
+        let binding = self
+            .bindings
+            .iter()
+            .find(|binding| {
+                binding.id == entry.episode.binding_id && binding.persona_id == persona_id
+            })
+            .ok_or("Фрагмент вне разрешённой области.")?;
+        let timestamp = self
+            .adapter
+            .selected_timestamp(&entry.original, binding, check)?;
+        let span = &entry.chunk.spans[0];
+        if chunk.chunk_id != entry.chunk.id
+            || chunk.persona_id != persona_id
+            || chunk.text != entry.chunk.text
+            || chunk.document_id != span.document_id
+            || chunk.revision_id != span.revision_id
+            || usize::try_from(chunk.span_start).ok() != Some(span.start)
+            || usize::try_from(chunk.span_end).ok() != Some(span.end)
+            || chunk.binding_id != binding.id
+            || chunk.grant_id != binding.grant_id
+            || chunk.period_from != timestamp
+            || chunk.period_to != timestamp
+        {
+            return Err("Фрагмент не соответствует проверенным оригиналам.".into());
+        }
+        Ok(())
+    }
     pub fn current(&self, db: &CorpusDatabase, now: i64, purpose: GrantUse) -> Result<(), String> {
         if read_job(db, &self.job.id)? != self.job {
             return Err("Исходная задача изменилась.".into());

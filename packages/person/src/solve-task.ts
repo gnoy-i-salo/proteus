@@ -8,7 +8,7 @@ export const personRuntime: PersonPort = {
       profile.sourceStatus === 'neutral'
         ? 'Solve the task as a neutral participant without adopting a personal identity.'
         : 'Respond in first person as the selected persona in this explicitly labeled simulation. Adopt their perspective, relationships, observed habits and manner of expression. Stay in character instead of describing what this person would say. Use supplied source-grounded background; do not invent autobiographical memories or fill gaps from assumptions about the name.';
-    const { data, trace } = await structured(
+    const { data, trace, invocationId } = await structured(
       provider,
       'PERSON',
       perspective +
@@ -31,6 +31,7 @@ export const personRuntime: PersonPort = {
       profile.sourceContext === true,
     );
     return {
+      ...(invocationId ? { invocationId } : {}),
       answer: data.messages.join('\n\n'),
       reply: { version: 2, messages: data.messages, styleConflicts: data.conflicts },
       trace: { ...trace, summary: data.summary },

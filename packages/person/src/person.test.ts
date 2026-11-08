@@ -201,3 +201,27 @@ it('versions exported style artifacts and keeps permitted exemplars exact', () =
   });
   expect(artifacts['style-exemplars.json']).not.toContain('Private source text');
 });
+
+it.each([1, 2])(
+  'preserves the creating call ID for a reply accepted on attempt %i',
+  async (accepted) => {
+    const messages = ['  Не менять\r\n🙂  ', '<tag>исходный текст</tag>'];
+    const provider: IntelligenceProvider = {
+      id: 'codex',
+      run(request) {
+        return Promise.resolve({
+          invocationId: `call-${request.formatAttempt}`,
+          answer:
+            request.formatAttempt === accepted
+              ? JSON.stringify({ messages, summary: 'Готово', styleConflicts: [] })
+              : 'invalid JSON',
+          trace: { provider: 'codex', reasoningMs: 1, terminalMs: 0, summary: '' },
+        });
+      },
+    };
+    const result = await personRuntime.solve(profile, 'Ответь', provider);
+    expect(result.invocationId).toBe(`call-${accepted}`);
+    expect(result.reply?.messages).toEqual(messages);
+    expect(result.answer).toBe(messages.join('\n\n'));
+  },
+);

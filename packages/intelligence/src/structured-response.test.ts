@@ -83,3 +83,31 @@ describe('structured model output', () => {
     expect(cancelled).toHaveBeenCalledTimes(1);
   });
 });
+
+it.each([1, 2])(
+  'retains the actual accepted call ID after %i format attempt(s)',
+  async (accepted) => {
+    const run = vi.fn<IntelligenceProvider['run']>().mockImplementation((request) =>
+      Promise.resolve({
+        answer:
+          request.formatAttempt === accepted ? '{"answer":"  exact\\r\\n🙂  "}' : 'invalid JSON',
+        invocationId: `call-${request.formatAttempt}`,
+        trace,
+      }),
+    );
+    const result = await structured(
+      { id: 'codex', run },
+      'PERSON',
+      '',
+      {},
+      undefined,
+      'high',
+      (data) => data,
+    );
+    expect(result).toMatchObject({
+      invocationId: `call-${accepted}`,
+      data: { answer: '  exact\r\n🙂  ' },
+    });
+    expect(run).toHaveBeenCalledTimes(accepted);
+  },
+);

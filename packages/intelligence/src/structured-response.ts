@@ -56,7 +56,11 @@ export async function structured<T = JsonObject>(
       status: 'accepted',
       error: null,
     });
-    return { data: value, trace: result.trace };
+    return {
+      data: value,
+      trace: result.trace,
+      ...(result.invocationId ? { invocationId: result.invocationId } : {}),
+    };
   }
   throw new Error(
     `${stage}: модель дважды вернула неподходящий формат JSON (${feedback}). Попробуйте другую модель для этого этапа в настройках.`,

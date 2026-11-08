@@ -28,7 +28,7 @@ fn snapshot_generation(connection: &Connection, snapshot_id: &str) -> Result<i64
         .map_err(sql_error)?
         .ok_or_else(|| invalid_data("Снимок корпуса не найден."))
 }
-fn purge_stage_rows(connection: &Connection, stage_id: &str) -> Result<(), String> {
+pub(super) fn purge_stage_rows(connection: &Connection, stage_id: &str) -> Result<(), String> {
     connection
         .execute(
             "DELETE FROM search_stage_fts WHERE rowid IN \

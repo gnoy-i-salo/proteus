@@ -58,6 +58,16 @@ impl SourceStore {
             // Recover once per newly opened connection, never on a later read
             // that could otherwise pause a worker running in this process.
             database.recover_interrupted_jobs()?;
+            // Native rebuilds own fresh stages and never resume them after a
+            // process restart. This connection is not exposed to workers yet.
+            // Other producers and durable publication receipts remain intact.
+            loop {
+                let abandoned = database.search_staging_ids("nativeFts:", None, 100)?;
+                if abandoned.is_empty() {
+                    break;
+                }
+                database.discard_search_staging(&abandoned)?;
+            }
             *slot = Some((directory.to_path_buf(), database));
         }
         let (owner, database) = slot.as_mut().ok_or(INVALID)?;

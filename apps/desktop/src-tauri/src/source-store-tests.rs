@@ -315,3 +315,96 @@ mod sql_recovery_tests {
         std::fs::remove_dir_all(directory).unwrap();
     }
 }
+
+#[test]
+fn startup_discards_abandoned_native_fts_stages_once_preserving_publications_and_current_work() {
+    use crate::corpus_database::{
+        search::{content_manifest, SearchStageInput},
+        RecordGeneration,
+    };
+    let (store, path) = store();
+    let directory = path.parent().unwrap();
+    let record = Record::decode_legacy(legacy()).unwrap();
+    store.write(&path, &record).unwrap();
+    let (snapshot, receipt) = store
+        .with_database(directory, |db| {
+            let saved = db.read(record_id(&path)?)?.unwrap();
+            let snapshot = db.publish(
+                "corpus:recovery",
+                "publication:recovery",
+                &[RecordGeneration {
+                    id: saved.input.id,
+                    generation: saved.generation,
+                }],
+            )?;
+            for n in 0..201 {
+                db.begin_search_stage(&SearchStageInput {
+                    stage_id: format!("nativeFts:old{n}"),
+                    snapshot_id: snapshot.id.clone(),
+                    snapshot_generation: snapshot.generation,
+                    policy_fingerprint: "policy:recovery".into(),
+                })?;
+            }
+            for id in ["foreign:stage", "nativeFts:published"] {
+                db.begin_search_stage(&SearchStageInput {
+                    stage_id: id.into(),
+                    snapshot_id: snapshot.id.clone(),
+                    snapshot_generation: snapshot.generation,
+                    policy_fingerprint: "policy:recovery".into(),
+                })?;
+            }
+            let receipt = db.commit_search_stage(
+                "nativeFts:published",
+                &content_manifest::<&str, &str>(&[]),
+                &|| Ok(()),
+            )?;
+            Ok((snapshot, receipt))
+        })
+        .unwrap();
+    // Ordinary subsequent reads do not mistake active work for a crashed worker.
+    store
+        .with_database(directory, |db| {
+            assert_eq!(db.search_staging_ids("nativeFts:", None, 100)?.len(), 100);
+            Ok(())
+        })
+        .unwrap();
+    let secrets = store.secrets.clone();
+    drop(store);
+    let reopened = SourceStore::new(secrets);
+    reopened
+        .with_database(directory, |db| {
+            assert!(db.search_staging_ids("nativeFts:", None, 100)?.is_empty());
+            assert_eq!(
+                db.search_staging_ids("foreign:", None, 100)?,
+                ["foreign:stage"]
+            );
+            assert_eq!(
+                db.commit_search_stage(
+                    "nativeFts:published",
+                    &content_manifest::<&str, &str>(&[]),
+                    &|| Ok(())
+                )?,
+                receipt
+            );
+            assert_eq!(db.snapshot(&snapshot.id)?, snapshot);
+            db.begin_search_stage(&SearchStageInput {
+                stage_id: "nativeFts:current".into(),
+                snapshot_id: snapshot.id.clone(),
+                snapshot_generation: snapshot.generation,
+                policy_fingerprint: "policy:recovery".into(),
+            })?;
+            Ok(())
+        })
+        .unwrap();
+    reopened
+        .with_database(directory, |db| {
+            assert_eq!(
+                db.search_staging_ids("nativeFts:", None, 100)?,
+                ["nativeFts:current"]
+            );
+            Ok(())
+        })
+        .unwrap();
+    drop(reopened);
+    std::fs::remove_dir_all(directory).unwrap();
+}

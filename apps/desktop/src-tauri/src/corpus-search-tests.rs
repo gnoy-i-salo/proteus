@@ -2420,3 +2420,12 @@ fn final_index_commit_guard_restores_old_rows_pointer_and_staging_after_all_writ
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+// ==== Abandoned staging recovery (proteus-tip.9) ====
+// `staging_ids`/`discard_staging` are low-level storage APIs, not an
+// authorization or abandonment authority: the trusted caller identifies
+// abandoned stage IDs and coordinates current owners. The fixtures stage
+// synthetic IDs on the shared snapshot rows.
+
+#[path = "corpus-search-recovery-tests.rs"]
+mod recovery_tests;

@@ -2,6 +2,18 @@
 use super::*;
 use crate::corpus_database::CorpusDatabase;
 impl CorpusDatabase {
+    pub fn search_staging_ids(
+        &self,
+        prefix: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, String> {
+        staging_ids(&self.connection, prefix, after, limit)
+    }
+    pub fn discard_search_staging(&mut self, ids: &[String]) -> Result<usize, String> {
+        discard_staging(&mut self.connection, ids)
+    }
+
     pub fn begin_search_stage(&mut self, input: &SearchStageInput) -> Result<(), String> {
         begin_stage(&mut self.connection, input)
     }

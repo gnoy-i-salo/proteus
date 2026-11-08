@@ -12,7 +12,9 @@
 //!   `stage_chunk`, `commit_stage`, `abort_stage`);
 //! - `read`: generation-pinned search, indexed text lookup, active
 //!   generation, old-generation pruning;
-//! - `query`: deterministic query parsing and quoted FTS5 rendering.
+//! - `query`: deterministic query parsing and quoted FTS5 rendering;
+//! - `recovery`: bounded staging discovery and transactional cleanup, with
+//!   abandonment decisions owned by the native startup lifecycle.
 //!
 //! Behavior contract:
 //! - only `reference` partition chunks are staged; holdout content fails the
@@ -60,12 +62,15 @@ mod database;
 mod query;
 #[path = "corpus-search-read.rs"]
 mod read;
+#[path = "corpus-search-recovery.rs"]
+mod recovery;
 #[path = "corpus-search-stage.rs"]
 mod stage;
 #[path = "corpus-search-types.rs"]
 mod types;
 
 pub use read::{active_generation, indexed_text, prune_generations, search};
+pub use recovery::{discard_staging, staging_ids};
 pub use stage::{abort_stage, begin_stage, commit_stage, stage_chunk};
 pub use types::{
     chunk_content_hash, content_manifest, SearchChunkInput, SearchHit, SearchIndexReceipt,

@@ -9,7 +9,7 @@ pub const MAX_TERM_BYTES: usize = 256;
 pub const MAX_TERMS: usize = 64;
 pub const MAX_LIMIT: i64 = 100;
 pub const MAX_OFFSET: i64 = 10_000;
-pub const MAX_LIST_ITEMS: usize = 64;
+pub const MAX_LIST_ITEMS: usize = super::super::job_types::MAX_JOB_BINDINGS;
 pub const MAX_ID_LEN: usize = 256;
 pub const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 /// Numbers crossing this boundary lose precision in JavaScript; serialized

@@ -31,6 +31,19 @@ impl CorpusDatabase {
     ) -> Result<SearchIndexReceipt, String> {
         stage::commit_stage_checked(&mut self.connection, id, manifest, check)
     }
+    pub fn active_search_receipt(
+        &self,
+        snapshot_id: &str,
+    ) -> Result<Option<SearchIndexReceipt>, String> {
+        active_receipt(&self.connection, snapshot_id)
+    }
+    pub fn search_corpus_with_receipt(
+        &self,
+        request: &SearchRequest,
+        expected: &SearchIndexReceipt,
+    ) -> Result<SearchResponse, String> {
+        search_with_receipt(&self.connection, request, expected)
+    }
     pub fn search_corpus(&self, request: &SearchRequest) -> Result<SearchResponse, String> {
         search(&self.connection, request)
     }

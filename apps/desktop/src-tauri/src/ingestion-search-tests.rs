@@ -346,3 +346,6 @@ fn native_index_checks_snapshot_ownership_before_starting_any_prepared_content_r
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[path = "ingestion-search-query-tests.rs"]
+mod query_tests;

@@ -197,6 +197,15 @@ impl CorpusDatabase {
         tx.commit().map_err(sql_error)?;
         Ok(result)
     }
+    pub fn prepared_snapshot_checked(
+        &self,
+        id: &str,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<PreparedSnapshot, String> {
+        read::consistent(&self.connection, |connection| {
+            read::snapshot_checked(connection, id, check)
+        })
+    }
     pub fn prepared_snapshot(&self, id: &str) -> Result<PreparedSnapshot, String> {
         read::consistent(&self.connection, |connection| {
             read::snapshot(connection, id)

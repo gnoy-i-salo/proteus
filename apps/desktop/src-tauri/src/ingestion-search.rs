@@ -173,7 +173,7 @@ fn finish_rebuild(
         },
     }
 }
-fn policy(snapshot: &PreparedSnapshot) -> Result<String, String> {
+pub(super) fn policy(snapshot: &PreparedSnapshot) -> Result<String, String> {
     let bytes = serde_json::to_vec(&(
         "nativeFts:1",
         &snapshot.split_version,

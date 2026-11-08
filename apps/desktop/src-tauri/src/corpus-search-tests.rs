@@ -2429,3 +2429,12 @@ fn final_index_commit_guard_restores_old_rows_pointer_and_staging_after_all_writ
 
 #[path = "corpus-search-recovery-tests.rs"]
 mod recovery_tests;
+
+// ==== Expected-publication receipt search (proteus-tip.9) ====
+// `active_receipt`/`search_with_receipt` bind one search to the full
+// publication identity pinned at commit time. A receipt is an identity pin,
+// never an access token: the caller-authorized scope still bounds every hit.
+// The fixtures reuse the shared private helpers above via `super`.
+
+#[path = "corpus-search-receipt-tests.rs"]
+mod receipt_tests;

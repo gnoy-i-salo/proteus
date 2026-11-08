@@ -1,5 +1,6 @@
-//! Read paths for the corpus FTS index: generation-pinned search, exact
-//! indexed text, active generation lookup, and old-generation pruning.
+//! Read paths for the corpus FTS index: generation-pinned search,
+//! receipt-pinned search, exact indexed text, active generation and active
+//! publication receipt lookup, and old-generation pruning.
 //!
 //! Every search runs inside one read snapshot (a SAVEPOINT that nests in a
 //! caller transaction): the current `snapshots` row, the active generation
@@ -8,11 +9,21 @@
 //! advanced snapshot never serves its obsolete index. Result pages are
 //! bounded and ranked by lower-is-better bm25 with deterministic chunk-id
 //! tie-breaks.
+//!
+//! A `SearchIndexReceipt` is an identity pin, never an access token:
+//! `search_with_receipt` compares the full active publication identity
+//! (snapshot id/generation, index generation, policy, content digest, chunk
+//! count, created time) inside the same pinned read snapshot before the hit
+//! query, and `active_receipt` reports the currently active full receipt,
+//! staying silent when the snapshot row is missing, unpublished or drifted.
 use super::{
     ensure_search_schema, invalid_data,
     query::{fts5_expression, parse_query, ParsedQuery},
     sql_error,
-    types::{invalid_id, validate_scope, SearchHit, SearchRequest, SearchResponse, SearchScope},
+    types::{
+        invalid_id, validate_scope, SearchHit, SearchIndexReceipt, SearchRequest, SearchResponse,
+        SearchScope, MAX_ID_LEN, MAX_JS_SAFE_INTEGER, MAX_LIMIT, MAX_OFFSET, MAX_STAGE_CHUNKS,
+    },
 };
 use rusqlite::{params, Connection, OptionalExtension, ToSql};
 
@@ -26,17 +37,60 @@ const SEARCH_SAVEPOINT: &str = "corpus_search_read";
 pub fn search(connection: &Connection, request: &SearchRequest) -> Result<SearchResponse, String> {
     ensure_search_schema(connection)?;
     validate_scope(&request.scope)?;
-    if !(1..=super::types::MAX_LIMIT).contains(&request.limit)
-        || !(0..=super::types::MAX_OFFSET).contains(&request.offset)
-    {
-        return Err(invalid_data("Недопустимые ограничения поиска."));
-    }
+    validate_page(request)?;
     let parsed = parse_query(&request.query_text)?;
+    with_search_savepoint(connection, || search_pinned(connection, request, &parsed))
+}
+
+/// Receipt-pinned search: the same scope/query/page semantics as [`search`],
+/// bound to the exact publication identity the caller expects. The full
+/// active receipt is compared before the hit query, inside the same pinned
+/// read snapshot; any drift — a rebuild, a policy change, a content/count/
+/// created-time mismatch, or a deleted/advanced snapshot — is an explicit
+/// error instead of a stale answer. The expected receipt is an identity pin,
+/// never an access token: the caller-authorized scope still bounds every
+/// hit and grants stay with the owning authority.
+pub fn search_with_receipt(
+    connection: &Connection,
+    request: &SearchRequest,
+    expected: &SearchIndexReceipt,
+) -> Result<SearchResponse, String> {
+    ensure_search_schema(connection)?;
+    validate_scope(&request.scope)?;
+    validate_page(request)?;
+    validate_receipt_identity(expected)?;
+    let parsed = parse_query(&request.query_text)?;
+    with_search_savepoint(connection, || {
+        search_with_receipt_pinned(connection, request, &parsed, expected)
+    })
+}
+
+/// The currently active full publication receipt for `snapshot_id`. Returns
+/// `None` for a missing, unpublished or generation-drifted snapshot: stale
+/// or inconsistent metadata never produces an obsolete receipt. This is an
+/// identity lookup for receipt-pinned reads, not an authorization decision.
+pub fn active_receipt(
+    connection: &Connection,
+    snapshot_id: &str,
+) -> Result<Option<SearchIndexReceipt>, String> {
+    ensure_search_schema(connection)?;
+    if invalid_id(snapshot_id) {
+        return Err(invalid_data("Недопустимый снимок корпуса."));
+    }
+    load_active_receipt(connection, snapshot_id)
+}
+
+/// Runs `body` inside the shared pinned read snapshot: on success the
+/// savepoint is released, on error the pre-search state is restored and the
+/// savepoint dropped, so a failed search never leaks an open snapshot.
+fn with_search_savepoint<T>(
+    connection: &Connection,
+    body: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
     connection
         .execute_batch(&format!("SAVEPOINT {SEARCH_SAVEPOINT}"))
         .map_err(sql_error)?;
-    let result = search_pinned(connection, request, &parsed);
-    match result {
+    match body() {
         Ok(response) => {
             connection
                 .execute_batch(&format!("RELEASE SAVEPOINT {SEARCH_SAVEPOINT}"))
@@ -53,30 +107,106 @@ pub fn search(connection: &Connection, request: &SearchRequest) -> Result<Search
         }
     }
 }
-fn search_pinned(
-    connection: &Connection,
-    request: &SearchRequest,
-    parsed: &ParsedQuery,
-) -> Result<SearchResponse, String> {
-    // The current snapshot row must exist and match the scope: a deleted or
-    // advanced snapshot never serves its obsolete index.
+
+fn validate_page(request: &SearchRequest) -> Result<(), String> {
+    if !(1..=MAX_LIMIT).contains(&request.limit) || !(0..=MAX_OFFSET).contains(&request.offset) {
+        return Err(invalid_data("Недопустимые ограничения поиска."));
+    }
+    Ok(())
+}
+
+/// The current `snapshots` row must exist and match the scope: a deleted or
+/// advanced snapshot never serves its obsolete index.
+fn check_current_snapshot(connection: &Connection, scope: &SearchScope) -> Result<(), String> {
     let current_generation: Option<i64> = connection
         .query_row(
             "SELECT generation FROM snapshots WHERE id=?1",
-            [&request.scope.snapshot_id],
+            [&scope.snapshot_id],
             |row| row.get::<_, i64>(0),
         )
         .optional()
         .map_err(sql_error)?;
     match current_generation {
-        None => return Err(invalid_data("Снимок корпуса не найден.")),
-        Some(generation) if generation != request.scope.snapshot_generation => {
-            return Err(invalid_data(
-                "Снимок корпуса изменился; обновите область поиска.",
-            ));
-        }
-        Some(_) => {}
+        None => Err(invalid_data("Снимок корпуса не найден.")),
+        Some(generation) if generation != scope.snapshot_generation => Err(invalid_data(
+            "Снимок корпуса изменился; обновите область поиска.",
+        )),
+        Some(_) => Ok(()),
     }
+}
+
+/// One-query lookup of the full active publication receipt. The active
+/// pointer, the generation row and the current `snapshots` row must all
+/// agree; a missing snapshot row, a dangling pointer or a generation drift
+/// means there is no active receipt to report or serve.
+fn load_active_receipt(
+    connection: &Connection,
+    snapshot_id: &str,
+) -> Result<Option<SearchIndexReceipt>, String> {
+    connection
+        .query_row(
+            "SELECT g.snapshot_id,g.index_generation,g.snapshot_generation,g.policy_fingerprint,\
+             g.content_sha256,g.chunk_count,g.created_at,s.generation \
+             FROM search_active a \
+             JOIN search_generations g ON g.snapshot_id=a.snapshot_id \
+             AND g.index_generation=a.index_generation \
+             JOIN snapshots s ON s.id=a.snapshot_id \
+             WHERE a.snapshot_id=?1",
+            [snapshot_id],
+            |row| {
+                let snapshot_generation = row.get::<_, i64>(2)?;
+                let current_generation = row.get::<_, i64>(7)?;
+                if current_generation != snapshot_generation {
+                    // The snapshot advanced (or its row is inconsistent):
+                    // the active publication is obsolete and must not be
+                    // reported or served.
+                    return Ok(None);
+                }
+                Ok(Some(SearchIndexReceipt {
+                    snapshot_id: row.get(0)?,
+                    snapshot_generation,
+                    index_generation: row.get(1)?,
+                    policy_fingerprint: row.get(3)?,
+                    content_sha256: row.get(4)?,
+                    chunk_count: row.get(5)?,
+                    created_at: row.get(6)?,
+                }))
+            },
+        )
+        .optional()
+        .map_err(sql_error)
+        .map(Option::flatten)
+}
+
+/// Bounded structural validation of a caller-supplied expected receipt. The
+/// identity comparison below is fail-closed on every field; this only
+/// rejects structurally unusable pins early (empty/oversized ids and
+/// strings, out-of-range numbers) so no unbounded caller input reaches SQL.
+fn validate_receipt_identity(receipt: &SearchIndexReceipt) -> Result<(), String> {
+    if invalid_id(&receipt.snapshot_id)
+        || !(1..=MAX_JS_SAFE_INTEGER).contains(&receipt.snapshot_generation)
+        || !(1..=MAX_JS_SAFE_INTEGER).contains(&receipt.index_generation)
+        || receipt.policy_fingerprint.is_empty()
+        || receipt.policy_fingerprint.len() > MAX_ID_LEN
+        || receipt.policy_fingerprint.chars().any(char::is_control)
+        || receipt.content_sha256.len() > MAX_ID_LEN
+        || receipt.content_sha256.chars().any(char::is_control)
+        || !(0..=MAX_STAGE_CHUNKS).contains(&receipt.chunk_count)
+        || receipt.created_at.is_empty()
+        || receipt.created_at.len() > MAX_ID_LEN
+        || receipt.created_at.chars().any(char::is_control)
+    {
+        return Err(invalid_data("Недопустимая квитанция поискового индекса."));
+    }
+    Ok(())
+}
+
+fn search_pinned(
+    connection: &Connection,
+    request: &SearchRequest,
+    parsed: &ParsedQuery,
+) -> Result<SearchResponse, String> {
+    check_current_snapshot(connection, &request.scope)?;
     let active = connection
         .query_row(
             "SELECT index_generation FROM search_active WHERE snapshot_id=?1",
@@ -100,13 +230,67 @@ fn search_pinned(
             "Поколение снимка изменилось; обновите область поиска.",
         ));
     }
-    let query = build_search_sql(
+    let (hits, has_more) = collect_hits(
+        connection,
         &request.scope,
         parsed,
         active,
-        request.limit + 1,
+        request.limit,
         request.offset,
-    );
+    )?;
+    Ok(SearchResponse {
+        snapshot_id: request.scope.snapshot_id.clone(),
+        snapshot_generation,
+        index_generation: active,
+        has_more,
+        hits,
+    })
+}
+
+fn search_with_receipt_pinned(
+    connection: &Connection,
+    request: &SearchRequest,
+    parsed: &ParsedQuery,
+    expected: &SearchIndexReceipt,
+) -> Result<SearchResponse, String> {
+    check_current_snapshot(connection, &request.scope)?;
+    // The full active receipt is read before the hit query, inside the same
+    // pinned snapshot: comparing after releasing the read snapshot would let
+    // a concurrent publish+prune swap the publication between the identity
+    // check and the hits.
+    let actual = load_active_receipt(connection, &request.scope.snapshot_id)?
+        .ok_or_else(|| invalid_data("Индекс для снимка корпуса не опубликован."))?;
+    if actual != *expected {
+        return Err(invalid_data(
+            "Квитанция индекса не соответствует активной публикации; обновите область поиска.",
+        ));
+    }
+    let (hits, has_more) = collect_hits(
+        connection,
+        &request.scope,
+        parsed,
+        actual.index_generation,
+        request.limit,
+        request.offset,
+    )?;
+    Ok(SearchResponse {
+        snapshot_id: actual.snapshot_id.clone(),
+        snapshot_generation: actual.snapshot_generation,
+        index_generation: actual.index_generation,
+        has_more,
+        hits,
+    })
+}
+
+fn collect_hits(
+    connection: &Connection,
+    scope: &SearchScope,
+    parsed: &ParsedQuery,
+    index_generation: i64,
+    limit: i64,
+    offset: i64,
+) -> Result<(Vec<SearchHit>, bool), String> {
+    let query = build_search_sql(scope, parsed, index_generation, limit + 1, offset);
     let mut statement = connection.prepare(&query.sql).map_err(sql_error)?;
     let mut rows = statement
         .query(rusqlite::params_from_iter(
@@ -116,7 +300,7 @@ fn search_pinned(
     let mut hits = Vec::new();
     let mut has_more = false;
     while let Some(row) = rows.next().map_err(sql_error)? {
-        if hits.len() as i64 == request.limit {
+        if hits.len() as i64 == limit {
             has_more = true;
             break;
         }
@@ -138,13 +322,7 @@ fn search_pinned(
             thread_id: row.get(14).map_err(sql_error)?,
         });
     }
-    Ok(SearchResponse {
-        snapshot_id: request.scope.snapshot_id.clone(),
-        snapshot_generation,
-        index_generation: active,
-        has_more,
-        hits,
-    })
+    Ok((hits, has_more))
 }
 
 struct ScopedQuery {

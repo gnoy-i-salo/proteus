@@ -30,6 +30,8 @@ pub mod publication;
 pub mod restore_workflow;
 #[path = "ingestion-search.rs"]
 pub mod search;
+#[path = "ingestion-search-query.rs"]
+pub mod search_query;
 #[path = "telegram-archive-json.rs"]
 pub mod telegram_archive_json;
 #[path = "telegram-document.rs"]

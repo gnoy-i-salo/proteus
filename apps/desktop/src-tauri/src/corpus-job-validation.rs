@@ -100,7 +100,7 @@ pub(super) fn validate_input(input: &JobInput) -> Result<(), String> {
             return Err(INVALID.into());
         }
     }
-    if input.selection.bindings.is_empty() || input.selection.bindings.len() > 1024 {
+    if input.selection.bindings.is_empty() || input.selection.bindings.len() > MAX_JOB_BINDINGS {
         return Err("Недопустимый выбор задачи импорта.".into());
     }
     validate_selection_size(&input.selection)?;

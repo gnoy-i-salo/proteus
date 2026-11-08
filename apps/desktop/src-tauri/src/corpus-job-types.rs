@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+/// Shared admission bound for a durable selection and its native search scope.
+pub const MAX_JOB_BINDINGS: usize = 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum JobStatus {

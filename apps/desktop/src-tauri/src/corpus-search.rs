@@ -69,7 +69,9 @@ mod stage;
 #[path = "corpus-search-types.rs"]
 mod types;
 
-pub use read::{active_generation, indexed_text, prune_generations, search};
+pub use read::{
+    active_generation, active_receipt, indexed_text, prune_generations, search, search_with_receipt,
+};
 pub use recovery::{discard_staging, staging_ids};
 pub use stage::{abort_stage, begin_stage, commit_stage, stage_chunk};
 pub use types::{

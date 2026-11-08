@@ -25,6 +25,26 @@
     gap: 4px 12px;
   }
 
+  &__quoteActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-size: var(--caption);
+  }
+
+  &__quoteAction {
+    display: flex;
+    flex: 1 1 220px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    min-width: 0;
+
+    [role='status'] {
+      color: var(--muted);
+    }
+  }
+
   p {
     margin: 6px 0;
   }

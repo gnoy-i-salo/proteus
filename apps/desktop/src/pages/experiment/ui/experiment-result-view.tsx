@@ -1,5 +1,6 @@
-import { For, Show } from 'solid-js';
+import { createSignal, For, Show } from 'solid-js';
 import type { ExperimentRunModel } from '../model/experiment-run';
+import { createReplyNavigation } from '../model/reply-navigation';
 import type { TraceNavigation } from '../model/trace-navigation';
 import { formatInterval, formatScore, reportText, sourceLabel } from './experiment-report';
 import { ResultAnalysis, ResultComparison } from './result-analysis';
@@ -18,11 +19,38 @@ export function ExperimentResultView(props: {
 }) {
   const persona = () =>
     props.selected === 2 ? props.run.result()?.control : props.run.result()?.people[props.selected];
+  const replies = createReplyNavigation({
+    person: persona,
+    personIndex: () => (props.selected === 0 || props.selected === 1 ? props.selected : 2),
+    stages: () => props.run.result()?.traces ?? [],
+  });
+  const [analysisMode, setAnalysisMode] = createSignal('summary');
+  const [analysisSelected, setAnalysisSelected] = createSignal(0);
+  const [returnTab, setReturnTab] = createSignal<string | undefined>(undefined);
+  const [callReturnPerson, setCallReturnPerson] = createSignal<string | undefined>(undefined);
   const text = () => {
     const current = persona();
     const output = props.run.result();
     if (!current || !output) return '';
     return reportText(output, current, props.detail);
+  };
+  const rememberTab = (next: string) => {
+    if (props.detail !== next) setReturnTab(props.detail);
+    props.onDetail(next);
+  };
+  const revealQuote = (target: { quote: string; round: number }) => {
+    replies.revealQuote(target);
+    rememberTab('answer');
+  };
+  const openCall = (stageId: string) => {
+    props.traces.select(stageId);
+    setCallReturnPerson(persona()?.profile.id);
+    props.onDetail('traces');
+  };
+  const returnToPriorTab = () => {
+    const target = returnTab();
+    setReturnTab(undefined);
+    props.onDetail(target ?? 'analysis');
   };
   return (
     <>
@@ -81,27 +109,54 @@ export function ExperimentResultView(props: {
                     </button>
                   )}
                 </For>
+                <Show
+                  when={
+                    props.detail === 'traces' &&
+                    callReturnPerson() !== undefined &&
+                    callReturnPerson() === persona()?.profile.id
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCallReturnPerson(undefined);
+                      props.onDetail('answer');
+                    }}
+                  >
+                    ← Вернуться к ответу
+                  </button>
+                </Show>
               </nav>
               <Show
                 when={props.detail === 'traces'}
                 fallback={
                   <Show
-                    when={
-                      props.detail === 'answer' &&
-                      persona()?.trials.some((trial) => trial.attempt?.reply)
-                    }
+                    when={props.detail === 'answer' && persona()}
                     fallback={
                       <Show
                         when={props.detail === 'analysis' && persona()}
                         fallback={<PagedText text={text()} />}
                       >
                         {(person) => (
-                          <ResultAnalysis output={props.run.result()!} person={person()} />
+                          <ResultAnalysis
+                            output={props.run.result()!}
+                            person={person()}
+                            mode={analysisMode}
+                            onMode={setAnalysisMode}
+                            selected={analysisSelected}
+                            onSelected={setAnalysisSelected}
+                            onRevealQuote={revealQuote}
+                          />
                         )}
                       </Show>
                     }
                   >
-                    <ReplyReader person={persona()!} />
+                    <ReplyReader
+                      navigation={replies}
+                      onOpenCall={openCall}
+                      onReturn={returnToPriorTab}
+                      canReturn={returnTab() !== undefined}
+                    />
                   </Show>
                 }
               >

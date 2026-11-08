@@ -1,6 +1,7 @@
-import { createSignal, For, Show } from 'solid-js';
+import { For, Show } from 'solid-js';
 import type { ExperimentPerson, ExperimentResult } from '@proteus-int/pipeline';
 import { TextWorkspace } from '../../../shared/ui/text-workspace/text-workspace';
+import { locateQuote, type QuoteLocation } from '../model/reply-navigation';
 import { formatInterval, formatScore, reportText } from './experiment-report';
 import styles from './result-analysis.module.scss';
 
@@ -11,22 +12,33 @@ const assessmentLabels = {
   unmet: 'Не выполнено',
   unknown: 'Неизвестно',
 };
+const quoteStatusLabels = (location: QuoteLocation | undefined): string => {
+  if (location?.kind === 'found') return 'Цитата найдена в опубликованном ответе';
+  if (location?.kind === 'absent') return 'Цитата не найдена в опубликованном ответе';
+  if (location?.kind === 'unavailable') return 'Ответ прогона не опубликован';
+  return '';
+};
 
 export function ResultAnalysis(props: {
   readonly output: ExperimentResult;
   readonly person: ExperimentPerson;
+  readonly mode: () => string;
+  readonly onMode: (mode: string) => void;
+  readonly selected: () => number;
+  readonly onSelected: (selected: number) => void;
+  readonly onRevealQuote: (target: { quote: string; round: number }) => void;
 }) {
-  const [mode, setMode] = createSignal('summary');
-  const [selected, setSelected] = createSignal(0);
   const entries = () =>
     props.person.trials.flatMap((trial) =>
       props.output.protocol.rubric.criteria.map((criterion) => ({ trial, criterion })),
     );
-  const entry = () => entries()[selected()] ?? entries()[0];
+  const entry = () => entries()[props.selected()] ?? entries()[0];
   const assessment = (order: number) =>
     entry()?.trial.evaluations[order]?.criteria.find(
       (item) => item.criterionId === entry()?.criterion.id,
     );
+  const locateAssessmentQuote = (quote: string | undefined) =>
+    quote ? locateQuote(entry()?.trial.attempt ?? null, quote) : undefined;
   const details = () =>
     [
       `Прогон ${entry()?.trial.round} · ${entry()?.criterion.label}`,
@@ -40,13 +52,13 @@ export function ResultAnalysis(props: {
       <nav class={styles.resultAnalysis__navigation} aria-label="Представление анализа">
         <For each={['summary', 'criteria', 'report']}>
           {(value) => (
-            <button aria-pressed={mode() === value} onClick={() => setMode(value)}>
+            <button aria-pressed={props.mode() === value} onClick={() => props.onMode(value)}>
               {{ summary: 'Сводка', criteria: 'Критерии', report: 'Полный отчёт' }[value]}
             </button>
           )}
         </For>
       </nav>
-      <Show when={mode() === 'summary'}>
+      <Show when={props.mode() === 'summary'}>
         <div class={styles.resultAnalysis__summary}>
           <p>
             Оценено {props.person.score.evaluated} из {props.person.score.planned} прогонов
@@ -61,12 +73,12 @@ export function ResultAnalysis(props: {
           </Show>
         </div>
       </Show>
-      <Show when={mode() === 'criteria'}>
+      <Show when={props.mode() === 'criteria'}>
         <label>
           Критерий и прогон
           <select
-            value={selected()}
-            onChange={(event) => setSelected(Number(event.currentTarget.value))}
+            value={props.selected()}
+            onChange={(event) => props.onSelected(Number(event.currentTarget.value))}
           >
             <For each={entries()}>
               {(item, index) => (
@@ -88,7 +100,7 @@ export function ResultAnalysis(props: {
           <tbody>
             <tr>
               <th scope="row">
-                <button aria-label="Развернуть критерий" onClick={() => setMode('details')}>
+                <button aria-label="Развернуть критерий" onClick={() => props.onMode('details')}>
                   Основания и цитаты
                 </button>
                 <small>
@@ -107,11 +119,41 @@ export function ResultAnalysis(props: {
           </tbody>
         </table>
       </Show>
-      <Show when={mode() === 'details'}>
-        <button onClick={() => setMode('criteria')}>← К матрице</button>
+      <Show when={props.mode() === 'details'}>
+        <button onClick={() => props.onMode('criteria')}>← К матрице</button>
+        <div class={styles.resultAnalysis__quoteActions}>
+          <For each={[0, 1]}>
+            {(order) => {
+              const value = () => assessment(order);
+              const location = () => locateAssessmentQuote(value()?.quote);
+              return (
+                <div class={styles.resultAnalysis__quoteAction}>
+                  <span>Порядок {order + 1}</span>
+                  <Show
+                    when={value()?.quote}
+                    fallback={<span role="status">Цитата не представлена</span>}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        props.onRevealQuote({
+                          quote: value()!.quote,
+                          round: entry()!.trial.round,
+                        })
+                      }
+                    >
+                      Показать в ответе
+                    </button>
+                    <span role="status">{quoteStatusLabels(location())}</span>
+                  </Show>
+                </div>
+              );
+            }}
+          </For>
+        </div>
         <TextWorkspace label="Основания и точные цитаты" value={details()} resetKey={details()} />
       </Show>
-      <Show when={mode() === 'report'}>
+      <Show when={props.mode() === 'report'}>
         <TextWorkspace
           label="Полный отчёт"
           value={reportText(props.output, props.person, 'analysis')}

@@ -1,0 +1,47 @@
+.replyReader {
+  &__selectors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: var(--caption);
+  }
+
+  &__selector {
+    display: flex;
+    flex: 1 1 160px;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+
+    select {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  &__quote {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 6px 8px;
+    border: 1px dashed #706789;
+    font-size: var(--caption);
+  }
+
+  &__quoteControls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__call {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 10px;
+    font-size: var(--caption);
+    color: var(--muted);
+  }
+}

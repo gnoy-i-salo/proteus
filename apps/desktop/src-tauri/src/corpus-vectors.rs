@@ -9,7 +9,13 @@
 //! the vector set. Replaying an old publication never rolls back a newer pointer.
 //! Source generation deletion cascades through schema v6. Staging cleanup,
 //! authorized reads and embedding workers are separate lifecycle responsibilities.
+#[path = "corpus-vectors-query.rs"]
+mod query;
+pub use query::search_vectors;
+#[path = "corpus-vectors-read.rs"]
+mod read;
 use super::search::SearchIndexReceipt;
+pub use read::active_receipt;
 use rusqlite::Connection;
 #[derive(Clone, Debug, PartialEq)]
 pub struct VectorStageInput {
@@ -340,6 +346,32 @@ pub fn publish_stage(
 }
 
 impl super::CorpusDatabase {
+    pub fn search_vectors(
+        &mut self,
+        scope: &super::search::SearchScope,
+        expected: &VectorReceipt,
+        query: &[f32],
+        fingerprint: &str,
+        budget: crate::local_embedding::search::SearchBudget,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<Vec<crate::local_embedding::search::SemanticHit>, String> {
+        search_vectors(
+            &mut self.connection,
+            scope,
+            expected,
+            query,
+            fingerprint,
+            budget,
+            check,
+        )
+    }
+    pub fn active_vector_receipt(
+        &mut self,
+        snapshot_id: &str,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<Option<VectorReceipt>, String> {
+        active_receipt(&mut self.connection, snapshot_id, check)
+    }
     pub fn begin_vector_stage(
         &mut self,
         input: &VectorStageInput,

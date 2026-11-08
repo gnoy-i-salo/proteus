@@ -384,3 +384,97 @@ fn redundant_source_metadata_must_agree_with_pinned_receipt() {
     db.execute("INSERT INTO vector_generations(stage_id,snapshot_id,snapshot_generation,search_generation,source_receipt_json,model_fingerprint,dimensions,created_at) VALUES(?1,'snapshot',999,1,?2,?3,2,'0')",params![input.stage_id,serde_json::to_string(&input.source).unwrap(),input.model_fingerprint]).unwrap();
     assert!(begin_stage(&mut db, &input, &ok).is_err());
 }
+
+#[test]
+fn active_vector_receipt_rejects_stale_sources_and_never_exposes_staging() {
+    let (mut db, input) = fixture();
+    assert_eq!(active_receipt(&mut db, "snapshot", &ok).unwrap(), None);
+    complete(&mut db, &input);
+    assert_eq!(active_receipt(&mut db, "snapshot", &ok).unwrap(), None);
+    let receipt = publish_stage(&mut db, &input, &ok).unwrap();
+    assert_eq!(
+        active_receipt(&mut db, "snapshot", &ok).unwrap(),
+        Some(receipt)
+    );
+    db.execute(
+        "INSERT INTO search_generations VALUES('snapshot',2,1,'policy',?1,2,'0')",
+        ["c".repeat(64)],
+    )
+    .unwrap();
+    db.execute("UPDATE search_active SET index_generation=2", [])
+        .unwrap();
+    assert_eq!(active_receipt(&mut db, "snapshot", &ok).unwrap(), None);
+    assert_eq!(active_receipt(&mut db, "absent", &ok).unwrap(), None);
+}
+#[test]
+fn receipt_cancellation_preserves_outer_transaction_and_exact_error() {
+    use std::cell::Cell;
+    let (mut db, input) = fixture();
+    complete(&mut db, &input);
+    publish_stage(&mut db, &input, &ok).unwrap();
+    db.execute_batch(
+        "BEGIN; CREATE TABLE outer_marker(value TEXT); INSERT INTO outer_marker VALUES('keep');",
+    )
+    .unwrap();
+    let calls = Cell::new(0);
+    let result = active_receipt(&mut db, "snapshot", &|| {
+        calls.set(calls.get() + 1);
+        if calls.get() == 2 {
+            Err("cancel receipt  ".into())
+        } else {
+            Ok(())
+        }
+    });
+    assert_eq!(result.unwrap_err(), "cancel receipt  ");
+    assert!(!db.is_autocommit());
+    assert_eq!(
+        db.query_row("SELECT value FROM outer_marker", [], |r| r
+            .get::<_, String>(0))
+            .unwrap(),
+        "keep"
+    );
+    db.execute_batch("ROLLBACK").unwrap();
+    assert!(db.is_autocommit());
+}
+
+#[test]
+fn incomplete_sealed_generation_is_an_error_instead_of_a_partial_index() {
+    let (mut db, input) = fixture();
+    complete(&mut db, &input);
+    publish_stage(&mut db, &input, &ok).unwrap();
+    db.execute("DELETE FROM vector_entries WHERE chunk_id='first'", [])
+        .unwrap();
+    assert!(active_receipt(&mut db, "snapshot", &ok).is_err());
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM vector_entries", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+}
+#[test]
+fn corrupt_sealed_manifest_is_rejected_without_repairing_original_metadata() {
+    let (mut db, input) = fixture();
+    complete(&mut db, &input);
+    publish_stage(&mut db, &input, &ok).unwrap();
+    // Simulate damaged storage, beyond the writer's immutable-row trigger.
+    db.execute_batch("DROP TRIGGER vector_generations_immutable")
+        .unwrap();
+    let corrupt = "z".repeat(64);
+    db.execute(
+        "UPDATE vector_generations SET content_sha256=?1",
+        [&corrupt],
+    )
+    .unwrap();
+    assert!(active_receipt(&mut db, "snapshot", &ok).is_err());
+    assert_eq!(
+        db.query_row("SELECT content_sha256 FROM vector_generations", [], |r| {
+            r.get::<_, String>(0)
+        })
+        .unwrap(),
+        corrupt
+    );
+}
+
+#[path = "corpus-vectors-query-tests.rs"]
+mod query_tests;

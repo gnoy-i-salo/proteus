@@ -47,4 +47,23 @@ impl CorpusDatabase {
     pub fn search_corpus(&self, request: &SearchRequest) -> Result<SearchResponse, String> {
         search(&self.connection, request)
     }
+    pub fn scan_reference_chunks(
+        &self,
+        scope: &SearchScope,
+        expected: &SearchIndexReceipt,
+        after: Option<&str>,
+        limit: usize,
+        max_text_bytes: usize,
+        checkpoint: &dyn Fn() -> Result<(), String>,
+    ) -> Result<ReferenceChunkPage, String> {
+        scan_reference_chunks(
+            &self.connection,
+            scope,
+            expected,
+            after,
+            limit,
+            max_text_bytes,
+            checkpoint,
+        )
+    }
 }

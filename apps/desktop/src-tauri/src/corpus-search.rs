@@ -12,6 +12,10 @@
 //!   `stage_chunk`, `commit_stage`, `abort_stage`);
 //! - `read`: generation-pinned search, indexed text lookup, active
 //!   generation, old-generation pruning;
+//! - `scope`: the shared scope-filter SQL/params builder used by every
+//!   authorized index read (FTS hits and chunk scans);
+//! - `scan`: bounded, query-independent reference-chunk enumeration with
+//!   receipt-pinned keyset pages for semantic candidate generation;
 //! - `query`: deterministic query parsing and quoted FTS5 rendering;
 //! - `recovery`: bounded staging discovery and transactional cleanup, with
 //!   abandonment decisions owned by the native startup lifecycle.
@@ -64,6 +68,10 @@ mod query;
 mod read;
 #[path = "corpus-search-recovery.rs"]
 mod recovery;
+#[path = "corpus-search-scan.rs"]
+mod scan;
+#[path = "corpus-search-scope.rs"]
+pub(in crate::corpus_database) mod scope;
 #[path = "corpus-search-stage.rs"]
 mod stage;
 #[path = "corpus-search-types.rs"]
@@ -73,7 +81,11 @@ pub use read::{
     active_generation, active_receipt, indexed_text, prune_generations, search, search_with_receipt,
 };
 pub use recovery::{discard_staging, staging_ids};
+pub use scan::{
+    scan_reference_chunks, ReferenceChunk, ReferenceChunkPage, MAX_SCAN_LIMIT, MAX_SCAN_TEXT_BYTES,
+};
 pub use stage::{abort_stage, begin_stage, commit_stage, stage_chunk};
+pub(in crate::corpus_database) use types::validate_scope;
 pub use types::{
     chunk_content_hash, content_manifest, SearchChunkInput, SearchHit, SearchIndexReceipt,
     SearchPeriod, SearchRequest, SearchResponse, SearchScope, SearchStageInput, StageManifest,

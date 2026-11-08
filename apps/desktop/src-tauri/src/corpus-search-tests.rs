@@ -2440,3 +2440,6 @@ mod recovery_tests;
 
 #[path = "corpus-search-receipt-tests.rs"]
 mod receipt_tests;
+
+#[path = "corpus-search-scan-tests.rs"]
+mod scan_tests;

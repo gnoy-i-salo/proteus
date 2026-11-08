@@ -19,6 +19,7 @@
 use super::{
     ensure_search_schema, invalid_data,
     query::{fts5_expression, parse_query, ParsedQuery},
+    scope::{build_scope_filter, slot},
     sql_error,
     types::{
         invalid_id, validate_scope, SearchHit, SearchIndexReceipt, SearchRequest, SearchResponse,
@@ -83,7 +84,7 @@ pub fn active_receipt(
 /// Runs `body` inside the shared pinned read snapshot: on success the
 /// savepoint is released, on error the pre-search state is restored and the
 /// savepoint dropped, so a failed search never leaks an open snapshot.
-fn with_search_savepoint<T>(
+pub(super) fn with_search_savepoint<T>(
     connection: &Connection,
     body: impl FnOnce() -> Result<T, String>,
 ) -> Result<T, String> {
@@ -117,7 +118,10 @@ fn validate_page(request: &SearchRequest) -> Result<(), String> {
 
 /// The current `snapshots` row must exist and match the scope: a deleted or
 /// advanced snapshot never serves its obsolete index.
-fn check_current_snapshot(connection: &Connection, scope: &SearchScope) -> Result<(), String> {
+pub(super) fn check_current_snapshot(
+    connection: &Connection,
+    scope: &SearchScope,
+) -> Result<(), String> {
     let current_generation: Option<i64> = connection
         .query_row(
             "SELECT generation FROM snapshots WHERE id=?1",
@@ -139,7 +143,7 @@ fn check_current_snapshot(connection: &Connection, scope: &SearchScope) -> Resul
 /// pointer, the generation row and the current `snapshots` row must all
 /// agree; a missing snapshot row, a dangling pointer or a generation drift
 /// means there is no active receipt to report or serve.
-fn load_active_receipt(
+pub(super) fn load_active_receipt(
     connection: &Connection,
     snapshot_id: &str,
 ) -> Result<Option<SearchIndexReceipt>, String> {
@@ -182,7 +186,7 @@ fn load_active_receipt(
 /// identity comparison below is fail-closed on every field; this only
 /// rejects structurally unusable pins early (empty/oversized ids and
 /// strings, out-of-range numbers) so no unbounded caller input reaches SQL.
-fn validate_receipt_identity(receipt: &SearchIndexReceipt) -> Result<(), String> {
+pub(super) fn validate_receipt_identity(receipt: &SearchIndexReceipt) -> Result<(), String> {
     if invalid_id(&receipt.snapshot_id)
         || !(1..=MAX_JS_SAFE_INTEGER).contains(&receipt.snapshot_generation)
         || !(1..=MAX_JS_SAFE_INTEGER).contains(&receipt.index_generation)
@@ -337,78 +341,21 @@ fn build_search_sql(
     offset: i64,
 ) -> ScopedQuery {
     let mut next = 0i64;
-    let slot = |next: &mut i64| {
-        *next += 1;
-        next.to_string()
-    };
     let match_param = slot(&mut next);
-    let snapshot_param = slot(&mut next);
-    let generation_param = slot(&mut next);
-    let persona_param = slot(&mut next);
-    let grant_clause = (0..scope.grant_ids.len())
-        .map(|_| format!("?{}", slot(&mut next)))
-        .collect::<Vec<_>>()
-        .join(",");
-    let binding_clause = (0..scope.binding_ids.len())
-        .map(|_| format!("?{}", slot(&mut next)))
-        .collect::<Vec<_>>()
-        .join(",");
-    let time_clause = match (
-        scope.period.from,
-        scope.period.to,
-        scope.period.include_undated,
-    ) {
-        (None, None, true) => String::new(),
-        (None, None, false) => " AND (c.period_from IS NOT NULL OR c.period_to IS NOT NULL)".into(),
-        (Some(_), _, _) | (_, Some(_), _) => {
-            let undated_flag = slot(&mut next);
-            let to_param = slot(&mut next);
-            let from_param = slot(&mut next);
-            format!(
-                " AND (((c.period_from IS NULL AND c.period_to IS NULL) AND ?{undated_flag}) OR \
-                 ((c.period_from IS NOT NULL OR c.period_to IS NOT NULL) AND \
-                  (c.period_from IS NULL OR ?{to_param} IS NULL OR c.period_from <= ?{to_param}) AND \
-                  (c.period_to IS NULL OR ?{from_param} IS NULL OR c.period_to >= ?{from_param})))"
-            )
-        }
-    };
+    let filter = build_scope_filter(scope, index_generation, &mut next);
     let limit_param = slot(&mut next);
     let offset_param = slot(&mut next);
+    let filter_sql = filter.sql;
     let sql = format!(
         "SELECT c.chunk_id,c.snapshot_id,c.index_generation,bm25(search_fts) AS score,c.document_id,\
          c.revision_id,c.span_start,c.span_end,c.persona_id,c.grant_id,c.binding_id,\
          c.period_from,c.period_to,c.conversation_id,c.thread_id \
          FROM search_fts JOIN search_chunks c ON c.rowid=search_fts.rowid \
-         WHERE search_fts MATCH ?{match_param} AND c.snapshot_id=?{snapshot_param} \
-         AND c.index_generation=?{generation_param} AND c.persona_id=?{persona_param} \
-         AND c.grant_id IN ({grant_clause}) AND c.binding_id IN ({binding_clause}){time_clause} \
+         WHERE search_fts MATCH ?{match_param} AND {filter_sql} \
          ORDER BY score ASC,c.chunk_id ASC LIMIT ?{limit_param} OFFSET ?{offset_param}"
     );
-    let mut values: Vec<Box<dyn ToSql>> = vec![
-        Box::new(fts5_expression(parsed)),
-        Box::new(scope.snapshot_id.clone()),
-        Box::new(index_generation),
-        Box::new(scope.persona_id.clone()),
-    ];
-    values.extend(
-        scope
-            .grant_ids
-            .iter()
-            .cloned()
-            .map(|id| Box::new(id) as Box<dyn ToSql>),
-    );
-    values.extend(
-        scope
-            .binding_ids
-            .iter()
-            .cloned()
-            .map(|id| Box::new(id) as Box<dyn ToSql>),
-    );
-    if scope.period.from.is_some() || scope.period.to.is_some() {
-        values.push(Box::new(scope.period.include_undated as i64));
-        values.push(Box::new(scope.period.to));
-        values.push(Box::new(scope.period.from));
-    }
+    let mut values: Vec<Box<dyn ToSql>> = vec![Box::new(fts5_expression(parsed))];
+    values.extend(filter.params);
     values.push(Box::new(limit));
     values.push(Box::new(offset));
     ScopedQuery {

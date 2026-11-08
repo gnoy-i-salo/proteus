@@ -139,5 +139,27 @@ Encrypted reopen tests cover interrupted staging and exact receipt replay.
 
 These storage primitives do not authorize model processing or provide retrieval.
 The native caller must check current grants before embedding and through the
-checkpoint callback. Authorized vector reads, bounded abandoned-stage cleanup,
-model management and worker/MemoryPort integration remain required release work.
+checkpoint callback. Host authorization, bounded abandoned-stage cleanup, model management and
+worker/MemoryPort integration remain required release work.
+
+## Scoped native reads
+
+Lexical search, reference-chunk enumeration and exact vector search share one
+SQL scope filter (snapshot/generation, persona, grants, bindings and period).
+Reference enumeration has no lexical query: keyset pages select at most 100
+metadata rows before fetching exact text within the remaining byte budget
+(maximum 64 MiB/page, 4 MiB/chunk). Missing or oversized stored text is an error;
+a next chunk that does not fit remains behind the returned cursor.
+
+Vector reads pin the full active vector receipt and its current FTS source in a
+read savepoint. Unfinished or stale source generations cannot serve semantic
+hits. A complete scope is applied before ranking. The SQL query streams vectors
+without sorting their blobs; deterministic cosine ordering and tie breaks belong
+to the bounded ranker. One row buffer can be dropped after each callback; a
+storage, profile, cancellation or candidate-budget error discards all partial
+hits. At most 100000 candidate IDs and 1000 result references are retained.
+
+These are native database primitives, not the production MemoryPort or a grant
+issuer. Model availability, host-owned scope, live permission rechecks, hybrid
+orchestration, bounded episode expansion and retrieval receipts still need their
+own integration and acceptance checks.

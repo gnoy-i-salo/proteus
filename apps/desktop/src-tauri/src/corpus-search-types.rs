@@ -241,7 +241,7 @@ pub(super) fn validate_chunk(chunk: &SearchChunkInput) -> Result<(), String> {
     }
     Ok(())
 }
-pub(super) fn validate_scope(scope: &SearchScope) -> Result<(), String> {
+pub(in crate::corpus_database) fn validate_scope(scope: &SearchScope) -> Result<(), String> {
     if invalid_id(&scope.snapshot_id)
         || !(1..=MAX_JS_SAFE_INTEGER).contains(&scope.snapshot_generation)
         || invalid_id(&scope.persona_id)

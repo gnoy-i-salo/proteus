@@ -239,3 +239,90 @@ fn finite_extreme_float32_values_use_float64_accumulation() {
         assert!((hits[0].cosine - 1.).abs() < 1e-12);
     }
 }
+
+#[test]
+fn stream_consumes_short_lived_row_buffers_without_retaining_vectors() {
+    let hits = search_stream(
+        &[1., 0.],
+        "model",
+        SearchBudget {
+            max_scanned: 3,
+            max_results: 2,
+        },
+        &|| Ok(()),
+        |accept| {
+            for (id, values) in [
+                ("a", vec![0., 1.]),
+                ("b", vec![1., 0.]),
+                ("c", vec![1., 1.]),
+            ] {
+                let chunk = id.to_string();
+                let document = format!("doc-{id}");
+                accept(VectorCandidate {
+                    chunk_id: &chunk,
+                    document_id: &document,
+                    fingerprint: "model",
+                    vector: &values,
+                })?;
+            }
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        hits.iter().map(|h| h.chunk_id.as_str()).collect::<Vec<_>>(),
+        vec!["b", "c"]
+    );
+}
+#[test]
+fn stream_reader_failure_discards_partial_hits_and_preserves_error() {
+    let error = search_stream(
+        &[1., 0.],
+        "model",
+        SearchBudget {
+            max_scanned: 3,
+            max_results: 2,
+        },
+        &|| Ok(()),
+        |accept| {
+            accept(VectorCandidate {
+                chunk_id: "a",
+                document_id: "doc",
+                fingerprint: "model",
+                vector: &[1., 0.],
+            })?;
+            Err("database stream failed  ".into())
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error, "database stream failed  ");
+}
+
+#[test]
+fn stream_cannot_suppress_a_rejected_row_and_return_partial_success() {
+    let result = search_stream(
+        &[1., 0.],
+        "model",
+        SearchBudget {
+            max_scanned: 3,
+            max_results: 2,
+        },
+        &|| Ok(()),
+        |accept| {
+            accept(VectorCandidate {
+                chunk_id: "a",
+                document_id: "doc",
+                fingerprint: "model",
+                vector: &[1., 0.],
+            })?;
+            let _ = accept(VectorCandidate {
+                chunk_id: "bad",
+                document_id: "doc",
+                fingerprint: "other",
+                vector: &[1., 0.],
+            });
+            Ok(())
+        },
+    );
+    assert!(result.is_err());
+}

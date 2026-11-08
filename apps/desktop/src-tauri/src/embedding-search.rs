@@ -70,6 +70,24 @@ pub fn search<'a>(
     budget: SearchBudget,
     checkpoint: &impl Fn() -> Result<(), String>,
 ) -> Result<Vec<SemanticHit>, String> {
+    search_stream(query, fingerprint, budget, checkpoint, |accept| {
+        for row in candidates {
+            accept(row)?;
+        }
+        Ok(())
+    })
+}
+
+/// The scanner lends one row at a time and propagates storage errors. Only
+/// IDs and bounded top hits are retained; row/vector buffers may be reused.
+/// The caller applies current scope before supplying candidates.
+pub fn search_stream(
+    query: &[f32],
+    fingerprint: &str,
+    budget: SearchBudget,
+    checkpoint: &impl Fn() -> Result<(), String>,
+    scan: impl FnOnce(&mut dyn FnMut(VectorCandidate<'_>) -> Result<(), String>) -> Result<(), String>,
+) -> Result<Vec<SemanticHit>, String> {
     if !(1..=100000).contains(&budget.max_scanned)
         || !(1..=1000).contains(&budget.max_results)
         || !valid_id(fingerprint)
@@ -80,11 +98,13 @@ pub fn search<'a>(
     let query_norm = norm(query)?;
     let mut seen = HashSet::new();
     let mut top = BinaryHeap::<Ranked>::new();
-    for (position, row) in candidates.into_iter().enumerate() {
+    let mut position = 0;
+    let mut consume = |row: VectorCandidate<'_>| -> Result<(), String> {
         checkpoint()?;
         if position >= budget.max_scanned {
             return Err("Превышен бюджет кандидатов векторного поиска.".into());
         }
+        position += 1;
         if row.fingerprint != fingerprint
             || row.vector.len() != query.len()
             || !valid_id(row.chunk_id)
@@ -115,7 +135,23 @@ pub fn search<'a>(
                 *worst = ranked;
             }
         }
+        Ok(())
+    };
+    let mut row_error: Option<String> = None;
+    let scanned = scan(&mut |row| {
+        if let Some(error) = &row_error {
+            return Err(error.clone());
+        }
+        let result = consume(row);
+        if let Err(error) = &result {
+            row_error = Some(error.clone());
+        }
+        result
+    });
+    if let Some(error) = row_error {
+        return Err(error);
     }
+    scanned?;
     let hits = top
         .into_sorted_vec()
         .into_iter()

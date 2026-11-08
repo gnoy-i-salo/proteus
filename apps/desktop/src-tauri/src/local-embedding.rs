@@ -2,6 +2,8 @@
 //! pinned package does not run inference.
 #[path = "local-embedding-cache.rs"]
 pub mod cache;
+#[path = "local-model-cleanup.rs"]
+pub mod cleanup;
 #[path = "local-model-commands.rs"]
 pub mod commands;
 #[path = "local-model-download.rs"]

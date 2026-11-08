@@ -103,6 +103,7 @@ impl LocalModelService {
             .maintain(operation_id, |token| -> Result<_, String> {
                 let guard = || operation_check(&self.stopped, token, started, duration, check);
                 guard()?;
+                self.recover_download(&guard)?;
                 download::install_pinned_package(
                     &self.package,
                     &self.cache_dir,
@@ -192,6 +193,14 @@ impl LocalModelService {
     fn package_bytes(&self) -> u64 {
         let package = &self.package.descriptor;
         package.weights.bytes + package.config.bytes + package.tokenizer.bytes
+    }
+    fn recover_download(&self, check: &dyn Fn() -> Result<(), String>) -> Result<(), String> {
+        super::cleanup::cleanup_interrupted_installs(&self.cache_dir, check)
+            .map(|_| ())
+            .map_err(|error| match error {
+                super::cleanup::CleanupError::Cancelled(reason) => reason,
+                _ => "Не удалось очистить временные файлы локальной модели.".into(),
+            })
     }
 }
 fn operation_check(

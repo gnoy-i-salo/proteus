@@ -63,6 +63,40 @@ fn state_describes_pins_without_creating_a_cache_or_claiming_a_loaded_runtime() 
         .to_string()
         .contains(&path.to_string_lossy().to_string()));
 }
+
+#[test]
+fn download_recovery_removes_only_owned_orphans_and_preserves_verified_names() {
+    let temp = Temp::new();
+    let cache = temp.0.join("cache");
+    let orphan = cache.join(".artifact-install-0000000000000001");
+    std::fs::create_dir_all(&orphan).unwrap();
+    std::fs::write(orphan.join("artifact"), b"partial model").unwrap();
+    let published = cache.join("a".repeat(64));
+    std::fs::write(&published, b"existing artifact").unwrap();
+    let service = LocalModelService::new(cache).unwrap();
+    service.recover_download(&|| Ok(())).unwrap();
+    assert!(!orphan.exists());
+    assert_eq!(std::fs::read(published).unwrap(), b"existing artifact");
+    assert!(!service.state().runtime_loaded);
+}
+
+#[test]
+fn download_recovery_preserves_cancellation_reason_and_hides_filesystem_details() {
+    let temp = Temp::new();
+    let path = temp.0.join("missing");
+    let service = LocalModelService::new(path.clone()).unwrap();
+    assert_eq!(
+        service
+            .recover_download(&|| Err("revoked exact".into()))
+            .unwrap_err(),
+        "revoked exact"
+    );
+    assert!(!path.exists());
+    std::fs::write(&path, b"invalid root").unwrap();
+    let reason = service.recover_download(&|| Ok(())).unwrap_err();
+    assert!(!reason.contains(&path.to_string_lossy().to_string()));
+    assert_eq!(std::fs::read(path).unwrap(), b"invalid root");
+}
 #[test]
 fn cancelled_or_invalid_operations_fail_before_cache_io_and_download_network() {
     let temp = Temp::new();

@@ -85,25 +85,19 @@ impl UrlInputs {
         action(&entries.get(handle).ok_or(MISSING)?.input)
     }
     pub fn associate_preview(&self, handle: &str, preview: &str) -> Result<(), String> {
-        if preview.is_empty() || preview.len() > 2048 {
-            return Err("Неверный идентификатор предпросмотра.".into());
-        }
         let mut entries = self.0.lock().map_err(|_| STATE_ERROR)?;
-        if entries
-            .iter()
-            .any(|(owner, entry)| owner != handle && entry.previews.iter().any(|id| id == preview))
-        {
-            return Err("Предпросмотр принадлежит другому выбранному URL.".into());
-        }
-        let entry = entries.get_mut(handle).ok_or(MISSING)?;
-        if entry.previews.iter().any(|id| id == preview) {
-            return Ok(());
-        }
-        if entry.previews.len() >= 16 {
-            return Err("Слишком много предпросмотров выбранного URL.".into());
-        }
-        entry.previews.push(preview.into());
-        Ok(())
+        associate(&mut entries, handle, preview)
+    }
+    pub(super) fn restore_checked_preview<T>(
+        &self,
+        handle: &str,
+        preview: &str,
+        verify: impl FnOnce(&UrlInput) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut entries = self.0.lock().map_err(|_| STATE_ERROR)?;
+        let result = verify(&entries.get(handle).ok_or(MISSING)?.input)?;
+        associate(&mut entries, handle, preview)?;
+        Ok(result)
     }
     pub fn read_preview<T>(
         &self,
@@ -127,6 +121,30 @@ impl UrlInputs {
         self.0.lock().map_err(|_| STATE_ERROR)?.remove(handle);
         Ok(())
     }
+}
+fn associate(
+    entries: &mut HashMap<String, Entry>,
+    handle: &str,
+    preview: &str,
+) -> Result<(), String> {
+    if preview.is_empty() || preview.len() > 2048 {
+        return Err("Неверный идентификатор предпросмотра.".into());
+    }
+    if entries
+        .iter()
+        .any(|(owner, entry)| owner != handle && entry.previews.iter().any(|id| id == preview))
+    {
+        return Err("Предпросмотр принадлежит другому выбранному URL.".into());
+    }
+    let entry = entries.get_mut(handle).ok_or(MISSING)?;
+    if entry.previews.iter().any(|id| id == preview) {
+        return Ok(());
+    }
+    if entry.previews.len() >= 16 {
+        return Err("Слишком много предпросмотров выбранного URL.".into());
+    }
+    entry.previews.push(preview.into());
+    Ok(())
 }
 #[cfg(test)]
 #[path = "ingestion-url-input-tests.rs"]

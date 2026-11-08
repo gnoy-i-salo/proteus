@@ -53,7 +53,7 @@ pub fn create(
         return Err("Идентификатор задачи не соответствует операции.".into());
     }
     operation.check()?;
-    inputs.read_preview(&request.selection.preview_id, |_, _| Ok(()))?;
+    require_input(inputs, operation.provider(), &request.selection.preview_id)?;
     sources.with_ingestion_database(operation, |db| {
         validate_selection(db, &request.selection, now_ms)?;
         let preview = super::preview_store::read_preview(db, &request.selection.preview_id)?;
@@ -105,7 +105,11 @@ pub fn restart(
 ) -> Result<(StoredJob, Operation), String> {
     let operation = sources.begin_ingestion_operation(job_id, job_provider(sources, job_id)?)?;
     let prior = inspect(sources, job_id)?;
-    inputs.read_preview(&prior.state.selection.preview_id, |_, _| Ok(()))?;
+    require_input(
+        inputs,
+        operation.provider(),
+        &prior.state.selection.preview_id,
+    )?;
     let job = sources.with_ingestion_database(&operation, |db| {
         let job = read_job(db, job_id)?;
         validate_selection(db, &job.state.selection, now_ms)?;
@@ -169,21 +173,35 @@ pub fn execute(
                 message,
                 retryable: false,
             })?;
-        inputs
-            .read_preview(&job.state.selection.preview_id, |file, origin| {
-                Ok(match adapter {
-                    Adapter::Telegram => super::telegram_worker::run_reader_outcome(
+        let result = match adapter {
+            Adapter::Telegram => {
+                inputs.read_preview(&job.state.selection.preview_id, |file, origin| {
+                    Ok(super::telegram_worker::run_reader_outcome(
                         sources, operation, &job.id, file, origin, &now_ms,
-                    ),
-                    Adapter::SavedPage => super::page_worker::run_reader_outcome(
-                        sources, operation, &job.id, file, origin, &now_ms,
-                    ),
+                    ))
                 })
-            })
-            .map_err(|message| super::worker_outcome::Failure {
-                message,
-                retryable: true,
-            })?
+            }
+            Adapter::SavedPage => {
+                inputs.read_preview(&job.state.selection.preview_id, |file, origin| {
+                    Ok(super::page_worker::run_reader_outcome(
+                        sources, operation, &job.id, file, origin, &now_ms,
+                    ))
+                })
+            }
+            Adapter::SelectedUrl => {
+                inputs
+                    .urls
+                    .read_preview(&job.state.selection.preview_id, |input| {
+                        Ok(super::page_worker::run_url_outcome(
+                            sources, operation, &job.id, input, &now_ms,
+                        ))
+                    })
+            }
+        };
+        result.map_err(|message| super::worker_outcome::Failure {
+            message,
+            retryable: true,
+        })?
     })();
     match attempt {
         Ok(job) => Ok(job),
@@ -252,4 +270,16 @@ pub fn job_provider(
         }
         Ok(Adapter::resolve(&preview)?.provider())
     })
+}
+
+fn require_input(
+    inputs: &SelectedInputs,
+    provider: crate::corpus_database::JobProvider,
+    preview: &str,
+) -> Result<(), String> {
+    if provider == crate::corpus_database::JobProvider::Web {
+        inputs.urls.read_preview(preview, |_| Ok(()))
+    } else {
+        inputs.read_preview(preview, |_, _| Ok(()))
+    }
 }

@@ -299,3 +299,5 @@ mod page_projection_tests;
 
 #[path = "ingestion-url-preview-tests.rs"]
 mod url_preview_tests;
+#[path = "ingestion-url-worker-tests.rs"]
+mod url_worker_tests;

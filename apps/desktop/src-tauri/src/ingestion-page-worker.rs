@@ -1,4 +1,4 @@
-//! One bounded saved page. Only a fully verified original can enter a published
+//! One bounded selected URL or saved page. Only a fully verified original can enter a published
 //! snapshot; authority checkpoints remain resumable without retaining source paths.
 use super::{
     adapter::{content_type, Adapter},
@@ -10,8 +10,7 @@ use super::{
 };
 use crate::{
     corpus_database::{
-        JobBatch, JobCheckpoint, JobPhase, JobProvider, JobStatus, RecordInput, RevisionInput,
-        StoredJob,
+        JobBatch, JobCheckpoint, JobPhase, JobStatus, RecordInput, RevisionInput, StoredJob,
     },
     sources::Sources,
 };
@@ -53,7 +52,7 @@ pub fn run_reader_outcome<R: Read>(
             reader,
             failed: &failed,
         },
-        origin,
+        Original::Saved(origin),
         now_ms,
     )
     .map_err(|message| Failure {
@@ -61,36 +60,70 @@ pub fn run_reader_outcome<R: Read>(
         message,
     })
 }
+enum Original<'a> {
+    Saved(&'a str),
+    Url(&'a super::url_input::UrlInput),
+}
+pub fn run_url_outcome(
+    sources: &Sources,
+    operation: &Operation,
+    job_id: &str,
+    input: &super::url_input::UrlInput,
+    now_ms: impl Fn() -> i64,
+) -> Result<StoredJob, Failure> {
+    acquire(
+        sources,
+        operation,
+        job_id,
+        std::io::Cursor::new(input.original.as_bytes()),
+        Original::Url(input),
+        now_ms,
+    )
+    .map_err(|message| Failure {
+        retryable: message == crate::corpus_database::STORAGE_ERROR,
+        message,
+    })
+}
+fn validate_original(preview: &StoredPreview, original: &Original<'_>) -> Result<(), String> {
+    let valid = match (preview.origin.as_ref(), original) {
+        (Some(PageOrigin::SavedPage { source_origin, .. }), Original::Saved(actual)) => {
+            source_origin == actual
+        }
+        (Some(expected), Original::Url(input)) => {
+            super::page_source::same_url_location(expected, &input.origin)
+                && input.content_type == content_type(preview)?
+                && input.sha256 == preview.fingerprint.sha256
+        }
+        _ => false,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(INVALID.into())
+    }
+}
 fn acquire<R: Read>(
     sources: &Sources,
     operation: &Operation,
     job_id: &str,
     reader: R,
-    origin: &str,
+    original: Original<'_>,
     now_ms: impl Fn() -> i64,
 ) -> Result<StoredJob, String> {
     let (job, preview) = sources.with_ingestion_database(operation, |db| {
         let job = super::job_workflow::read_job(db, job_id)?;
         super::job_workflow::validate_selection(db, &job.state.selection, now_ms())?;
         let preview = read_preview(db, &job.state.selection.preview_id)?;
-        if Adapter::resolve(&preview)?.provider() != JobProvider::SavedPage
-            || operation.provider() != JobProvider::SavedPage
+        let adapter = Adapter::resolve(&preview)?;
+        if !matches!(adapter, Adapter::SavedPage | Adapter::SelectedUrl)
+            || adapter.provider() != operation.provider()
             || job.state.checkpoint.adapter_version != preview.adapter_version
         {
             return Err(INVALID.into());
         }
         Ok((job, preview))
     })?;
-    let Some(PageOrigin::SavedPage {
-        source_origin,
-        label,
-    }) = &preview.origin
-    else {
-        return Err(INVALID.into());
-    };
-    if origin != source_origin {
-        return Err(INVALID.into());
-    }
+    validate_original(&preview, &original)?;
     let cursor = match job.state.checkpoint.cursor.as_deref() {
         Some(value) => serde_json::from_str::<Cursor>(value).map_err(|_| INVALID)?,
         None if job.state.checkpoint.committed_batch == 0 => Cursor {
@@ -128,10 +161,9 @@ fn acquire<R: Read>(
         session.cursor.attached_authorities += 1;
         session.commit(vec![id], 0, 0, false)?;
     }
-    let document = super::page_preview::read_saved(
+    let document = super::page_preview::read_page(
         reader,
-        source_origin,
-        label,
+        preview.origin.clone().ok_or(INVALID)?,
         content_type(&preview)?,
         &session.job.state.budget,
         operation,
@@ -272,8 +304,8 @@ fn record(
 ) -> Result<RecordInput, String> {
     Ok(RecordInput {
         id: format!("pageImport:{:x}", Sha256::digest(job.id.as_bytes())),
-        kind: "import".into(), provider: "savedPage".into(),
-        state_json: serde_json::to_string(&serde_json::json!({"schemaVersion":1,"codec":"savedPageBatch:1","previewId":preview.id})).map_err(|_| INVALID)?,
+        kind: "import".into(), provider: preview.provider.clone(),
+        state_json: serde_json::to_string(&serde_json::json!({"schemaVersion":1,"codec":if preview.provider == "web" { "selectedUrlBatch:1" } else { "savedPageBatch:1" },"previewId":preview.id})).map_err(|_| INVALID)?,
         documents: vec![RevisionInput {
             source_key: document.source_key.clone(), document_id: document.id.clone(),
             document_json: serde_json::to_string(&document).map_err(|_| INVALID)?,
@@ -287,6 +319,18 @@ pub(super) fn restore_origin(
     preview: &StoredPreview,
     now: i64,
 ) -> Result<String, String> {
+    validate_restore(job, preview, now)?;
+    match &preview.origin {
+        Some(PageOrigin::SavedPage { source_origin, .. }) => Ok(source_origin.clone()),
+        _ => Err(INVALID.into()),
+    }
+}
+
+pub(super) fn validate_restore(
+    job: &StoredJob,
+    preview: &StoredPreview,
+    now: i64,
+) -> Result<(), String> {
     if job.state.checkpoint.adapter_version != preview.adapter_version {
         return Err(INVALID.into());
     }
@@ -299,10 +343,7 @@ pub(super) fn restore_origin(
     } else if job.state.checkpoint.committed_batch != 0 {
         return Err(INVALID.into());
     }
-    match &preview.origin {
-        Some(PageOrigin::SavedPage { source_origin, .. }) => Ok(source_origin.clone()),
-        _ => Err(INVALID.into()),
-    }
+    Ok(())
 }
 
 pub(super) fn completed(job: &StoredJob, preview: &StoredPreview, now: i64) -> Result<(), String> {

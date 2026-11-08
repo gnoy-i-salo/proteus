@@ -114,6 +114,26 @@ pub(super) fn read_saved<R: Read>(
     operation: &Operation,
     check: &mut impl FnMut() -> Result<(), String>,
 ) -> Result<PageDocument, String> {
+    read_page(
+        reader,
+        PageOrigin::SavedPage {
+            source_origin: origin.into(),
+            label: label.into(),
+        },
+        content_type,
+        budget,
+        operation,
+        check,
+    )
+}
+pub(super) fn read_page<R: Read>(
+    reader: R,
+    origin: PageOrigin,
+    content_type: &str,
+    budget: &JobBudget,
+    operation: &Operation,
+    check: &mut impl FnMut() -> Result<(), String>,
+) -> Result<PageDocument, String> {
     check()?;
     let mut reader = FingerprintReader::new(
         reader,
@@ -137,15 +157,7 @@ pub(super) fn read_saved<R: Read>(
     let fingerprint = reader.finish().map_err(|error| error.to_string())?;
     let original =
         String::from_utf8(bytes).map_err(|_| "Сохранённая страница должна быть в UTF-8.")?;
-    let document = normalize(
-        PageOrigin::SavedPage {
-            source_origin: origin.into(),
-            label: label.into(),
-        },
-        content_type.into(),
-        original,
-        check,
-    )?;
+    let document = normalize(origin, content_type.into(), original, check)?;
     if document.sha256 != fingerprint.sha256
         || encoded_size(&document)? as u64 > budget.max_batch_bytes as u64
     {

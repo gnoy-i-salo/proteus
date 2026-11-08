@@ -90,7 +90,7 @@ pub(super) fn project_checked(
         CompletedAdapter::Telegram { version, origin } => {
             project_telegram(*version, origin, &job, originals, &check)?
         }
-        CompletedAdapter::SavedPage(preview) => {
+        CompletedAdapter::Page(preview) => {
             super::page_source::project(&job, preview, originals, &check)?
         }
     };

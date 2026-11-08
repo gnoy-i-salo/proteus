@@ -1,7 +1,7 @@
-//! Saved-page semantics shared by acquisition, episode projection and indexing.
+//! Page semantics shared by acquisition, episode projection and indexing.
 //! Callers authorize the source before asking this codec to inspect original bytes.
 use super::{
-    page_document::{self, PageDocument},
+    page_document::{self, PageDocument, PageOrigin},
     preview_store::StoredPreview,
 };
 use crate::corpus_database::{
@@ -12,7 +12,11 @@ use sha2::{Digest, Sha256};
 const INVALID: &str = "Сохранённая ревизия страницы не соответствует проверенному исходнику.";
 pub(super) fn provenance(preview: &StoredPreview, bytes: u64) -> SourceProvenance {
     SourceProvenance {
-        acquisition: Acquisition::SavedPage,
+        acquisition: if matches!(preview.origin, Some(PageOrigin::SelectedUrl { .. })) {
+            Acquisition::SelectedUrl
+        } else {
+            Acquisition::SavedPage
+        },
         adapter_version: preview.adapter_version.clone(),
         source_format: preview.source_format.clone(),
         original_object_id: None,
@@ -134,3 +138,25 @@ pub(super) fn project(
 #[cfg(test)]
 #[path = "ingestion-page-source-tests.rs"]
 mod tests;
+
+/// Restoring the same verified original can have a newer acquisition time. Every
+/// address and redirect must still match; the immutable preview owns its old time.
+pub(super) fn same_url_location(expected: &PageOrigin, actual: &PageOrigin) -> bool {
+    match (expected, actual) {
+        (
+            PageOrigin::SelectedUrl {
+                selected_url: a,
+                final_url: b,
+                redirects: c,
+                ..
+            },
+            PageOrigin::SelectedUrl {
+                selected_url: x,
+                final_url: y,
+                redirects: z,
+                ..
+            },
+        ) => a == x && b == y && c == z,
+        _ => false,
+    }
+}

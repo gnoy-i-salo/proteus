@@ -27,6 +27,12 @@ pub fn restore(
         }
         Ok((job, preview))
     })?;
+    if matches!(
+        super::adapter::Adapter::resolve(&preview)?,
+        super::adapter::Adapter::SelectedUrl
+    ) {
+        return restore_url(sources, inputs, operation, &request, &job, &preview, now_ms);
+    }
     let saved_origin = restore_origin(&job, &preview, now_ms())?;
     // Input -> database is the same lock order as acquisition. Never reopen a
     // persisted path; only the freshly selected native capability supplies bytes.
@@ -96,5 +102,47 @@ fn restore_origin(
         super::adapter::Adapter::SavedPage => {
             super::page_worker::restore_origin(job, preview, now).map(Some)
         }
+        super::adapter::Adapter::SelectedUrl => {
+            super::page_worker::validate_restore(job, preview, now)?;
+            Ok(None)
+        }
     }
+}
+
+fn restore_url(
+    sources: &Sources,
+    inputs: &SelectedInputs,
+    operation: &Operation,
+    request: &RestoreRequest,
+    job: &StoredJob,
+    preview: &super::preview_store::StoredPreview,
+    now_ms: impl Fn() -> i64,
+) -> Result<StoredJob, String> {
+    super::page_worker::validate_restore(job, preview, now_ms())?;
+    inputs
+        .urls
+        .restore_checked_preview(&request.source_handle, &preview.id, |input| {
+            operation.check()?;
+            if !preview
+                .origin
+                .as_ref()
+                .is_some_and(|origin| super::page_source::same_url_location(origin, &input.origin))
+                || input.sha256 != preview.fingerprint.sha256
+                || input.original.len() as u64 != preview.fingerprint.byte_length
+                || input.content_type != super::adapter::content_type(preview)?
+            {
+                return Err(
+                    "Повторно выбранная страница не соответствует исходному URL задачи.".into(),
+                );
+            }
+            sources.with_ingestion_database(operation, |db| {
+                let current = super::job_workflow::read_job(db, &request.job_id)?;
+                if &current != job {
+                    return Err("Состояние импорта изменилось. Повторите выбор источника.".into());
+                }
+                validate(db, &current, now_ms())?;
+                super::page_worker::validate_restore(&current, preview, now_ms())?;
+                Ok(current)
+            })
+        })
 }

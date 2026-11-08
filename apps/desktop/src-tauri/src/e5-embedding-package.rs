@@ -119,6 +119,29 @@ pub fn cache_descriptor() -> Result<ModelPackageDescriptor, EmbeddingError> {
         .map_err(|_| EmbeddingError::Unavailable(UnavailableReason::UnsupportedRuntime))?;
     descriptor(model, tokenizer)
 }
+/// Checked public download identity: the validated modelId/revision plus the
+/// exact same three artifact pins [`cache_descriptor`] trusts. This is the
+/// only package identity the bounded download transport accepts; the native
+/// transport re-validates it structurally before deriving fixed URLs.
+#[derive(Clone, Debug)]
+pub struct DownloadDescriptor {
+    pub model_id: String,
+    pub revision: String,
+    pub descriptor: ModelPackageDescriptor,
+}
+pub fn download_descriptor() -> Result<DownloadDescriptor, EmbeddingError> {
+    let model = pin()?;
+    let model_id = model.model_id.clone();
+    let revision = model.revision.clone();
+    let tokenizer = crate::local_embedding::tokenizer::package::pin()
+        .map_err(|_| EmbeddingError::Unavailable(UnavailableReason::UnsupportedRuntime))?;
+    let descriptor = descriptor(model, tokenizer)?;
+    Ok(DownloadDescriptor {
+        model_id,
+        revision,
+        descriptor,
+    })
+}
 fn descriptor(
     model: ModelPin,
     tokenizer: crate::local_embedding::tokenizer::package::TokenizerPin,
@@ -169,5 +192,17 @@ mod cache_tests {
                 ))
             );
         }
+    }
+    #[test]
+    fn download_descriptor_uses_exactly_the_same_pins_as_cache_descriptor() {
+        let download = download_descriptor().unwrap();
+        let cache = cache_descriptor().unwrap();
+        assert_eq!(download.model_id, "intfloat/multilingual-e5-small");
+        assert_eq!(download.revision.len(), 40);
+        assert!(download
+            .revision
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit()));
+        assert_eq!(download.descriptor, cache);
     }
 }

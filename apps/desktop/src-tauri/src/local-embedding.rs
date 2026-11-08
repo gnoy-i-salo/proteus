@@ -1,6 +1,9 @@
-//! Local model adapters. Loading the pinned tokenizer does not run inference.
+//! Local model adapters. Loading the pinned tokenizer or downloading the
+//! pinned package does not run inference.
 #[path = "local-embedding-cache.rs"]
 pub mod cache;
+#[path = "local-model-download.rs"]
+pub mod download;
 #[path = "local-model-manager.rs"]
 pub mod manager;
 #[path = "embedding-model.rs"]

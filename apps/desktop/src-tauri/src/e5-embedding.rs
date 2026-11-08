@@ -6,7 +6,7 @@ mod batch;
 mod math;
 #[path = "e5-embedding-package.rs"]
 mod package;
-pub use package::{cache_descriptor, ModelFiles};
+pub use package::{cache_descriptor, download_descriptor, DownloadDescriptor, ModelFiles};
 use std::time::{Duration, Instant};
 pub const RESIDENT_RESERVATION_BYTES: u64 = 1536 * 1024 * 1024;
 pub const MAX_BATCH_ITEMS: usize = 8;

@@ -2,7 +2,7 @@
 use dom_query::{Document, NodeRef};
 use html5ever::tendril::TendrilSink;
 pub const EXTRACTOR_VERSION: &str = "selectedPageText:1:domQuery0.28.0:html5ever0.39.0";
-const MAX_BYTES: usize = 4 * 1024 * 1024;
+pub(super) const MAX_BYTES: usize = 4 * 1024 * 1024;
 const LIMIT: &str = "Страница превышает ограничения разбора текста.";
 #[derive(Debug, PartialEq, Eq)]
 pub struct PageContent {

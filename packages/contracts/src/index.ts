@@ -91,6 +91,7 @@ export type {
   IngestionPreview,
   IngestionJob,
   IngestionPort,
+  SavedPageContentType,
   CorpusPreparationPort,
 } from './ingestion';
 export type {

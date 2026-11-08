@@ -4,6 +4,7 @@ fn value() -> StoredPreview {
     let v = StoredPreview {
         schema_version: 1,
         id: "preview:one".into(),
+        origin: None,
         provider: "telegram".into(),
         source_format: "telegramDesktopJson".into(),
         adapter_version: "telegramDesktopJson:1".into(),
@@ -98,7 +99,7 @@ fn malformed_versions_fingerprints_and_resource_author_metadata_fail_without_wri
     for kind in 0..7 {
         let mut v = value();
         match kind {
-            0 => v.schema_version = 3,
+            0 => v.schema_version = 4,
             1 => v.fingerprint.sha256 = "notHash".into(),
             2 => v.fingerprint.byte_length = 9_007_199_254_740_992,
             3 => v.resources.push(v.resources[0].clone()),
@@ -119,7 +120,7 @@ fn stored_codec_rejects_unknown_versions_fields_and_mismatched_provider_without_
         let v = value();
         let mut json = serde_json::to_value(&v).unwrap();
         match mutation {
-            0 => json["schemaVersion"] = serde_json::json!(3),
+            0 => json["schemaVersion"] = serde_json::json!(4),
             1 => json["sourceHandle"] = serde_json::json!("not-persisted"),
             _ => json["provider"] = serde_json::json!("vk"),
         };
@@ -208,6 +209,142 @@ fn legacy_preview_is_read_only_and_its_exact_saved_bytes_are_not_migrated_in_pla
     assert_eq!(read_preview(&db, &legacy.id).unwrap(), legacy);
     assert!(save_preview(&mut db, &legacy).is_err());
     assert_eq!(db.read(&legacy.id).unwrap().unwrap(), before);
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn literal_v2_preview_keeps_exact_bytes_and_generation_when_read_or_retried() {
+    let (mut db, dir) = setup();
+    let raw = include_str!("fixtures/ingestion-preview-v2.json");
+    let legacy: StoredPreview = serde_json::from_str(raw).unwrap();
+    assert_eq!(legacy.schema_version, 2);
+    assert!(legacy.origin.is_none());
+    db.save_ingestion(&RecordInput {
+        id: legacy.id.clone(),
+        kind: "import".into(),
+        provider: legacy.provider.clone(),
+        state_json: raw.into(),
+        documents: vec![],
+    })
+    .unwrap();
+    let before = db.read(&legacy.id).unwrap().unwrap();
+    assert_eq!(read_preview(&db, &legacy.id).unwrap(), legacy);
+    save_preview(&mut db, &legacy).unwrap();
+    assert_eq!(db.read(&legacy.id).unwrap().unwrap(), before);
+    assert!(!serde_json::to_value(&legacy)
+        .unwrap()
+        .as_object()
+        .unwrap()
+        .contains_key("origin"));
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn page_metadata_rejects_mismatched_origin_format_identity_and_invented_authors() {
+    let (mut db, dir) = setup();
+    for case in 0..7 {
+        let mut page = page_value();
+        match case {
+            0 => page.origin = None,
+            1 => page.provider = "telegram".into(),
+            2 => page.source_format = "unknown".into(),
+            3 => page.adapter_version = "future".into(),
+            4 => page.resources[0].author_ids.push("invented".into()),
+            5 => page.resources[0].id = "other-page".into(),
+            _ => page.resources[0].estimated_documents = Some(2),
+        }
+        page.id = preview_id(&page).unwrap();
+        assert!(save_preview(&mut db, &page).is_err(), "case {case}");
+        assert!(db.read(&page.id).unwrap().is_none());
+    }
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+fn page_value() -> StoredPreview {
+    let origin = PageOrigin::SavedPage {
+        source_origin: format!("localArchivePath:1:sha256:{}", "a".repeat(64)),
+        label: "  Сохранённое имя 🦉\r\n.txt".into(),
+    };
+    let doc = crate::ingestion::page_document::normalize(
+        origin.clone(),
+        "text/plain".into(),
+        "abc".into(),
+        &mut || Ok(()),
+    )
+    .unwrap();
+    issue_page_preview(
+        origin,
+        "savedPageText".into(),
+        crate::ingestion::page_preview::ADAPTER_VERSION.into(),
+        InputFingerprint {
+            sha256: doc.sha256,
+            byte_length: 3,
+        },
+        vec![PreviewResource {
+            id: doc.source_key,
+            label: "  Сохранённое имя 🦉\r\n.txt".into(),
+            author_ids: vec![],
+            estimated_documents: Some(1),
+        }],
+    )
+    .unwrap()
+}
+#[test]
+fn page_preview_v3_retains_native_origin_and_original_label_after_restart() {
+    let (mut db, dir) = setup();
+    let page = page_value();
+    assert_eq!(page.schema_version, 3);
+    assert!(matches!(page.origin, Some(PageOrigin::SavedPage { .. })));
+    save_preview(&mut db, &page).unwrap();
+    let before = db.read(&page.id).unwrap().unwrap();
+    drop(db);
+    let mut db = CorpusDatabase::open(&dir.join("corpus.db"), &[32; 32]).unwrap();
+    assert_eq!(read_preview(&db, &page.id).unwrap(), page);
+    save_preview(&mut db, &page).unwrap();
+    assert_eq!(db.read(&page.id).unwrap().unwrap(), before);
+    assert!(before.input.documents.is_empty());
+    assert!(!before.input.state_json.contains("source_origin"));
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn legacy_preview_rejects_even_null_origin_without_modifying_its_record() {
+    let (mut db, dir) = setup();
+    let old = value();
+    let mut raw = serde_json::to_value(&old).unwrap();
+    raw["origin"] = serde_json::Value::Null;
+    let input = RecordInput {
+        id: old.id.clone(),
+        kind: "import".into(),
+        provider: old.provider.clone(),
+        state_json: raw.to_string(),
+        documents: vec![],
+    };
+    db.save_ingestion(&input).unwrap();
+    assert!(read_preview(&db, &old.id).is_err());
+    assert_eq!(db.read(&old.id).unwrap().unwrap().input, input);
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn page_origin_is_part_of_receipt_identity_and_cannot_be_injected_into_legacy_records() {
+    let (mut db, dir) = setup();
+    let page = page_value();
+    save_preview(&mut db, &page).unwrap();
+    let mut tampered = page.clone();
+    tampered.origin = Some(PageOrigin::SavedPage {
+        source_origin: format!("localArchivePath:1:sha256:{}", "b".repeat(64)),
+        label: "forged".into(),
+    });
+    assert_ne!(preview_id(&tampered).unwrap(), page.id);
+    assert!(save_preview(&mut db, &tampered).is_err());
+    assert_eq!(read_preview(&db, &page.id).unwrap(), page);
+    let mut old = value();
+    old.origin = tampered.origin;
+    old.id = preview_id(&old).unwrap();
+    assert!(save_preview(&mut db, &old).is_err());
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }

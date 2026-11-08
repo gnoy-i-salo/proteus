@@ -1,3 +1,4 @@
+use super::page_document::PageOrigin;
 use super::{fingerprint::InputFingerprint, preview::PreviewResource};
 use crate::corpus_database::{CorpusDatabase, RecordInput, RecordNamespace};
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,8 @@ pub struct StoredPreview {
     pub adapter_version: String,
     pub fingerprint: InputFingerprint,
     pub resources: Vec<PreviewResource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<PageOrigin>,
 }
 const INVALID: &str = "Предпросмотр повреждён или не поддерживается.";
 const MAX_BYTES: usize = 32 * 1024 * 1024;
@@ -37,7 +40,28 @@ pub fn issue_preview(
         adapter_version,
         fingerprint,
         resources,
+        origin: None,
     };
+    value.id = preview_id(&value)?;
+    validate(&value)?;
+    Ok(value)
+}
+pub fn issue_page_preview(
+    origin: PageOrigin,
+    source_format: String,
+    adapter_version: String,
+    fingerprint: InputFingerprint,
+    resources: Vec<PreviewResource>,
+) -> Result<StoredPreview, String> {
+    let mut value = issue_preview(
+        "savedPage".into(),
+        source_format,
+        adapter_version,
+        fingerprint,
+        resources,
+    )?;
+    value.schema_version = 3;
+    value.origin = Some(origin);
     value.id = preview_id(&value)?;
     validate(&value)?;
     Ok(value)
@@ -54,7 +78,7 @@ pub fn preview_id(value: &StoredPreview) -> Result<String, String> {
     match value.schema_version {
         // Keep the exact v1 hash algorithm and stored bytes for old checkpoints.
         1 => Ok(format!("preview:{:x}", Sha256::digest(encode(&content)?))),
-        2 => {
+        2 | 3 => {
             let nonce = value
                 .id
                 .strip_prefix("preview:")
@@ -67,16 +91,18 @@ pub fn preview_id(value: &StoredPreview) -> Result<String, String> {
                             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
                 })
                 .ok_or(INVALID)?;
-            Ok(format!(
-                "preview:{nonce}:{:x}",
-                Sha256::digest(encode(&(nonce, content))?)
-            ))
+            let bytes = if value.schema_version == 3 {
+                encode(&(nonce, content, &value.origin))?
+            } else {
+                encode(&(nonce, content))?
+            };
+            Ok(format!("preview:{nonce}:{:x}", Sha256::digest(bytes)))
         }
         _ => Err(INVALID.into()),
     }
 }
 fn validate(value: &StoredPreview) -> Result<(), String> {
-    if !matches!(value.schema_version, 1 | 2)
+    if !matches!(value.schema_version, 1..=3)
         || !matches!(
             value.provider.as_str(),
             "telegram" | "vk" | "github" | "instagram" | "web" | "savedPage"
@@ -94,6 +120,11 @@ fn validate(value: &StoredPreview) -> Result<(), String> {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         || value.resources.len() > 512
     {
+        return Err(INVALID.into());
+    }
+    if value.schema_version == 3 {
+        validate_page_origin(value)?;
+    } else if value.origin.is_some() {
         return Err(INVALID.into());
     }
     let mut ids = HashSet::new();
@@ -130,9 +161,33 @@ fn validate(value: &StoredPreview) -> Result<(), String> {
     }
     Ok(())
 }
+fn validate_page_origin(value: &StoredPreview) -> Result<(), String> {
+    let origin = value.origin.as_ref().ok_or(INVALID)?;
+    if !matches!(origin, PageOrigin::SavedPage { .. })
+        || value.provider != "savedPage"
+        || !matches!(
+            value.source_format.as_str(),
+            "savedPageHtml" | "savedPageText" | "savedPageMarkdown"
+        )
+        || value.adapter_version != super::page_preview::ADAPTER_VERSION
+        || value.resources.len() != 1
+        || !(1..=super::selected_page_content::MAX_BYTES as u64)
+            .contains(&value.fingerprint.byte_length)
+    {
+        return Err(INVALID.into());
+    }
+    let resource = &value.resources[0];
+    if resource.id != super::page_document::source_key(origin)?
+        || !resource.author_ids.is_empty()
+        || resource.estimated_documents != Some(1)
+    {
+        return Err(INVALID.into());
+    }
+    Ok(())
+}
 pub fn save_preview(db: &mut CorpusDatabase, value: &StoredPreview) -> Result<(), String> {
     validate(value)?;
-    if value.schema_version != 2 {
+    if !matches!(value.schema_version, 2 | 3) {
         return Err("Новые предпросмотры требуют текущую версию записи.".into());
     }
     if db.read(&value.id)?.is_some() {
@@ -166,6 +221,14 @@ pub fn read_preview(db: &CorpusDatabase, id: &str) -> Result<StoredPreview, Stri
     }
     let value: StoredPreview =
         serde_json::from_str(&stored.input.state_json).map_err(|_| INVALID)?;
+    if value.schema_version < 3
+        && serde_json::from_str::<serde_json::Value>(&stored.input.state_json)
+            .map_err(|_| INVALID)?
+            .get("origin")
+            .is_some()
+    {
+        return Err(INVALID.into());
+    }
     if value.id != id || value.provider != stored.input.provider {
         return Err(INVALID.into());
     }

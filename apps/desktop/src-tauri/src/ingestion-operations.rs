@@ -15,6 +15,7 @@ pub struct Operations(Arc<Mutex<State>>);
 pub struct Operation {
     registry: Operations,
     id: String,
+    provider: JobProvider,
     flag: Arc<AtomicBool>,
 }
 pub struct Clearing {
@@ -45,6 +46,7 @@ impl Operations {
         Ok(Operation {
             registry: self.clone(),
             id: id.into(),
+            provider,
             flag,
         })
     }
@@ -83,6 +85,9 @@ impl Operations {
     }
 }
 impl Operation {
+    pub fn provider(&self) -> JobProvider {
+        self.provider
+    }
     pub fn id(&self) -> &str {
         &self.id
     }

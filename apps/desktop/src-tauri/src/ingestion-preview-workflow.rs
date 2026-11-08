@@ -76,7 +76,7 @@ pub(crate) fn preview_version(
     })
 }
 
-fn persist_preview(
+pub(super) fn persist_preview(
     inputs: &SelectedInputs,
     handle: &str,
     preview_id: &str,

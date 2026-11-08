@@ -12,6 +12,7 @@ fn setup() -> (CorpusDatabase, std::path::PathBuf, BindingRequest) {
     let p = StoredPreview {
         schema_version: 1,
         id: String::new(),
+        origin: None,
         provider: "telegram".into(),
         source_format: "telegramDesktopJson".into(),
         adapter_version: "telegramDesktopJson:1".into(),

@@ -19,6 +19,7 @@ pub struct SelectedInputs(Mutex<HashMap<String, InputEntry>>);
 struct InputEntry {
     file: File,
     origin: String,
+    label: Option<String>,
     previews: Vec<PreviewReceipt>,
 }
 
@@ -80,6 +81,10 @@ impl SelectedInputs {
             InputEntry {
                 file,
                 origin,
+                label: path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(String::from),
                 previews: Vec::new(),
             },
         );
@@ -102,6 +107,22 @@ impl SelectedInputs {
             .get_mut(handle)
             .ok_or("Выберите исходный файл заново.")?;
         read_entry(entry, action)
+    }
+    /// Exact native filename, never a caller-supplied display label or path.
+    pub(super) fn read_named<T>(
+        &self,
+        handle: &str,
+        action: impl FnOnce(&mut File, &str, &str) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;
+        let entry = files
+            .get_mut(handle)
+            .ok_or("Выберите исходный файл заново.")?;
+        let label = entry
+            .label
+            .clone()
+            .ok_or("Имя выбранного файла не является UTF-8.")?;
+        read_entry(entry, |file, origin| action(file, origin, &label))
     }
     pub fn associate_preview(&self, handle: &str, preview_id: &str) -> Result<(), String> {
         let mut files = self.0.lock().map_err(|_| STATE_ERROR)?;

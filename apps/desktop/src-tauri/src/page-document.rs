@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 const INVALID: &str = "Ревизия страницы не соответствует исходнику или не поддерживается.";
+const MAX_ENCODED_BYTES: usize = 32 * 1024 * 1024;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(
     tag = "kind",
@@ -46,17 +47,12 @@ pub fn normalize(
     check: &mut impl FnMut() -> Result<(), String>,
 ) -> Result<PageDocument, String> {
     check()?;
-    let (provider, identity) = origin_identity(&origin)?;
-    let identity_bytes = serde_json::to_vec(&(provider, identity)).map_err(|_| INVALID)?;
-    let source_key = format!(
-        "pageSource:1:{provider}:{:x}",
-        Sha256::digest(identity_bytes)
-    );
+    let source_key = source_key(&origin)?;
     let content = super::selected_page_content::extract(&original, &content_type, check)?;
     check()?;
     let sha256 = format!("{:x}", Sha256::digest(original.as_bytes()));
     check()?;
-    Ok(PageDocument {
+    let document = PageDocument {
         schema_version: 1,
         id: format!("document:{source_key}"),
         source_key,
@@ -70,7 +66,42 @@ pub fn normalize(
         author_labels: content.author_labels,
         published_at: content.published_at,
         limitations: content.limitations,
-    })
+    };
+    // Count escaped JSON bytes without allocating a second envelope. Every new
+    // document must fit the decoder, including worst-case control characters.
+    encoded_size(&document)?;
+    check()?;
+    Ok(document)
+}
+
+pub fn encoded_size(document: &PageDocument) -> Result<usize, String> {
+    let mut counter = EnvelopeSize(0);
+    serde_json::to_writer(&mut counter, document).map_err(|_| INVALID)?;
+    Ok(counter.0)
+}
+
+pub(super) fn source_key(origin: &PageOrigin) -> Result<String, String> {
+    let (provider, identity) = origin_identity(origin)?;
+    let identity_bytes = serde_json::to_vec(&(provider, identity)).map_err(|_| INVALID)?;
+    Ok(format!(
+        "pageSource:1:{provider}:{:x}",
+        Sha256::digest(identity_bytes)
+    ))
+}
+
+struct EnvelopeSize(usize);
+impl std::io::Write for EnvelopeSize {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0 = self
+            .0
+            .checked_add(bytes.len())
+            .filter(|size| *size <= MAX_ENCODED_BYTES)
+            .ok_or_else(|| std::io::Error::other(INVALID))?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// This checks stored semantics, not permission or acquisition authenticity.
@@ -80,7 +111,7 @@ pub fn decode(
     check: &mut impl FnMut() -> Result<(), String>,
 ) -> Result<PageDocument, String> {
     check()?;
-    if encoded.len() > 32 * 1024 * 1024 {
+    if encoded.len() > MAX_ENCODED_BYTES {
         return Err(INVALID.into());
     }
     let document: PageDocument = serde_json::from_str(encoded).map_err(|_| INVALID)?;

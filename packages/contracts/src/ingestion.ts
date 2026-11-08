@@ -68,10 +68,17 @@ export interface IngestionJob {
 }
 
 // sourceHandle is issued by a native picker; never a model-provided filesystem path.
+export type SavedPageContentType = 'text/html' | 'text/plain' | 'text/markdown';
 export interface IngestionPort {
   createBinding(request: IngestionBindingRequest, signal?: AbortSignal): Promise<SourceBinding>;
   preview(
     sourceHandle: string,
+    budget: IngestionBudget,
+    signal?: AbortSignal,
+  ): Promise<IngestionPreview>;
+  previewSavedPage(
+    sourceHandle: string,
+    contentType: SavedPageContentType,
     budget: IngestionBudget,
     signal?: AbortSignal,
   ): Promise<IngestionPreview>;

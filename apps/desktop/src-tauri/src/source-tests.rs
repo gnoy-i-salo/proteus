@@ -257,6 +257,8 @@ fn provider_iso_offsets_are_normalized_before_time_scope_checks() {
 #[path = "source-ingestion-tests.rs"]
 mod ingestion_tests;
 
+#[path = "ingestion-page-preview-tests.rs"]
+mod page_preview_tests;
 #[path = "ingestion-preview-workflow-tests.rs"]
 mod preview_workflow_tests;
 

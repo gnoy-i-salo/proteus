@@ -110,6 +110,7 @@ fn main() {
             ingestion::pick_ingestion_source,
             ingestion::release_ingestion_source,
             ingestion::preview_ingestion_source,
+            ingestion::preview_ingestion_page,
             ingestion::cancel_ingestion_operation,
             ingestion::job_commands::create_ingestion_binding,
             ingestion::job_commands::start_ingestion_job,

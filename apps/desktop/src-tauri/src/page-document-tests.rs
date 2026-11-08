@@ -31,6 +31,21 @@ fn exact_original_and_projection_survive_canonical_roundtrip() {
     assert!(!wire.contains("\"source_key\""));
 }
 #[test]
+fn writer_bounds_escaped_envelope_bytes_without_changing_control_characters() {
+    assert!(normalize(
+        saved(),
+        "text/plain".into(),
+        "\0".repeat(3 * 1024 * 1024),
+        &mut || Ok(())
+    )
+    .is_err());
+    let original = format!("{}\r\n", "\0".repeat(2 * 1024 * 1024));
+    let doc = document(saved(), &original);
+    let wire = serde_json::to_string(&doc).unwrap();
+    assert!(wire.len() < MAX_ENCODED_BYTES);
+    assert_eq!(decode(&wire, &mut || Ok(())).unwrap().original, original);
+}
+#[test]
 fn source_identity_is_stable_across_edits_but_separate_for_distinct_sources() {
     let one = document(web(), "one");
     let two = document(web(), "two");

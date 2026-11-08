@@ -99,6 +99,40 @@ function jobAction(
 // durable job is controlled explicitly by pause/cancel. Metadata reads and the
 // atomic binding write suppress late delivery without rolling back native state.
 export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
+  async previewSavedPage(handle, contentType, budget, signal) {
+    const sourceHandle = validateIngestionSourceHandle(handle);
+    const sourceFormat =
+      contentType === 'text/html'
+        ? 'savedPageHtml'
+        : contentType === 'text/plain'
+          ? 'savedPageText'
+          : contentType === 'text/markdown'
+            ? 'savedPageMarkdown'
+            : undefined;
+    if (!sourceFormat) throw new Error('Неподдерживаемый формат сохранённой страницы.');
+    const operationId = crypto.randomUUID();
+    return request(
+      'preview_ingestion_page',
+      {
+        request: { operationId, sourceHandle, contentType, budget: decodeIngestionBudget(budget) },
+      },
+      (value) => {
+        const result = decodeIngestionPreview(value);
+        const resource = result.resources[0];
+        if (
+          result.sourceHandle !== sourceHandle ||
+          result.sourceFormat !== sourceFormat ||
+          result.resources.length !== 1 ||
+          resource?.estimatedDocuments !== 1 ||
+          resource.authorIds.length !== 0
+        )
+          throw new Error('Предпросмотр не соответствует выбранной странице.');
+        return result;
+      },
+      signal,
+      { operationId },
+    );
+  },
   async prepare(id, maxDurationMs, signal) {
     const selectedJob = jobId(id);
     if (!Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1 || maxDurationMs > 3600000)

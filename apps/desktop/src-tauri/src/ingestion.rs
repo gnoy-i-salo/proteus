@@ -12,6 +12,8 @@ pub mod job_workflow;
 pub mod operations;
 #[path = "page-document.rs"]
 pub mod page_document;
+#[path = "ingestion-page-preview.rs"]
+pub mod page_preview;
 #[path = "ingestion-preparation.rs"]
 pub mod preparation;
 #[path = "ingestion-preparation-workflow.rs"]
@@ -129,4 +131,23 @@ pub fn cancel_ingestion_operation(
     sources: tauri::State<'_, crate::sources::Sources>,
 ) -> Result<(), String> {
     sources.cancel_ingestion_operation(&operation_id)
+}
+
+#[tauri::command]
+pub async fn preview_ingestion_page(
+    request: page_preview::PagePreviewRequest,
+    sources: tauri::State<'_, crate::sources::Sources>,
+    inputs: tauri::State<'_, std::sync::Arc<SelectedInputs>>,
+) -> Result<preview_workflow::PreviewResult, String> {
+    let sources = sources.inner().clone();
+    let inputs = inputs.inner().clone();
+    let operation = sources.begin_ingestion_operation(
+        &request.operation_id,
+        crate::corpus_database::JobProvider::SavedPage,
+    )?;
+    tauri::async_runtime::spawn_blocking(move || {
+        page_preview::preview_saved(&sources, &inputs, &operation, request)
+    })
+    .await
+    .map_err(|_| "Не удалось выполнить предпросмотр страницы.".to_string())?
 }

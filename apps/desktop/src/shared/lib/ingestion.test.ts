@@ -119,6 +119,35 @@ it('previews the selected native capability with bounded budget and exact source
     request: { operationId, sourceHandle, budget },
   });
 });
+it.each([
+  ['text/html', 'savedPageHtml'],
+  ['text/plain', 'savedPageText'],
+  ['text/markdown', 'savedPageMarkdown'],
+] as const)(
+  'previews a saved page as %s through the selected-file capability',
+  async (contentType, sourceFormat) => {
+    const page = {
+      ...preview,
+      sourceFormat,
+      resources: [{ id: 'page:1', label: exact, authorIds: [], estimatedDocuments: 1 }],
+    };
+    native.invoke.mockResolvedValue(page);
+    expect(await nativeIngestion.previewSavedPage(sourceHandle, contentType, budget)).toEqual(page);
+    expect(native.invoke).toHaveBeenCalledExactlyOnceWith('preview_ingestion_page', {
+      request: { operationId, sourceHandle, contentType, budget },
+    });
+  },
+);
+it('rejects unsupported saved-page formats before IPC and mismatched native source formats', async () => {
+  native.invoke.mockResolvedValue(preview);
+  await expect(
+    nativeIngestion.previewSavedPage(sourceHandle, 'application/json' as never, budget),
+  ).rejects.toThrow();
+  expect(native.invoke).not.toHaveBeenCalled();
+  await expect(
+    nativeIngestion.previewSavedPage(sourceHandle, 'text/html', budget),
+  ).rejects.toThrow();
+});
 it('creates a binding with independent model and export choices', async () => {
   native.invoke.mockResolvedValue(selection.bindings[0]);
   expect(await nativeIngestion.createBinding(bindingRequest)).toEqual(selection.bindings[0]);

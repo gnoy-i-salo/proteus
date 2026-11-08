@@ -1,3 +1,5 @@
+#[path = "ingestion-adapter.rs"]
+pub mod adapter;
 #[path = "ingestion-fingerprint.rs"]
 pub mod fingerprint;
 #[path = "ingestion-grants.rs"]
@@ -14,6 +16,10 @@ pub mod operations;
 pub mod page_document;
 #[path = "ingestion-page-preview.rs"]
 pub mod page_preview;
+#[path = "ingestion-page-worker.rs"]
+pub mod page_worker;
+#[path = "ingestion-period.rs"]
+pub mod period;
 #[path = "ingestion-preparation.rs"]
 pub mod preparation;
 #[path = "ingestion-preparation-workflow.rs"]
@@ -50,6 +56,8 @@ pub mod telegram_identity;
 pub mod telegram_relations;
 #[path = "ingestion-telegram-worker.rs"]
 pub mod telegram_worker;
+#[path = "ingestion-worker-outcome.rs"]
+pub mod worker_outcome;
 pub use input::SelectedInputs;
 use serde::Serialize;
 use tauri_plugin_dialog::DialogExt;

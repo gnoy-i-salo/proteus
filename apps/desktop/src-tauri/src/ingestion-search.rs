@@ -5,11 +5,12 @@ use super::{
     grants::preview_deadline,
     job_workflow::{read_job, validate_selection},
     operations::Operation,
+    period::date_ms,
     preview_store::read_preview,
     projection::access,
     telegram_document::decode_revision,
     telegram_identity::ArchiveVersion,
-    telegram_worker::{completed_origin, date_ms, selected},
+    telegram_worker::{completed_origin, selected},
 };
 use crate::{
     corpus_database::{

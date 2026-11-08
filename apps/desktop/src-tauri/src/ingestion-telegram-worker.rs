@@ -1,6 +1,5 @@
 //! Bounded archive acquisition. Each checkpoint follows durable records; only a
 //! complete stream matching the confirmed preview can publish a snapshot.
-use super::telegram_identity::ArchiveVersion;
 use super::{
     fingerprint::{FingerprintReader, InputFingerprint},
     grants::authorize_preview_binding,
@@ -9,6 +8,7 @@ use super::{
     telegram_archive_json::{read_telegram_json, ScanControl, TelegramArchiveLimits},
     telegram_document::{normalize_with_version, TelegramDocument},
 };
+use super::{period::date_ms, telegram_identity::ArchiveVersion};
 use crate::{
     corpus_database::{
         CorpusDatabase, JobBinding, JobProvider, JobStatus, RevisionInput, StoredJob,
@@ -260,16 +260,6 @@ pub(super) fn selected(bindings: &[JobBinding], doc: &TelegramDocument) -> Resul
     }
     Ok(false)
 }
-pub(super) fn date_ms(value: &str) -> Result<i64, String> {
-    if let Ok(date) = chrono::DateTime::parse_from_rfc3339(value) {
-        return Ok(date.timestamp_millis());
-    }
-    chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
-        .ok()
-        .and_then(|date| date.and_hms_opt(0, 0, 0))
-        .map(|date| date.and_utc().timestamp_millis())
-        .ok_or_else(|| "Неверное время источника.".into())
-}
 pub(super) fn restore_origin(
     job: &StoredJob,
     fingerprint: &InputFingerprint,
@@ -382,11 +372,8 @@ fn prefix_hash(
     Ok(format!("{:x}", hash.finalize()))
 }
 
-#[derive(Debug)]
-pub struct Failure {
-    pub message: String,
-    pub retryable: bool,
-}
+pub use super::worker_outcome::Failure;
+use super::worker_outcome::TrackedReader;
 pub fn run_reader<R: Read>(
     sources: &Sources,
     operation: &Operation,
@@ -415,17 +402,4 @@ pub fn run_reader_outcome<R: Read>(
         retryable: read_failed.get() || message == crate::corpus_database::STORAGE_ERROR,
         message,
     })
-}
-// Record failures of the actual input reader separately from parser, fingerprint,
-// cancellation and budget checks. Their user-facing text is not an error codec.
-struct TrackedReader<'a, R> {
-    reader: R,
-    failed: &'a std::cell::Cell<bool>,
-}
-impl<R: Read> Read for TrackedReader<'_, R> {
-    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
-        self.reader
-            .read(buffer)
-            .inspect_err(|_| self.failed.set(true))
-    }
 }

@@ -259,6 +259,8 @@ mod ingestion_tests;
 
 #[path = "ingestion-page-preview-tests.rs"]
 mod page_preview_tests;
+#[path = "ingestion-page-worker-tests.rs"]
+mod page_worker_tests;
 #[path = "ingestion-preview-workflow-tests.rs"]
 mod preview_workflow_tests;
 

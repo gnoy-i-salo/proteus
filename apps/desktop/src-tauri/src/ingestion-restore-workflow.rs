@@ -22,10 +22,12 @@ pub fn restore(
         let job = super::job_workflow::read_job(db, &request.job_id)?;
         validate(db, &job, now_ms())?;
         let preview = super::preview_store::read_preview(db, &job.state.selection.preview_id)?;
+        if super::adapter::Adapter::resolve(&preview)?.provider() != operation.provider() {
+            return Err("Источник принадлежит другому сервису.".into());
+        }
         Ok((job, preview))
     })?;
-    let saved_origin =
-        super::telegram_worker::restore_origin(&job, &preview.fingerprint, now_ms())?;
+    let saved_origin = restore_origin(&job, &preview, now_ms())?;
     // Input -> database is the same lock order as acquisition. Never reopen a
     // persisted path; only the freshly selected native capability supplies bytes.
     inputs.restore_checked_preview(
@@ -53,7 +55,7 @@ pub fn restore(
                     return Err("Состояние импорта изменилось. Повторите выбор источника.".into());
                 }
                 validate(db, &current, now_ms())?;
-                super::telegram_worker::restore_origin(&current, &preview.fingerprint, now_ms())?;
+                restore_origin(&current, &preview, now_ms())?;
                 Ok(current)
             })?;
             Ok((
@@ -80,4 +82,19 @@ fn validate(
         return Err("Задача не ожидает повторного выбора источника.".into());
     }
     super::job_workflow::validate_selection(db, &job.state.selection, now)
+}
+
+fn restore_origin(
+    job: &StoredJob,
+    preview: &super::preview_store::StoredPreview,
+    now: i64,
+) -> Result<Option<String>, String> {
+    match super::adapter::Adapter::resolve(preview)? {
+        super::adapter::Adapter::Telegram => {
+            super::telegram_worker::restore_origin(job, &preview.fingerprint, now)
+        }
+        super::adapter::Adapter::SavedPage => {
+            super::page_worker::restore_origin(job, preview, now).map(Some)
+        }
+    }
 }

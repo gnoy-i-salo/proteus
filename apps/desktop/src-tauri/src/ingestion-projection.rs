@@ -3,11 +3,12 @@
 use super::{
     grants::preview_deadline,
     operations::Operation,
+    period::date_ms,
     preview_store::read_preview,
     telegram_document::decode_revision,
     telegram_identity::ArchiveVersion,
     telegram_relations::resolve_checked,
-    telegram_worker::{completed_origin, date_ms, selected},
+    telegram_worker::{completed_origin, selected},
 };
 use crate::{
     corpus_database::{episodes::EpisodeDocument, Snapshot},

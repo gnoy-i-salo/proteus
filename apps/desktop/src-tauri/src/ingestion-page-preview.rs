@@ -103,8 +103,8 @@ pub(super) fn source_format(content_type: &str) -> Result<&'static str, String> 
     }
 }
 
-fn read_saved(
-    reader: &mut std::fs::File,
+pub(super) fn read_saved<R: Read>(
+    reader: R,
     origin: &str,
     label: &str,
     content_type: &str,

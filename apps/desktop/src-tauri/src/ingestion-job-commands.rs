@@ -6,7 +6,7 @@ use super::{
     SelectedInputs,
 };
 use crate::{
-    corpus_database::{JobBinding, JobProvider, JobStatus, StoredJob},
+    corpus_database::{JobBinding, JobStatus, StoredJob},
     sources::Sources,
 };
 use serde::Serialize;
@@ -29,8 +29,9 @@ pub async fn create_ingestion_binding(
 ) -> Result<JobBinding, String> {
     let sources = sources.inner().clone();
     let id = format!("binding:{}", crate::connections::storage::random_id(18)?);
-    let operation = sources.begin_ingestion_operation(&id, JobProvider::Telegram)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let provider = job_workflow::preview_provider(&sources, &request.preview_id)?;
+        let operation = sources.begin_ingestion_operation(&id, provider)?;
         sources.with_ingestion_database(&operation, |db| {
             super::grants::create_binding(db, request, now_ms())
         })
@@ -47,11 +48,13 @@ pub async fn start_ingestion_job(
 ) -> Result<JobView, String> {
     let sources = sources.inner().clone();
     let inputs = inputs.inner().clone();
-    let operation =
-        sources.begin_ingestion_operation(&request.operation_id, JobProvider::Telegram)?;
     let prepare_sources = sources.clone();
     let prepare_inputs = inputs.clone();
     let (job, operation) = tauri::async_runtime::spawn_blocking(move || {
+        let provider =
+            job_workflow::preview_provider(&prepare_sources, &request.selection.preview_id)?;
+        let operation =
+            prepare_sources.begin_ingestion_operation(&request.operation_id, provider)?;
         let job = job_workflow::create(
             &prepare_sources,
             &prepare_inputs,
@@ -175,7 +178,7 @@ fn launch(
                 job_workflow::finish_failure(
                     &sources,
                     &operation,
-                    super::telegram_worker::Failure {
+                    super::worker_outcome::Failure {
                         message: "Импорт прерван до завершения. Его можно повторить.".into(),
                         retryable: true,
                     },
@@ -204,9 +207,9 @@ pub async fn restore_ingestion_source(
 ) -> Result<JobView, String> {
     let sources = sources.inner().clone();
     let inputs = inputs.inner().clone();
-    let operation =
-        sources.begin_ingestion_operation(&request.operation_id, JobProvider::Telegram)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let provider = job_workflow::job_provider(&sources, &request.job_id)?;
+        let operation = sources.begin_ingestion_operation(&request.operation_id, provider)?;
         super::restore_workflow::restore(&sources, &inputs, &operation, request, now_ms)
             .map(JobView::from)
     })
@@ -221,8 +224,9 @@ pub async fn publish_ingestion_job(
     sources: tauri::State<'_, Sources>,
 ) -> Result<super::publication::SnapshotView, String> {
     let sources = sources.inner().clone();
-    let operation = sources.begin_ingestion_operation(&operation_id, JobProvider::Telegram)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let provider = job_workflow::job_provider(&sources, &job_id)?;
+        let operation = sources.begin_ingestion_operation(&operation_id, provider)?;
         super::publication::publish(&sources, &operation, &job_id, now_ms())
     })
     .await
@@ -243,9 +247,9 @@ pub async fn prepare_ingestion_job(
         .map_err(|_| "Не найдены ресурсы приложения.")?
         .join("models/e5-tokenizer.json");
     let sources = sources.inner().clone();
-    let operation =
-        sources.begin_ingestion_operation(&request.operation_id, JobProvider::Telegram)?;
     tauri::async_runtime::spawn_blocking(move || {
+        let provider = job_workflow::job_provider(&sources, &request.job_id)?;
+        let operation = sources.begin_ingestion_operation(&request.operation_id, provider)?;
         super::preparation_workflow::execute(
             &sources,
             &operation,

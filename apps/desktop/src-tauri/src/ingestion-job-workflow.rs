@@ -1,4 +1,4 @@
-use super::{operations::Operation, SelectedInputs};
+use super::{adapter::Adapter, operations::Operation, SelectedInputs};
 use crate::{
     corpus_database::{JobBudget, JobPhase, JobSelection, JobState, JobStatus, StoredJob},
     sources::Sources,
@@ -57,6 +57,9 @@ pub fn create(
     sources.with_ingestion_database(operation, |db| {
         validate_selection(db, &request.selection, now_ms)?;
         let preview = super::preview_store::read_preview(db, &request.selection.preview_id)?;
+        if Adapter::resolve(&preview)?.provider() != operation.provider() {
+            return Err("Источник принадлежит другому сервису.".into());
+        }
         let job = db.create_job(&crate::corpus_database::JobInput {
             id: request.operation_id,
             adapter_version: preview.adapter_version,
@@ -100,8 +103,7 @@ pub fn restart(
     action: Restart,
     now_ms: i64,
 ) -> Result<(StoredJob, Operation), String> {
-    let operation =
-        sources.begin_ingestion_operation(job_id, crate::corpus_database::JobProvider::Telegram)?;
+    let operation = sources.begin_ingestion_operation(job_id, job_provider(sources, job_id)?)?;
     let prior = inspect(sources, job_id)?;
     inputs.read_preview(&prior.state.selection.preview_id, |_, _| Ok(()))?;
     let job = sources.with_ingestion_database(&operation, |db| {
@@ -133,11 +135,11 @@ pub(super) fn validate_selection(
     now_ms: i64,
 ) -> Result<(), String> {
     let preview = super::preview_store::read_preview(db, &selection.preview_id)?;
-    if preview.provider != "telegram" {
-        return Err("Этот формат ещё не поддерживает потоковый импорт.".into());
-    }
-    super::telegram_identity::ArchiveVersion::from_adapter(&preview.adapter_version)?;
+    let provider = Adapter::resolve(&preview)?.provider();
     for binding in &selection.bindings {
+        if binding.provider != provider {
+            return Err("Источник принадлежит другому сервису.".into());
+        }
         super::grants::authorize_preview_binding(db, binding, &selection.preview_id, now_ms)?;
     }
     Ok(())
@@ -150,19 +152,35 @@ pub fn execute(
     now_ms: impl Fn() -> i64,
 ) -> Result<StoredJob, String> {
     let attempt = (|| {
-        let job = sources
-            .with_ingestion_database(operation, |db| read_job(db, operation.id()))
-            .map_err(|message| super::telegram_worker::Failure {
+        let (job, adapter) = sources
+            .with_ingestion_database(operation, |db| {
+                let job = read_job(db, operation.id())?;
+                let preview =
+                    super::preview_store::read_preview(db, &job.state.selection.preview_id)?;
+                let adapter = Adapter::resolve(&preview)?;
+                if adapter.provider() != operation.provider()
+                    || job.state.checkpoint.adapter_version != preview.adapter_version
+                {
+                    return Err("Источник принадлежит другому адаптеру.".into());
+                }
+                Ok((job, adapter))
+            })
+            .map_err(|message| super::worker_outcome::Failure {
                 message,
                 retryable: false,
             })?;
         inputs
             .read_preview(&job.state.selection.preview_id, |file, origin| {
-                Ok(super::telegram_worker::run_reader_outcome(
-                    sources, operation, &job.id, file, origin, &now_ms,
-                ))
+                Ok(match adapter {
+                    Adapter::Telegram => super::telegram_worker::run_reader_outcome(
+                        sources, operation, &job.id, file, origin, &now_ms,
+                    ),
+                    Adapter::SavedPage => super::page_worker::run_reader_outcome(
+                        sources, operation, &job.id, file, origin, &now_ms,
+                    ),
+                })
             })
-            .map_err(|message| super::telegram_worker::Failure {
+            .map_err(|message| super::worker_outcome::Failure {
                 message,
                 retryable: true,
             })?
@@ -175,7 +193,7 @@ pub fn execute(
 pub(crate) fn finish_failure(
     sources: &Sources,
     operation: &Operation,
-    failure: super::telegram_worker::Failure,
+    failure: super::worker_outcome::Failure,
     now_ms: i64,
 ) -> Result<StoredJob, String> {
     sources.with_ingestion_job_state(|db| {
@@ -211,5 +229,27 @@ pub(crate) fn finish_failure(
                 retryable,
             },
         )
+    })
+}
+
+pub fn preview_provider(
+    sources: &Sources,
+    preview_id: &str,
+) -> Result<crate::corpus_database::JobProvider, String> {
+    sources.with_ingestion_job_state(|db| {
+        Ok(Adapter::resolve(&super::preview_store::read_preview(db, preview_id)?)?.provider())
+    })
+}
+pub fn job_provider(
+    sources: &Sources,
+    job_id: &str,
+) -> Result<crate::corpus_database::JobProvider, String> {
+    sources.with_ingestion_job_state(|db| {
+        let job = read_job(db, job_id)?;
+        let preview = super::preview_store::read_preview(db, &job.state.selection.preview_id)?;
+        if job.state.checkpoint.adapter_version != preview.adapter_version {
+            return Err("Неподдерживаемый адаптер задачи.".into());
+        }
+        Ok(Adapter::resolve(&preview)?.provider())
     })
 }

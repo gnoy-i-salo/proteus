@@ -233,16 +233,28 @@
     flex-shrink: 0;
   }
 
-  &__summary {
-    flex-shrink: 0;
+  &__contentSelect {
+    display: none;
+    width: 100%;
     font-size: var(--caption);
-    color: var(--muted);
   }
 
-  &__summaryReader {
-    height: 120px;
-    min-height: 0;
-    margin-top: 4px;
+  &__contentViews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  &__contentViews button {
+    min-height: 24px;
+    padding: 2px 6px;
+    font-size: var(--caption);
+  }
+
+  &__contentViews button[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: var(--accentDim);
   }
 
   &__reader {
@@ -260,6 +272,22 @@
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto minmax(0, 1fr);
       gap: 8px;
+    }
+
+    &__main {
+      gap: 4px;
+    }
+
+    &__readerTitle {
+      display: none;
+    }
+
+    &__contentSelect {
+      display: block;
+    }
+
+    &__contentViews button {
+      display: none;
     }
 
     &__stageSelect {

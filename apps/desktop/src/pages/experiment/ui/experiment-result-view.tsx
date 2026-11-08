@@ -160,7 +160,11 @@ export function ExperimentResultView(props: {
                   </Show>
                 }
               >
-                <TraceReader navigation={props.traces} running={false} />
+                <TraceReader
+                  navigation={props.traces}
+                  running={false}
+                  result={props.run.result() ?? undefined}
+                />
               </Show>
             </>
           }

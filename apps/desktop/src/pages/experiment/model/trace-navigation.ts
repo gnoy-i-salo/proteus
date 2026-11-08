@@ -6,7 +6,8 @@ import { classifyTraceStage } from './execution-stage';
 export type TraceParticipantFilter = 'all' | 'a' | 'b' | 'control' | 'system';
 export type TracePhaseFilter = 'all' | 'preparation' | 'trial';
 export type TraceReaderPosition = TextWorkspacePosition;
-type ReaderKind = 'reasoning' | 'summary';
+export type TraceContentView = 'reasoning' | 'published' | 'artifact' | 'calls' | 'summary';
+type ReaderKind = TraceContentView;
 
 export function createTraceNavigation(options: {
   stages: () => readonly StageTrace[];
@@ -20,6 +21,9 @@ export function createTraceNavigation(options: {
   const [chosen, changeChosen] = createSignal('');
   const [following, setFollowing] = createSignal(true);
   const [manual, setManual] = createSignal(false);
+  const [contentViews, setContentViews] = createSignal<ReadonlyMap<string, TraceContentView>>(
+    new Map(),
+  );
   const choices = new Map<string, string>();
   const positions = new Map<string, TraceReaderPosition>();
   const classified = createMemo(() =>
@@ -96,6 +100,7 @@ export function createTraceNavigation(options: {
   const reset = () =>
     batch(() => {
       choices.clear();
+      setContentViews(new Map());
       positions.clear();
       setManual(false);
       allFilters();
@@ -111,6 +116,13 @@ export function createTraceNavigation(options: {
     reveal(failedId);
   });
   return {
+    contentView: (): TraceContentView => contentViews().get(active()?.id ?? '') ?? 'reasoning',
+    setContentView: (view: TraceContentView) => {
+      const id = active()?.id;
+      if (!id) return;
+      pause();
+      setContentViews((previous) => new Map(previous).set(id, view));
+    },
     participant,
     setParticipant: (value: TraceParticipantFilter) => filter(() => changeParticipant(value)),
     phase,

@@ -12,6 +12,7 @@ interface FixtureModelInput {
   readonly rubric: { readonly criteria: readonly { id: string }[] };
 }
 export interface ReplyFixtureOptions {
+  noReasoning?: boolean;
   unknown?: boolean;
   unknownOnce?: boolean;
   required?: boolean;
@@ -63,21 +64,24 @@ export async function nativeReplyFixture(page: Page, options: ReplyFixtureOption
         const input = JSON.parse(request.task) as FixtureModelInput;
         if (stage === 'STALKER') sources++;
         const actor = actorFor(stage, input);
-        const reasoning = [
-          {
-            id: 'r1',
-            kind: 'summary',
-            text: `Персона ${actor}: Сравниваю ограничения и варианты.\n`.repeat(60),
-          },
-        ];
-        eventCallback?.({
-          payload: {
-            id: request.id,
-            kind: 'reasoning',
-            elapsedMs: 100,
-            reasoning: reasoning[0],
-          },
-        });
+        const reasoning = options.noReasoning
+          ? []
+          : [
+              {
+                id: 'r1',
+                kind: 'summary',
+                text: `Персона ${actor}: Сравниваю ограничения и варианты.\n`.repeat(60),
+              },
+            ];
+        if (reasoning.length)
+          eventCallback?.({
+            payload: {
+              id: request.id,
+              kind: 'reasoning',
+              elapsedMs: 100,
+              reasoning: reasoning[0],
+            },
+          });
         await new Promise((resolve) => setTimeout(resolve, 180));
         const rule = (id: string, instruction: string, evidenceIds: string[]) => ({
           id,

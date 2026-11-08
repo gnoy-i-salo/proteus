@@ -180,3 +180,38 @@ it('keeps summary and reasoning positions separate for the same stage', () => {
   expect(s.model.positionFor('rubric', 'summary')).toBeUndefined();
   s.dispose();
 });
+
+it('remembers a content view for each stage without resuming live follow', () => {
+  const s = setup(false);
+  s.model.select('rubric');
+  s.model.setContentView('artifact');
+  expect(s.model.contentView()).toBe('artifact');
+  expect(s.model.following()).toBe(false);
+  s.model.select('solve-1-a');
+  expect(s.model.contentView()).toBe('reasoning');
+  s.model.setContentView('published');
+  s.model.select('rubric');
+  expect(s.model.contentView()).toBe('artifact');
+  s.model.reset();
+  expect(s.model.contentView()).toBe('reasoning');
+  s.dispose();
+});
+
+it('changing a live content view pauses follow and retains separate reader positions', () => {
+  const s = setup(true);
+  s.model.setContentView('calls');
+  expect(s.model.following()).toBe(false);
+  const position = {
+    anchor: 23,
+    selection: { start: 23, end: 23, direction: 'none' as const },
+    query: '',
+    match: -1,
+  };
+  s.model.savePosition('rubric', position, 'artifact');
+  expect(s.model.positionFor('rubric', 'artifact')).toEqual(position);
+  expect(s.model.positionFor('rubric', 'published')).toBeUndefined();
+  expect(s.model.positionFor('rubric', 'calls')).toBeUndefined();
+  s.model.reset();
+  expect(s.model.positionFor('rubric', 'artifact')).toBeUndefined();
+  s.dispose();
+});

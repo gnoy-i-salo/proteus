@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, on, Show } from 'solid-js';
-import type { StageTrace } from '@proteus-int/pipeline';
+import type { ExperimentResult, StageTrace } from '@proteus-int/pipeline';
 import { traceMarker } from './experiment-report';
 import { classifyTraceStage } from '../model/execution-stage';
 import type {
@@ -7,7 +7,7 @@ import type {
   TraceParticipantFilter,
   TracePhaseFilter,
 } from '../model/trace-navigation';
-import { TextWorkspace } from '../../../shared/ui/text-workspace/text-workspace';
+import { TraceStageContent } from './trace-stage-content';
 import styles from './trace-reader.module.scss';
 
 const participantOptions: readonly (readonly [TraceParticipantFilter, string])[] = [
@@ -33,7 +33,11 @@ const listPageSize = 8;
 const stageTag = (item: StageTrace) => participantTags[classifyTraceStage(item).participant];
 const stageLabel = (item: StageTrace) => `${stageTag(item)} · ${item.label}`;
 
-export function TraceReader(props: { navigation: TraceNavigation; running: boolean }) {
+export function TraceReader(props: {
+  navigation: TraceNavigation;
+  running: boolean;
+  result?: ExperimentResult | undefined;
+}) {
   const navigation = () => props.navigation;
   const [windowStart, setWindowStart] = createSignal(0);
   const stages = () => navigation().stages();
@@ -49,13 +53,6 @@ export function TraceReader(props: { navigation: TraceNavigation; running: boole
       if (index >= 0) setWindowStart(Math.floor(index / listPageSize) * listPageSize);
     }),
   );
-  const reasoningText = (item: StageTrace) => {
-    const text = item.trace.reasoning?.map((block) => block.text).join('\n\n');
-    if (text) return text;
-    return props.running && !item.trace.summary
-      ? 'Ожидаем текст reasoning от CLI…'
-      : 'CLI не передал текст reasoning для этого этапа.';
-  };
   return (
     <section class={styles.traceReader} aria-label="Текст Intelligence traces">
       <Show
@@ -230,45 +227,12 @@ export function TraceReader(props: { navigation: TraceNavigation; running: boole
                           с · {traceMarker(item(), props.running)}
                         </span>
                       </header>
-                      <Show when={item().trace.reasoningTruncated}>
-                        <p class={styles.traceReader__badge}>
-                          Текст reasoning сокращён до лимита сохранения.
-                        </p>
-                      </Show>
-                      <Show when={item().trace.summary.length > 200}>
-                        <details
-                          class={styles.traceReader__summary}
-                          onToggle={(event) => {
-                            if (event.currentTarget.open) navigation().pause();
-                          }}
-                        >
-                          <summary>Сводка этапа — открыть целиком</summary>
-                          <div class={styles.traceReader__summaryReader}>
-                            <TextWorkspace
-                              label="Сводка этапа"
-                              value={item().trace.summary}
-                              resetKey={item().id}
-                              position={() => navigation().positionFor(item().id, 'summary')}
-                              onPositionChange={(position) =>
-                                navigation().savePosition(item().id, position, 'summary')
-                              }
-                              onInteraction={() => navigation().pause()}
-                            />
-                          </div>
-                        </details>
-                      </Show>
-                      <div class={styles.traceReader__reader}>
-                        <TextWorkspace
-                          label="Текст"
-                          value={reasoningText(item())}
-                          resetKey={item().id}
-                          position={() => navigation().positionFor(item().id)}
-                          onPositionChange={(position) =>
-                            navigation().savePosition(item().id, position)
-                          }
-                          onInteraction={() => navigation().pause()}
-                        />
-                      </div>
+                      <TraceStageContent
+                        item={item()}
+                        navigation={navigation()}
+                        running={props.running}
+                        result={props.result}
+                      />
                     </>
                   );
                 })()}

@@ -846,6 +846,15 @@ test('long preparation failure remains fully readable without overflowing the co
   await expect(
     status.getByRole('button', { name: 'Развернуть: Причина', exact: true }),
   ).toBeFocused();
+  const reader = page.getByRole('region', { name: 'Текст Intelligence traces' });
+  await reader.getByLabel('Представление этапа', { exact: true }).selectOption('summary');
+  await reader.getByRole('button', { name: 'Развернуть: Сводка этапа', exact: true }).click();
+  await page
+    .getByRole('textbox', { name: 'Поиск: Сводка этапа', exact: true })
+    .fill('КОНЕЦ_ПРИЧИНЫ');
+  await expect(page.getByRole('dialog')).toContainText('КОНЕЦ_ПРИЧИНЫ');
+  await page.keyboard.press('Escape');
+  await noOverflow(page);
 });
 
 test('manual stage selection pauses the visible follow and one click resumes it', async ({
@@ -960,4 +969,23 @@ test('compact trace navigation stays readable when the text size grows to 125 pe
   await expect(region.getByLabel('Этап', { exact: true })).toBeVisible();
   await expect(region).toContainText('Сравниваю ограничения');
   await noOverflow(page);
+});
+
+test('live call details remain readable before a result or reasoning is returned', async ({
+  page,
+}) => {
+  await nativeFixture(page, false, false, { holdStage: 'PERSON' });
+  await fillExperiment(page);
+  const reader = page.getByRole('region', { name: 'Текст Intelligence traces' });
+  await expect(reader.getByRole('button', { name: /A · Решение/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await reader.getByRole('button', { name: 'Вызовы и ошибки', exact: true }).click();
+  await expect(reader.getByLabel('Вызовы и ошибки', { exact: true }).last()).toContainText(
+    'Статус: выполняется; время: не измерено',
+  );
+  await expect(reader.getByText('Следование приостановлено')).toBeVisible();
+  await page.getByRole('button', { name: 'Остановить', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'BSC v2 · не оценено' })).toBeVisible();
 });

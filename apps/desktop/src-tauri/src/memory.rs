@@ -6,6 +6,8 @@ pub mod budget;
 mod context_input;
 #[path = "memory-model-budget.rs"]
 pub mod model_budget;
+#[path = "memory-model-contexts.rs"]
+mod model_contexts;
 #[path = "memory-model-input.rs"]
 pub mod model_input;
 #[path = "memory-receipt-history.rs"]

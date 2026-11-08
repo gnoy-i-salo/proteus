@@ -649,3 +649,51 @@ fn time_never_moves_backwards_between_successful_operations() {
     // Equal time is not backwards and stays admissible.
     assert!(ledger.reserve("stage-3", 100, 1, &clock_at(&now)).is_ok());
 }
+
+#[test]
+fn completion_checks_preserve_charges_and_do_not_consume_another_reservation() {
+    let mut ledger = ModelCallLedger::new(2, 100, 100, 10).unwrap();
+    let reservation = ledger.reserve("call", 20, 1, &|| Ok(10)).unwrap();
+    let usage = ledger.usage();
+    assert_eq!(ledger.verify(&|| Ok(20)).unwrap(), 20);
+    assert_eq!(ledger.usage(), usage);
+    ledger
+        .consume(reservation.sequence, 20, 1, &|| Ok(21))
+        .unwrap();
+    assert_eq!(ledger.verify(&|| Ok(22)).unwrap(), 22);
+    assert_eq!(ledger.usage(), usage);
+    assert!(matches!(
+        ledger.verify(&|| Ok(110)),
+        Err(BudgetError::Closed(_))
+    ));
+    assert!(matches!(
+        ledger.verify(&|| panic!("expired ledger read clock")),
+        Err(BudgetError::Closed(_))
+    ));
+}
+#[test]
+fn failed_or_backwards_completion_check_closes_the_ledger_without_refund() {
+    for revoke in [true, false] {
+        let mut ledger = ModelCallLedger::new(2, 100, 100, 10).unwrap();
+        let reservation = ledger.reserve("call", 20, 1, &|| Ok(20)).unwrap();
+        let usage = ledger.usage();
+        let checked = ledger.verify(&|| {
+            if revoke {
+                Err("grant revoked\r\n".into())
+            } else {
+                Ok(19)
+            }
+        });
+        assert!(matches!(checked, Err(BudgetError::Closed(_))));
+        if revoke {
+            assert_eq!(ledger.closed_reason(), Some("grant revoked\r\n"));
+        }
+        assert_eq!(ledger.usage(), usage);
+        assert!(matches!(
+            ledger.consume(reservation.sequence, 20, 1, &|| panic!(
+                "closed ledger reached consume clock"
+            )),
+            Err(BudgetError::Closed(_))
+        ));
+    }
+}

@@ -1,11 +1,14 @@
 //! Host-bound retrieval state. Scope and limits are chosen once by native
 //! orchestration; model actions can only select a query or an episode ID.
+#[path = "memory-model-session.rs"]
+mod model_session;
 #[path = "memory-recall.rs"]
 mod recall;
 #[path = "memory-receipts.rs"]
 mod receipts;
 use super::budget::{RecallLedger, RecallLimits, RetrievalCharge};
 pub use super::context_input::PreparedModelInput;
+pub use super::model_contexts::{DispatchInput, InvocationBinding, ReservedContext};
 use crate::{
     corpus_database::search::{SearchIndexReceipt, SearchPeriod},
     ingestion::{
@@ -29,6 +32,7 @@ pub struct MemorySession {
     scope: MemoryScope,
     ledger: RecallLedger,
     history: super::receipt_history::ReceiptHistory,
+    models: Option<super::model_contexts::ModelContexts>,
 }
 struct MemoryScope {
     deadline: i64,
@@ -97,6 +101,7 @@ impl MemorySession {
             },
             ledger,
             history: Default::default(),
+            models: None,
         })
     }
     pub fn read_episode(

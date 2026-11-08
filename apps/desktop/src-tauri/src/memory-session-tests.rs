@@ -1,4 +1,6 @@
 use super::*;
+#[path = "memory-model-session-tests.rs"]
+mod model_session_tests;
 #[path = "memory-recall-tests.rs"]
 mod recall_tests;
 #[path = "memory-receipts-tests.rs"]

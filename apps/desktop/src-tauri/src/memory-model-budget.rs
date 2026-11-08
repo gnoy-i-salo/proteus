@@ -151,6 +151,12 @@ pub struct ModelCallLedger {
 }
 
 impl ModelCallLedger {
+    /// Check completion authority without reserving or charging another call.
+    pub fn verify(&mut self, clock: &dyn Fn() -> Result<i64, String>) -> Result<i64, BudgetError> {
+        self.fail_if_closed()?;
+        self.checked_now(clock)
+    }
+
     /// Creates a ledger with host-chosen cumulative limits and a nonnegative
     /// start wall clock. The deadline is `started_at_ms + max_duration_ms`,
     /// computed with checked arithmetic, and is exclusive: valid observations

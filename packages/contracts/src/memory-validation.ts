@@ -7,6 +7,7 @@ import type {
 import type { RevisionReference, SourceSpan } from './corpus';
 
 export interface RetrievalReceiptScope {
+  readonly operation: 'recall' | 'readEpisode';
   readonly snapshotId: string;
   readonly policyVersion: string;
   readonly retrievalVersion: string;
@@ -98,8 +99,14 @@ export function validateRetrievalReceipt(
   value: unknown,
   scope: RetrievalReceiptScope,
 ): RetrievalReceipt {
+  const legacy =
+    value !== null &&
+    typeof value === 'object' &&
+    'schemaVersion' in value &&
+    value.schemaVersion === 1;
   const input = fields(value, [
     'schemaVersion',
+    ...(legacy ? [] : ['operation']),
     'id',
     'snapshotId',
     'policyVersion',
@@ -112,9 +119,14 @@ export function validateRetrievalReceipt(
     'sourceBytes',
     'contextTokens',
   ]);
+  // V1 only represented ranked recall: its validator required a non-null rank.
+  // Upgrade that exact shape without rewriting the caller's retained payload.
+  const operation = legacy ? 'recall' : input.operation;
   for (const limit of Object.values(scope.budget)) integer(limit, 1);
   if (
-    input.schemaVersion !== 1 ||
+    (input.schemaVersion !== 1 && input.schemaVersion !== 2) ||
+    (operation !== 'recall' && operation !== 'readEpisode') ||
+    operation !== scope.operation ||
     input.snapshotId !== scope.snapshotId ||
     input.policyVersion !== scope.policyVersion ||
     input.retrievalVersion !== scope.retrievalVersion ||
@@ -172,7 +184,9 @@ export function validateRetrievalReceipt(
     const lexicalRank = hit.lexicalRank === null ? null : integer(hit.lexicalRank, 1);
     const semanticRank = hit.semanticRank === null ? null : integer(hit.semanticRank, 1);
     if (
-      (lexicalRank === null && semanticRank === null) ||
+      (operation === 'recall' && lexicalRank === null && semanticRank === null) ||
+      (operation === 'readEpisode' &&
+        (lexicalRank !== null || semanticRank !== null || hit.fusionScore !== 0)) ||
       (input.mode === 'lexical' && semanticRank !== null)
     )
       throw new Error('Invalid memory receipt retrieval ranks.');
@@ -185,7 +199,8 @@ export function validateRetrievalReceipt(
     return { chunkId, episodeId, spans, lexicalRank, semanticRank, fusionScore: hit.fusionScore };
   });
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    operation,
     id: text(input.id),
     snapshotId: text(input.snapshotId),
     policyVersion: text(input.policyVersion),

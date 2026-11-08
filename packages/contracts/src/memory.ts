@@ -57,7 +57,8 @@ export interface RecallBudget {
 
 // snapshotId always identifies the immutable corpus snapshot.
 export interface RetrievalReceipt {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
+  readonly operation: 'recall' | 'readEpisode';
   readonly id: string;
   readonly snapshotId: string;
   readonly policyVersion: string;

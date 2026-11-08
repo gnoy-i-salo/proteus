@@ -5,6 +5,7 @@ import type { EmbeddingFingerprint, RetrievalReceipt } from './memory';
 
 const span = { documentId: 'd1', revisionId: 'r1', unit: 'utf8Bytes' as const, start: 0, end: 12 };
 const scope: RetrievalReceiptScope = {
+  operation: 'recall',
   snapshotId: 'corpus-1',
   policyVersion: 'policy-1',
   retrievalVersion: 'rrf-1',
@@ -21,7 +22,8 @@ const scope: RetrievalReceiptScope = {
   },
 };
 const receipt: RetrievalReceipt = {
-  schemaVersion: 1,
+  schemaVersion: 2,
+  operation: 'recall',
   id: 'native-receipt',
   snapshotId: 'corpus-1',
   policyVersion: 'policy-1',
@@ -45,6 +47,62 @@ const receipt: RetrievalReceipt = {
 };
 
 describe('structural retrieval receipt validation', () => {
+  it('accepts explicit episode expansion without fabricating lexical or semantic ranks', () => {
+    const expanded = {
+      ...receipt,
+      schemaVersion: 2,
+      operation: 'readEpisode',
+      hits: receipt.hits.map((hit) => ({
+        ...hit,
+        lexicalRank: null,
+        semanticRank: null,
+        fusionScore: 0,
+      })),
+    };
+    const expected = { ...scope, operation: 'readEpisode' as const };
+    expect(validateRetrievalReceipt(expanded, expected)).toEqual(expanded);
+  });
+  it('upgrades the exact legacy ranked receipt in memory without mutating its source', () => {
+    const { operation, ...legacyFields } = structuredClone(receipt);
+    expect(operation).toBe('recall');
+    const legacy = { ...legacyFields, schemaVersion: 1 };
+    const original = JSON.stringify(legacy);
+    expect(validateRetrievalReceipt(legacy, scope)).toEqual({
+      ...receipt,
+      schemaVersion: 2,
+      operation: 'recall',
+    });
+    expect(JSON.stringify(legacy)).toBe(original);
+    const upgraded = validateRetrievalReceipt(legacy, scope);
+    expect(validateRetrievalReceipt(upgraded, scope)).toEqual(upgraded);
+  });
+  it.each([{ lexicalRank: 1 }, { semanticRank: 1 }, { fusionScore: 0.1 }])(
+    'rejects invented rankings on episode expansion: %j',
+    (changes) => {
+      const expanded = {
+        ...receipt,
+        operation: 'readEpisode',
+        hits: [
+          { ...receipt.hits[0], lexicalRank: null, semanticRank: null, fusionScore: 0, ...changes },
+        ],
+      };
+      const expected = { ...scope, operation: 'readEpisode' as const };
+      expect(() => validateRetrievalReceipt(expanded, expected)).toThrow();
+    },
+  );
+  it('does not relabel unranked or mixed legacy receipts as episode reads', () => {
+    const legacy = {
+      ...receipt,
+      schemaVersion: 1,
+      hits: [{ ...receipt.hits[0], lexicalRank: null, semanticRank: null, fusionScore: 0 }],
+    };
+    const expected = { ...scope, operation: 'readEpisode' as const };
+    expect(() => validateRetrievalReceipt(legacy, expected)).toThrow();
+    const { operation, ...withoutOperation } = legacy;
+    expect(operation).toBe('recall');
+    expect(() => validateRetrievalReceipt(withoutOperation, expected)).toThrow();
+    expect(() => validateRetrievalReceipt(withoutOperation, scope)).toThrow();
+  });
   it('accepts bounded lexical evidence without inventing embedding metadata', () => {
     expect(validateRetrievalReceipt(receipt, scope)).toEqual(receipt);
     expect(
@@ -53,7 +111,10 @@ describe('structural retrieval receipt validation', () => {
     ).toEqual([]);
   });
   it.each([
-    { schemaVersion: 2 },
+    { schemaVersion: 3 },
+    { schemaVersion: 1 },
+    { operation: 'unsafe' },
+    { operation: 'readEpisode' },
     { snapshotId: 'other-corpus' },
     { policyVersion: 'revoked-policy' },
     { retrievalVersion: 'other-algorithm' },

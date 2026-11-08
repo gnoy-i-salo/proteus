@@ -30,6 +30,17 @@
 | Persona artifacts             | AGENTS.md/SKILL.md/source-evidence.json/style-exemplars.json в generated map                                               | Меняются только schema-owned keys внутри известного JSON; artifact filenames, свободный Markdown, source text и historical prompt metadata не переписываются                                                                                                                                           | person/persona-artifacts                               |
 | RAG/UX additions              | tip DTO/manifest/storage и x1y telemetry ещё не реализованы                                                                | С первого writer camelCase, явные format/version и source refs; не создавать вторые ports/storage                                                                                                                                                                                                      | contracts + владельцы tip/x1y                          |
 
+Контракт `RetrievalReceipt` теперь имеет `schemaVersion: 2` и обязательную
+`operation: recall | readEpisode`. Для `recall` нужен хотя бы один реальный ранг;
+прямое чтение эпизода имеет оба ранга `null` и `fusionScore: 0`. `mode` сохраняет
+лексическую/гибридную конфигурацию привязанной сессии и не подменяет тип операции.
+Владелец декодирования — `contracts/memory-validation.ts`. Точная старая форма v1
+принимается только как ranked recall и переводится в v2 в памяти; v1 с новым полем,
+пустыми рангами, неизвестной версией или чужой областью отклоняется. Повторное
+декодирование v2 идемпотентно, входной объект и ссылки на оригиналы не переписываются.
+Native MemoryPort writer и persistent retrieval receipts ещё подключаются отдельно;
+наличие декодера не означает реализованную миграцию существующего хранилища памяти.
+
 ## Нативные схемы, не попавшие в TypeScript AST
 
 Ниже перечислены определения в исходниках, а не содержимое пользовательского Keychain или файлов корпуса. TS-таблица сама по себе не покрывает Rust-only persistence. В частности, существующая запись корпуса называется `Record`, а не `StoredSnapshot`; она имеет собственную версию 1 и содержит вложенные grant/document/coverage DTO. Смена их serde-ключей меняет и сохранённый формат, даже если внешний `Record.version` не изменился.

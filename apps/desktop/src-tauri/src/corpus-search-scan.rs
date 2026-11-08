@@ -30,10 +30,7 @@
 //!   releases the pinned snapshot even when nested in a caller transaction.
 use super::{
     ensure_search_schema, invalid_data,
-    read::{
-        check_current_snapshot, load_active_receipt, validate_receipt_identity,
-        with_search_savepoint,
-    },
+    read::{require_receipt, validate_receipt_identity, with_search_savepoint},
     scope::{build_scope_filter, slot},
     sql_error,
     types::{invalid_id, validate_scope, SearchIndexReceipt, SearchScope, MAX_LIMIT},
@@ -140,17 +137,7 @@ fn scan_pinned(
     max_text_bytes: usize,
     checkpoint: &dyn Fn() -> Result<(), String>,
 ) -> Result<ReferenceChunkPage, String> {
-    check_current_snapshot(connection, scope)?;
-    // The full active receipt is compared before any row read, inside the
-    // same pinned snapshot as the scan itself: a concurrent publish+prune
-    // cannot swap the publication between the identity check and the rows.
-    let actual = load_active_receipt(connection, &scope.snapshot_id)?
-        .ok_or_else(|| invalid_data("Индекс для снимка корпуса не опубликован."))?;
-    if actual != *expected {
-        return Err(invalid_data(
-            "Квитанция индекса не соответствует активной публикации; обновите область поиска.",
-        ));
-    }
+    let actual = require_receipt(connection, scope, expected)?;
     let (chunks, has_more) = collect_chunks(
         connection,
         scope,
@@ -202,8 +189,7 @@ fn collect_chunks(
     // Sort only bounded metadata. Including f.text here could make SQLite's
     // sorter materialize large source bodies before the caller's byte gate.
     let sql = format!(
-        "SELECT c.chunk_id,c.document_id,c.revision_id,c.span_start,c.span_end,c.persona_id,\
-         c.grant_id,c.binding_id,c.period_from,c.period_to,c.conversation_id,c.thread_id,c.rowid \
+        "SELECT {REFERENCE_COLUMNS} \
          FROM search_chunks c WHERE {filter_sql}{after_clause} \
          ORDER BY c.chunk_id COLLATE BINARY ASC LIMIT ?{limit_slot}"
     );
@@ -229,7 +215,6 @@ fn collect_chunks(
         let Some(row) = rows.next().map_err(sql_error)? else {
             break;
         };
-        let chunk_id: String = row.get(0).map_err(sql_error)?;
         let row_id: i64 = row.get(12).map_err(sql_error)?;
         let Some(text) = bounded_text(connection, row_id, max_text_bytes - used_bytes)? else {
             if chunks.is_empty() {
@@ -241,21 +226,7 @@ fn collect_chunks(
             break;
         };
         used_bytes += text.len();
-        chunks.push(ReferenceChunk {
-            chunk_id,
-            document_id: row.get(1).map_err(sql_error)?,
-            revision_id: row.get(2).map_err(sql_error)?,
-            span_start: row.get(3).map_err(sql_error)?,
-            span_end: row.get(4).map_err(sql_error)?,
-            persona_id: row.get(5).map_err(sql_error)?,
-            grant_id: row.get(6).map_err(sql_error)?,
-            binding_id: row.get(7).map_err(sql_error)?,
-            period_from: row.get(8).map_err(sql_error)?,
-            period_to: row.get(9).map_err(sql_error)?,
-            conversation_id: row.get(10).map_err(sql_error)?,
-            thread_id: row.get(11).map_err(sql_error)?,
-            text,
-        });
+        chunks.push(reference_chunk(row, text)?);
     }
     drop(rows);
     drop(statement);
@@ -303,7 +274,7 @@ fn has_more_rows(
 /// Read the length before exposing a string to Rust. The CASE keeps an
 /// over-budget next chunk out of the result and enforces the per-chunk cap
 /// even if stored FTS text has been damaged outside the normal writer.
-fn bounded_text(
+pub(super) fn bounded_text(
     connection: &Connection,
     row_id: i64,
     remaining: usize,
@@ -330,4 +301,26 @@ fn bounded_text(
         return Err(invalid_data("Индексированный текст повреждён."));
     }
     Ok(Some(text))
+}
+
+pub(super) const REFERENCE_COLUMNS: &str = "c.chunk_id,c.document_id,c.revision_id,c.span_start,c.span_end,c.persona_id,c.grant_id,c.binding_id,c.period_from,c.period_to,c.conversation_id,c.thread_id,c.rowid";
+pub(super) fn reference_chunk(
+    row: &rusqlite::Row<'_>,
+    text: String,
+) -> Result<ReferenceChunk, String> {
+    Ok(ReferenceChunk {
+        chunk_id: row.get(0).map_err(sql_error)?,
+        document_id: row.get(1).map_err(sql_error)?,
+        revision_id: row.get(2).map_err(sql_error)?,
+        span_start: row.get(3).map_err(sql_error)?,
+        span_end: row.get(4).map_err(sql_error)?,
+        persona_id: row.get(5).map_err(sql_error)?,
+        grant_id: row.get(6).map_err(sql_error)?,
+        binding_id: row.get(7).map_err(sql_error)?,
+        period_from: row.get(8).map_err(sql_error)?,
+        period_to: row.get(9).map_err(sql_error)?,
+        conversation_id: row.get(10).map_err(sql_error)?,
+        thread_id: row.get(11).map_err(sql_error)?,
+        text,
+    })
 }

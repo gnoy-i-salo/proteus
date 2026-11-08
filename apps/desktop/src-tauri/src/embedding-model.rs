@@ -35,3 +35,12 @@ impl EmbeddingModel for E5Runtime {
         self.embed(texts, kind, self.fingerprint(), budget, check)
     }
 }
+
+pub fn model_error(error: EmbeddingError) -> String {
+    match error {
+        EmbeddingError::Interrupted(reason) => reason,
+        EmbeddingError::Unavailable(_) => "Локальная модель недоступна; проверьте её файлы.".into(),
+        EmbeddingError::TimeBudget => "Превышено время локальной обработки.".into(),
+        _ => "Локальная модель отклонила данные, профиль или бюджет обработки.".into(),
+    }
+}

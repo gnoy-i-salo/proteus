@@ -72,6 +72,8 @@ mod recovery;
 mod scan;
 #[path = "corpus-search-scope.rs"]
 pub(in crate::corpus_database) mod scope;
+#[path = "corpus-search-selected.rs"]
+mod selected;
 #[path = "corpus-search-stage.rs"]
 mod stage;
 #[path = "corpus-search-types.rs"]
@@ -84,6 +86,7 @@ pub use recovery::{discard_staging, staging_ids};
 pub use scan::{
     scan_reference_chunks, ReferenceChunk, ReferenceChunkPage, MAX_SCAN_LIMIT, MAX_SCAN_TEXT_BYTES,
 };
+pub use selected::read_reference_chunks;
 pub use stage::{abort_stage, begin_stage, commit_stage, stage_chunk};
 pub(in crate::corpus_database) use types::validate_scope;
 pub use types::{

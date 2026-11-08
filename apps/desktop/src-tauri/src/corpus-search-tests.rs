@@ -2443,3 +2443,6 @@ mod receipt_tests;
 
 #[path = "corpus-search-scan-tests.rs"]
 mod scan_tests;
+
+#[path = "corpus-search-selected-tests.rs"]
+mod selected_tests;

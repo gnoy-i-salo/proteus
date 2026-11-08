@@ -8,8 +8,8 @@ use crate::{
         vectors::{VectorReceipt, VectorStageInput},
     },
     local_embedding::{
-        model::EmbeddingModel,
-        runtime::{EmbeddingBudget, EmbeddingError},
+        model::{model_error, EmbeddingModel},
+        runtime::EmbeddingBudget,
         tokenizer::InputKind,
     },
     sources::Sources,
@@ -21,14 +21,6 @@ pub struct VectorBuildInput<'a> {
     pub job_id: &'a str,
     pub snapshot_id: &'a str,
     pub budget: EmbeddingBudget,
-}
-fn model_error(error: EmbeddingError) -> String {
-    match error {
-        EmbeddingError::Interrupted(reason) => reason,
-        EmbeddingError::Unavailable(_) => "Локальная модель недоступна; проверьте её файлы.".into(),
-        EmbeddingError::TimeBudget => "Превышено время локальной обработки.".into(),
-        _ => "Локальная модель отклонила данные, профиль или бюджет обработки.".into(),
-    }
 }
 pub fn build(
     sources: &Sources,
@@ -58,8 +50,8 @@ pub fn build(
         .filter(|_| started >= 0)
         .ok_or("Неверное время индексирования.")?;
     let budget = || {
-        operation.check()?;
         let now = now_ms();
+        operation.check()?;
         if now < started || now >= end {
             return Err("Превышено время индексирования.".to_string());
         }

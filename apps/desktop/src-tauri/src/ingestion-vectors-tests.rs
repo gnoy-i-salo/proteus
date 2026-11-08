@@ -264,7 +264,7 @@ fn malformed_model_batch_and_expired_budget_never_publish_partial_results() {
     }
 }
 #[test]
-fn real_e5_vectors_connect_authorized_import_preparation_and_encrypted_semantic_search() {
+fn real_e5_vectors_connect_authorized_import_preparation_and_hybrid_search() {
     use crate::local_embedding::{
         runtime::{E5Runtime, ModelFiles},
         search::SearchBudget,
@@ -342,8 +342,63 @@ fn real_e5_vectors_connect_authorized_import_preparation_and_encrypted_semantic_
             Ok(())
         })
         .unwrap();
+    let hybrid = crate::ingestion::hybrid_query::query(
+        &sources,
+        &op,
+        &crate::ingestion::hybrid_query::HybridQueryInput {
+            query: super::input(&snapshot),
+            candidate_limit: 10,
+            max_scanned: 100,
+            max_per_document: 10,
+            max_source_bytes: 65536,
+            embedding_budget: input.budget,
+        },
+        &model,
+        || 70003,
+    )
+    .unwrap();
+    assert_eq!(hybrid.hits.len(), index.chunk_count as usize);
+    assert!(hybrid.hits.iter().any(|hit| {
+        hit.chunk.text == "  контекст\r\n"
+            && hit.semantic_rank.is_some()
+            && hit.lexical_rank.is_some()
+    }));
     drop(model);
     drop(op);
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn final_clock_boundary_cancellation_discards_even_a_published_replay() {
+    let (sources, dir) = local();
+    let (op, snapshot, _) = indexed(&sources, &dir, 0);
+    enable_model(&sources, &op);
+    let model = Model::new(&|_| Ok(()));
+    build(&sources, &op, &request(&snapshot), &model, || 70002).unwrap();
+    let calls = Cell::new(0);
+    build(&sources, &op, &request(&snapshot), &model, || {
+        calls.set(calls.get() + 1);
+        70002
+    })
+    .unwrap();
+    let final_call = calls.get();
+    calls.set(0);
+    let result = build(&sources, &op, &request(&snapshot), &model, || {
+        calls.set(calls.get() + 1);
+        if calls.get() == final_call {
+            sources.cancel_ingestion_operation("job").unwrap();
+        }
+        70002
+    });
+    assert!(
+        result.is_err(),
+        "cancelled replay returned a success receipt"
+    );
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[path = "ingestion-hybrid-query-tests.rs"]
+mod hybrid_tests;

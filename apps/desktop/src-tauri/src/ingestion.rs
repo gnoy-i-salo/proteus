@@ -4,6 +4,8 @@ pub mod adapter;
 pub mod fingerprint;
 #[path = "ingestion-grants.rs"]
 pub mod grants;
+#[path = "ingestion-hybrid-query.rs"]
+pub mod hybrid_query;
 #[path = "ingestion-index-authority.rs"]
 mod index_authority;
 #[path = "ingestion-input.rs"]

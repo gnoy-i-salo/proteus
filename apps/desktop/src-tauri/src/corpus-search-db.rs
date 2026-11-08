@@ -2,6 +2,24 @@
 use super::*;
 use crate::corpus_database::CorpusDatabase;
 impl CorpusDatabase {
+    pub fn read_reference_chunks(
+        &self,
+        scope: &SearchScope,
+        expected: &SearchIndexReceipt,
+        ids: &[String],
+        max_text_bytes: usize,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<Vec<ReferenceChunk>, String> {
+        read_reference_chunks(
+            &self.connection,
+            scope,
+            expected,
+            ids,
+            max_text_bytes,
+            check,
+        )
+    }
+
     pub fn search_staging_ids(
         &self,
         prefix: &str,

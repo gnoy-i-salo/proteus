@@ -251,24 +251,31 @@ fn search_pinned(
     })
 }
 
-fn search_with_receipt_pinned(
+/// Caller holds the shared read savepoint. Every reader pins the full receipt
+/// before accessing rows, so a concurrent publication cannot swap the source.
+pub(super) fn require_receipt(
     connection: &Connection,
-    request: &SearchRequest,
-    parsed: &ParsedQuery,
+    scope: &SearchScope,
     expected: &SearchIndexReceipt,
-) -> Result<SearchResponse, String> {
-    check_current_snapshot(connection, &request.scope)?;
-    // The full active receipt is read before the hit query, inside the same
-    // pinned snapshot: comparing after releasing the read snapshot would let
-    // a concurrent publish+prune swap the publication between the identity
-    // check and the hits.
-    let actual = load_active_receipt(connection, &request.scope.snapshot_id)?
+) -> Result<SearchIndexReceipt, String> {
+    check_current_snapshot(connection, scope)?;
+    let actual = load_active_receipt(connection, &scope.snapshot_id)?
         .ok_or_else(|| invalid_data("Индекс для снимка корпуса не опубликован."))?;
     if actual != *expected {
         return Err(invalid_data(
             "Квитанция индекса не соответствует активной публикации; обновите область поиска.",
         ));
     }
+    Ok(actual)
+}
+
+fn search_with_receipt_pinned(
+    connection: &Connection,
+    request: &SearchRequest,
+    parsed: &ParsedQuery,
+    expected: &SearchIndexReceipt,
+) -> Result<SearchResponse, String> {
+    let actual = require_receipt(connection, &request.scope, expected)?;
     let (hits, has_more) = collect_hits(
         connection,
         &request.scope,

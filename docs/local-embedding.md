@@ -170,10 +170,9 @@ to the bounded ranker. One row buffer can be dropped after each callback; a
 storage, profile, cancellation or candidate-budget error discards all partial
 hits. At most 100000 candidate IDs and 1000 result references are retained.
 
-These are native database primitives, not the production MemoryPort or a grant
-issuer. Model availability, host-owned scope, live permission rechecks, hybrid
-orchestration, bounded episode expansion and retrieval receipts still need their
-own integration and acceptance checks.
+These database primitives do not issue grants. The native orchestration below
+supplies scope and live permission checks; production MemoryPort sessions, bounded
+episode expansion and retrieval receipts still need integration and acceptance.
 
 ## Индексирование разрешённого корпуса
 
@@ -191,3 +190,31 @@ receipt. Незавершённая стадия сохраняется: пов�
 без повторного inference. Отложенные данные не передаются модели. Общий лимит RAM
 для нескольких runtime, запуск из IPC/UI, очистка старых стадий и MemoryPort
 остаются ответственностью интеграционного сценария.
+
+## Гибридный поиск в разрешённом снимке
+
+`ingestion::hybrid_query::query` получает независимые списки FTS и exact cosine,
+объединяет их RRF и ограничивает число результатов одного документа. Смысловое
+совпадение может попасть в результат при отсутствии любых словесных совпадений.
+Область выводится из завершённой задачи: persona, пары grant/binding, снимок,
+поколение и период применяются до ранжирования. Оба индекса должны соответствовать
+одному полному source receipt, а токенизатор и embedding fingerprint — модели.
+
+До query inference требуется действующее разрешение обработки моделью. Inference
+не удерживает блокировку базы; источник, разрешения и срок проверяются через
+callback и после вычисления. Отзыв разрешения, перестроение индекса или отмена
+перед возвратом отклоняют весь результат. Нет автоматического перехода в FTS-only:
+лексический сценарий вызывается отдельно и не требует embedding weights.
+
+Ограничения одного вызова: до 100 кандидатов в каждом списке, до 100000 сканируемых
+векторов, до 100 результатов, до 64 MiB точного текста и до 60 секунд кооперативного
+бюджета. Чтение выбранных chunk IDs сохраняет порядок рангов и проверяет область
+в той же транзакции, что и полный receipt. Отсутствующая/чужая ссылка или нехватка
+байтов отклоняют весь запрос. Исходные Unicode, пробелы и переводы строк сохраняются.
+
+Интеграционный тест проходит путь выбранного архива через подготовку, FTS,
+настоящую закреплённую E5 и гибридную выдачу. Проверки дополнительно покрывают
+semantic-only результат, holdout, период, stale generation, отзыв разрешения во
+время inference и последнюю границу отмены. Это получение кандидатов, ещё не
+`MemoryPort`: cumulative budgets сессии, расширение эпизодов, проверяемые citations
+и окончательный latency benchmark остаются обязательной работой tip.11.

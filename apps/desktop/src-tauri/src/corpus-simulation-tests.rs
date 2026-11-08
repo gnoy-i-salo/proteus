@@ -136,6 +136,7 @@ fn appends_and_preserves_exact_text_across_reopen() {
     assert_eq!(stored.items.len(), 1);
     assert_eq!(stored.items[0].sequence, 1);
     assert_eq!(stored.items[0].entry, entry);
+    drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
 #[test]

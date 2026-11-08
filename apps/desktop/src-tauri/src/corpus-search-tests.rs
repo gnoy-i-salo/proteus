@@ -660,6 +660,8 @@ fn commit_blocked_by_concurrent_write_fails_closed_and_recovers() {
         "stage:1",
         &fixture_chunks(),
     );
+    // Windows keeps an open database file locked even after a binding is shadowed.
+    drop(connection);
     let mut input = fixture_chunks();
     input[0].text = "Марья: совершенно новый текст для поколения 2.".into();
     input[0].stage_id = "stage:2".into();

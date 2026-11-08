@@ -401,6 +401,31 @@ fn real_e5_vectors_connect_authorized_import_preparation_and_hybrid_search() {
         .map(|(a, b)| a * b)
         .sum();
     assert!(cosine > 0.99999);
+    let cancelled =
+        service.with_runtime("real-cancel-inner", input.budget, &|| Ok(()), |model, _| {
+            assert!(service.cancel("real-cancel-inner").unwrap());
+            // A nested worker supplies its own source guard. Service cancellation
+            // must still reach inference before the outer work closure returns.
+            let result = model.embed(&["контекст"], InputKind::Query, &input.budget, &|| Ok(()));
+            assert!(matches!(
+                result,
+                Err(crate::local_embedding::runtime::EmbeddingError::Interrupted(_))
+            ));
+            Ok(())
+        });
+    assert!(cancelled.is_err());
+    service
+        .with_runtime(
+            "real-after-cancel",
+            input.budget,
+            &|| Ok(()),
+            |model, guard| {
+                guard()?;
+                assert_eq!(model.fingerprint(), fingerprint);
+                Ok(())
+            },
+        )
+        .unwrap();
     assert!(service.unload().unwrap());
     assert!(!service.state().runtime_loaded);
     drop(service);

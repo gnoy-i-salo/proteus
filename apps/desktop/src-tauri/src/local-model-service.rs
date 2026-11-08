@@ -4,7 +4,7 @@ use super::{
     cache::CacheInstallError,
     download::{self, DownloadBudget, DownloadError},
     manager::{self, InstallProgress, PackageStatus},
-    model::{model_error, EmbeddingModel},
+    model::{model_error, EmbeddingModel, GuardedModel},
     runtime::{self, DownloadDescriptor, E5Runtime, EmbeddingBudget, ModelFiles},
     slot::{CachedRuntime, CancelToken, RuntimeSlot, SlotError},
 };
@@ -174,7 +174,11 @@ impl LocalModelService {
                 |runtime, token| {
                     let guard = || guard(token);
                     guard()?;
-                    let result = work(runtime, &guard)?;
+                    let model = GuardedModel {
+                        inner: runtime,
+                        guard: &guard,
+                    };
+                    let result = work(&model, &guard)?;
                     guard()?;
                     Ok(result)
                 },

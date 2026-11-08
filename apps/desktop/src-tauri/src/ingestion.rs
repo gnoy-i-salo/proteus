@@ -58,6 +58,8 @@ pub mod search_workflow;
 pub mod selected_page;
 #[path = "selected-page-content.rs"]
 pub mod selected_page_content;
+#[path = "ingestion-source-excerpt.rs"]
+pub mod source_excerpt;
 #[path = "telegram-archive-json.rs"]
 pub mod telegram_archive_json;
 #[path = "telegram-document.rs"]

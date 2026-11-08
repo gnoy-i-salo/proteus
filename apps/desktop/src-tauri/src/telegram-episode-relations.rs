@@ -7,7 +7,7 @@ use super::{
 use crate::corpus_database::RevisionReference;
 use std::collections::{BTreeMap, BTreeSet};
 #[path = "telegram-relation-metadata.rs"]
-mod metadata;
+pub(super) mod metadata;
 #[derive(Debug)]
 pub struct ResolvedRelations {
     pub related: Vec<RevisionReference>,
@@ -165,7 +165,7 @@ fn typed_resource(doc: &TelegramDocument) -> String {
         kind: doc.resource_kind.clone(),
     })
 }
-fn peer_resource(version: ArchiveVersion, peer: &str) -> Option<(String, String)> {
+pub(super) fn peer_resource(version: ArchiveVersion, peer: &str) -> Option<(String, String)> {
     for class in ["user", "chat", "channel"] {
         if let Some(id) = peer.strip_prefix(class) {
             if id.len() > 128

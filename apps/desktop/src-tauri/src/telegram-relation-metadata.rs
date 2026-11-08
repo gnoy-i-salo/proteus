@@ -4,7 +4,7 @@ use super::super::telegram_document::TelegramDocument;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
-pub(super) struct Metadata {
+pub(in crate::ingestion) struct Metadata {
     pub peer: Option<String>,
     pub quotes: BTreeSet<String>,
     pub complete: bool,
@@ -37,7 +37,7 @@ enum TextPart {
     Plain(String),
     Entity(Entity),
 }
-pub(super) fn parse(document: &TelegramDocument) -> Result<Metadata, String> {
+pub(in crate::ingestion) fn parse(document: &TelegramDocument) -> Result<Metadata, String> {
     let raw: Raw = serde_json::from_str(&document.raw_json)
         .map_err(|_| "Неоднозначные связи в исходном сообщении Telegram.")?;
     let mut metadata = Metadata {

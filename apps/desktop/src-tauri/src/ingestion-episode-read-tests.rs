@@ -35,6 +35,12 @@ fn authorized_episode_expansion_preserves_real_originals_and_exact_chunk_account
         let result = read(&sources, &op, &episode_input(&snapshot, &id), || 70002).unwrap();
         assert_eq!(result.source, index);
         assert_eq!(result.episode.id, id);
+        assert_eq!(result.excerpts.len(), result.entries.len());
+        for (excerpt, entry) in result.excerpts.iter().zip(&result.entries) {
+            assert_eq!(excerpt.text, entry.chunk.text);
+            assert_eq!(excerpt.span, entry.chunk.spans[0]);
+            assert_eq!(excerpt.document.id, entry.original.reference.document_id);
+        }
         assert_eq!(
             result.source_bytes,
             result

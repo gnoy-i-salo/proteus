@@ -59,6 +59,25 @@ pub(super) enum CompletedAdapter {
     },
     Page(Box<StoredPreview>),
 }
+pub(super) enum SelectedDocument {
+    Telegram(super::telegram_document::TelegramDocument),
+    Page(super::page_document::PageDocument),
+}
+impl SelectedDocument {
+    pub fn text(&self) -> &str {
+        match self {
+            Self::Telegram(doc) => &doc.text,
+            Self::Page(doc) => &doc.text,
+        }
+    }
+    pub fn timestamp(&self) -> Result<Option<i64>, String> {
+        let value = match self {
+            Self::Telegram(doc) => &doc.created_at,
+            Self::Page(doc) => &doc.published_at,
+        };
+        value.as_deref().map(super::period::date_ms).transpose()
+    }
+}
 impl CompletedAdapter {
     pub fn resolve(
         job: &crate::corpus_database::StoredJob,
@@ -96,20 +115,35 @@ impl CompletedAdapter {
         binding: &crate::corpus_database::JobBinding,
         check: &dyn Fn() -> Result<(), String>,
     ) -> Result<Option<i64>, String> {
+        self.selected_document(revision, binding, check)?
+            .timestamp()
+    }
+    pub fn selected_document(
+        &self,
+        revision: &crate::corpus_database::StoredRevision,
+        binding: &crate::corpus_database::JobBinding,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<SelectedDocument, String> {
         check()?;
-        let (selected, created) = match self {
+        let (selected, document) = match self {
             Self::Telegram { version, origin } => {
+                if binding.provider != JobProvider::Telegram {
+                    return Err("Привязка принадлежит другому адаптеру.".into());
+                }
                 let doc = super::telegram_document::decode_revision(*version, origin, revision)?;
                 (
                     super::telegram_worker::selected(std::slice::from_ref(binding), &doc)?,
-                    doc.created_at,
+                    SelectedDocument::Telegram(doc),
                 )
             }
             Self::Page(preview) => {
+                if Adapter::resolve(preview)?.provider() != binding.provider {
+                    return Err("Привязка принадлежит другому адаптеру.".into());
+                }
                 let doc = super::page_source::decode_revision(preview, revision, check)?;
                 (
                     super::page_source::selected(std::slice::from_ref(binding), &doc)?,
-                    doc.published_at,
+                    SelectedDocument::Page(doc),
                 )
             }
         };
@@ -117,6 +151,6 @@ impl CompletedAdapter {
         if !selected {
             return Err("Фрагмент вне разрешённой области источника.".into());
         }
-        created.as_deref().map(super::period::date_ms).transpose()
+        Ok(document)
     }
 }

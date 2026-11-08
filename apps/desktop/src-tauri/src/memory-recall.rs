@@ -16,6 +16,7 @@ use crate::{
 use std::collections::HashSet;
 pub struct NativeRecallHit {
     pub entry: PreparedEntry,
+    pub excerpt: crate::ingestion::source_excerpt::SourceExcerpt,
     pub lexical_rank: Option<usize>,
     pub semantic_rank: Option<usize>,
     pub fusion_score: f64,
@@ -185,7 +186,7 @@ fn recall(
                 context_tokens: 0,
             };
             for (hit, entry) in hits.into_iter().zip(entries) {
-                scope.authority.verify_reference_entry(
+                let excerpt = scope.authority.verify_reference_entry(
                     &hit.chunk,
                     &entry,
                     &scope.persona_id,
@@ -200,6 +201,7 @@ fn recall(
                 }
                 result.hits.push(NativeRecallHit {
                     entry,
+                    excerpt,
                     lexical_rank: hit.lexical_rank,
                     semantic_rank: hit.semantic_rank,
                     fusion_score: hit.fusion_score,

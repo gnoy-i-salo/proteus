@@ -11,6 +11,14 @@ fn lexical_recall_and_episode_reads_share_one_host_budget() {
     assert_eq!(recalled.source, index);
     assert!(recalled.vectors.is_none());
     assert!(!recalled.hits.is_empty());
+    for hit in &recalled.hits {
+        assert_eq!(hit.excerpt.text, hit.entry.chunk.text);
+        assert_eq!(hit.excerpt.span, hit.entry.chunk.spans[0]);
+        assert_eq!(
+            hit.excerpt.document.id,
+            hit.entry.original.reference.document_id
+        );
+    }
     assert!(recalled
         .hits
         .iter()

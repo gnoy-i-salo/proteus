@@ -4,6 +4,7 @@ mod binding;
 mod binding_policy;
 pub use binding::SourceBindingResult;
 pub use binding_policy::{CreatedSourceBinding, SourceBindingRequest};
+pub(crate) use binding_policy::{DocumentRelation, RelationKind, SourceAuthor, SpeakerRelation};
 #[path = "source-collection.rs"]
 mod collection;
 #[path = "source-corpus.rs"]

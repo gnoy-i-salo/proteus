@@ -27,6 +27,7 @@ pub struct EpisodeReadResult {
     pub source: SearchIndexReceipt,
     pub episode: Arc<PreparedEpisode>,
     pub entries: Vec<PreparedEntry>,
+    pub excerpts: Vec<super::source_excerpt::SourceExcerpt>,
     pub source_bytes: usize,
     pub context_tokens: usize,
 }
@@ -137,12 +138,18 @@ pub fn read(
         }
         let mut source_bytes = 0usize;
         let mut context_tokens = 0usize;
+        let mut excerpts = Vec::with_capacity(entries.len());
         for (chunk, entry) in chunks.iter().zip(&entries) {
             check()?;
             if entry.episode.id != input.episode_id || entry.episode.binding_id != binding.id {
                 return Err("Эпизод не соответствует проверенным оригиналам.".into());
             }
-            authority.verify_reference_entry(chunk, entry, input.persona_id, &check)?;
+            excerpts.push(authority.verify_reference_entry(
+                chunk,
+                entry,
+                input.persona_id,
+                &check,
+            )?);
             source_bytes = source_bytes
                 .checked_add(entry.chunk.text.len())
                 .ok_or("Превышен бюджет чтения.")?;
@@ -162,6 +169,7 @@ pub fn read(
             source: pin.receipt,
             episode: references.episode,
             entries,
+            excerpts,
             source_bytes,
             context_tokens,
         })

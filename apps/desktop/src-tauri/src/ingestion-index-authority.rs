@@ -96,7 +96,7 @@ impl IndexAuthority {
         entry: &crate::corpus_database::preparation::PreparedEntry,
         persona_id: &str,
         check: &dyn Fn() -> Result<(), String>,
-    ) -> Result<(), String> {
+    ) -> Result<super::source_excerpt::SourceExcerpt, String> {
         check()?;
         let binding = self
             .bindings
@@ -105,13 +105,21 @@ impl IndexAuthority {
                 binding.id == entry.episode.binding_id && binding.persona_id == persona_id
             })
             .ok_or("Фрагмент вне разрешённой области.")?;
-        let timestamp = self
-            .adapter
-            .selected_timestamp(&entry.original, binding, check)?;
-        let span = &entry.chunk.spans[0];
+        let [span] = entry.chunk.spans.as_slice() else {
+            return Err("Фрагмент должен ссылаться на одну исходную ревизию.".into());
+        };
+        let excerpt =
+            super::source_excerpt::project(&self.adapter, &entry.original, binding, span, check)?;
+        let timestamp = excerpt
+            .document
+            .created_at
+            .as_deref()
+            .map(super::period::date_ms)
+            .transpose()?;
         if chunk.chunk_id != entry.chunk.id
             || chunk.persona_id != persona_id
             || chunk.text != entry.chunk.text
+            || chunk.text != excerpt.text
             || chunk.document_id != span.document_id
             || chunk.revision_id != span.revision_id
             || usize::try_from(chunk.span_start).ok() != Some(span.start)
@@ -123,7 +131,7 @@ impl IndexAuthority {
         {
             return Err("Фрагмент не соответствует проверенным оригиналам.".into());
         }
-        Ok(())
+        Ok(excerpt)
     }
     pub fn current(&self, db: &CorpusDatabase, now: i64, purpose: GrantUse) -> Result<(), String> {
         if read_job(db, &self.job.id)? != self.job {

@@ -7,6 +7,7 @@ pub mod corpus_database;
 pub mod ingestion;
 #[path = "local-embedding.rs"]
 pub mod local_embedding;
+pub mod memory;
 #[path = "retrieval-ranking.rs"]
 pub mod retrieval_ranking;
 

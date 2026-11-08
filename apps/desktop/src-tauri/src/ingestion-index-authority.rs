@@ -13,13 +13,13 @@ use crate::corpus_database::{
     CorpusDatabase, JobBinding, StoredJob,
 };
 
-pub(super) struct IndexAuthority {
+pub(crate) struct IndexAuthority {
     pub job: StoredJob,
-    pub adapter: CompletedAdapter,
+    pub(super) adapter: CompletedAdapter,
     pub bindings: Vec<JobBinding>,
     pub deadline: i64,
 }
-pub(super) struct IndexPin {
+pub(crate) struct IndexPin {
     pub receipt: SearchIndexReceipt,
     pub tokenizer_version: String,
 }

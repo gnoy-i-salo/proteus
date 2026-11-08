@@ -405,3 +405,6 @@ mod hybrid_tests;
 
 #[path = "ingestion-episode-read-tests.rs"]
 mod episode_read_tests;
+
+#[path = "memory-session-tests.rs"]
+mod memory_session_tests;

@@ -9,7 +9,7 @@ pub mod grants;
 #[path = "ingestion-hybrid-query.rs"]
 pub mod hybrid_query;
 #[path = "ingestion-index-authority.rs"]
-mod index_authority;
+pub(crate) mod index_authority;
 #[path = "ingestion-input.rs"]
 mod input;
 #[path = "ingestion-job-commands.rs"]

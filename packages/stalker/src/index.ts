@@ -7,3 +7,5 @@ export { parseCollectionAction } from './collection-action';
 export { validateSourceGrant } from './source-scope';
 export { sourceSkill } from './source-skills';
 export { analyzeSourceCollections } from './source-analysis';
+export { parseMemoryAnalysis } from './parse-memory-analysis';
+export type { MemoryAnalysisSource, MemoryAnalysisScope } from './parse-memory-analysis';

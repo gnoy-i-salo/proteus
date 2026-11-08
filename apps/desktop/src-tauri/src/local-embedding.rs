@@ -2,6 +2,8 @@
 //! pinned package does not run inference.
 #[path = "local-embedding-cache.rs"]
 pub mod cache;
+#[path = "local-model-commands.rs"]
+pub mod commands;
 #[path = "local-model-download.rs"]
 pub mod download;
 #[path = "local-model-manager.rs"]
@@ -12,6 +14,10 @@ pub mod model;
 pub mod runtime;
 #[path = "embedding-search.rs"]
 pub mod search;
+#[path = "local-model-service.rs"]
+pub mod service;
+#[path = "local-model-slot.rs"]
+pub mod slot;
 #[path = "e5-tokenizer.rs"]
 pub mod tokenizer;
 impl crate::corpus_database::episodes::EpisodeTokenizer for tokenizer::E5Tokenizer {

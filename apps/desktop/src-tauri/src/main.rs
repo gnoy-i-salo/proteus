@@ -65,6 +65,15 @@ fn main() {
         .manage(presets::PendingPresets::default())
         .manage(std::sync::Arc::new(ingestion::SelectedInputs::default()))
         .setup(|app| {
+            app.manage(std::sync::Arc::new(
+                local_embedding::service::LocalModelService::new(
+                    app.path()
+                        .app_cache_dir()?
+                        .join("models")
+                        .join("multilingual-e5-small"),
+                )
+                .map_err(std::io::Error::other)?,
+            ));
             let directory = app.path().app_data_dir()?.join("sources");
             let connections =
                 connections::Connections::new(directory.clone()).map_err(std::io::Error::other)?;
@@ -95,6 +104,11 @@ fn main() {
         })
         .manage(cli::Runs::default())
         .invoke_handler(tauri::generate_handler![
+            local_embedding::commands::local_model_state,
+            local_embedding::commands::inspect_local_model,
+            local_embedding::commands::download_local_model,
+            local_embedding::commands::cancel_local_model_operation,
+            local_embedding::commands::unload_local_model,
             cli::cli_status,
             cli::run_cli,
             cli::cancel_cli,
@@ -147,9 +161,14 @@ fn main() {
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 app.state::<sources::Sources>().shutdown();
                 app.state::<connections::Connections>().shutdown();
+                let models = app
+                    .state::<std::sync::Arc<local_embedding::service::LocalModelService>>()
+                    .inner()
+                    .clone();
+                models.shutdown();
                 let runs = app.state::<cli::Runs>().0.clone();
                 if let Ok(active) = runs.lock() {
-                    if !active.is_empty() {
+                    if !active.is_empty() || models.state().operation_active {
                         api.prevent_exit();
                         for flag in active.values() {
                             flag.store(true, Ordering::SeqCst);
@@ -158,7 +177,9 @@ fn main() {
                         let pending = runs.clone();
                         std::thread::spawn(move || {
                             loop {
-                                if pending.lock().is_ok_and(|items| items.is_empty()) {
+                                if pending.lock().is_ok_and(|items| items.is_empty())
+                                    && !models.state().operation_active
+                                {
                                     break;
                                 }
                                 std::thread::sleep(std::time::Duration::from_millis(100));

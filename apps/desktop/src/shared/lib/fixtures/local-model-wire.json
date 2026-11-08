@@ -1,0 +1,16 @@
+{
+  "state": {
+    "schemaVersion": 1,
+    "modelId": "intfloat/multilingual-e5-small",
+    "modelRevision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+    "packageBytes": 487724985,
+    "runtimeLoaded": false,
+    "operationActive": false
+  },
+  "progress": {
+    "schemaVersion": 1,
+    "operationId": "download-fixture",
+    "artifactsVerified": 3,
+    "bytesVerified": 487724985
+  }
+}

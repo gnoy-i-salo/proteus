@@ -268,8 +268,9 @@ fn malformed_model_batch_and_expired_budget_never_publish_partial_results() {
 #[test]
 fn real_e5_vectors_connect_authorized_import_preparation_and_hybrid_search() {
     use crate::local_embedding::{
-        runtime::{E5Runtime, ModelFiles},
+        runtime::{cache_descriptor, ModelFiles},
         search::SearchBudget,
+        service::LocalModelService,
         tokenizer::E5Tokenizer,
     };
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../.cache/models");
@@ -296,76 +297,113 @@ fn real_e5_vectors_connect_authorized_import_preparation_and_hybrid_search() {
     let mut input = request(&snapshot);
     input.budget.max_batch_items = 8;
     input.budget.max_batch_tokens = 4096;
-    let model = E5Runtime::load(&files, &input.budget, &|| Ok(())).unwrap();
-    let receipt = build(&sources, &op, &input, &model, || 70002).unwrap();
-    assert_eq!(receipt.vector_count, index.chunk_count);
-    assert_eq!(receipt.dimensions, 384);
-    let query = model
-        .embed(
-            &["контекст"],
-            InputKind::Query,
-            model.fingerprint(),
-            &input.budget,
+    let cache_dir = dir.join("model-cache");
+    std::fs::create_dir(&cache_dir).unwrap();
+    let descriptor = cache_descriptor().unwrap();
+    for (source, hash) in [
+        (&files.weights, &descriptor.weights.sha256),
+        (&files.config, &descriptor.config.sha256),
+        (&files.tokenizer, &descriptor.tokenizer.sha256),
+    ] {
+        let target = cache_dir.join(hash);
+        std::fs::hard_link(source, &target)
+            .or_else(|_| std::fs::copy(source, &target).map(|_| ()))
+            .unwrap();
+    }
+    let service = LocalModelService::new(cache_dir.clone()).unwrap();
+    let (fingerprint, original_query) = service
+        .with_runtime(
+            "real-index-and-query",
+            input.budget,
             &|| Ok(()),
+            |model, guard| {
+                let receipt = build(&sources, &op, &input, model, || 70002).unwrap();
+                assert_eq!(receipt.vector_count, index.chunk_count);
+                assert_eq!(receipt.dimensions, 384);
+                let query = model
+                    .embed(&["контекст"], InputKind::Query, &input.budget, guard)
+                    .unwrap();
+                sources
+                    .with_ingestion_database(&op, |db| {
+                        let binding = &db.job("job")?.unwrap().state.selection.bindings[0];
+                        let scope = SearchScope {
+                            snapshot_id: snapshot.id.clone(),
+                            snapshot_generation: snapshot.generation,
+                            persona_id: binding.persona_id.clone(),
+                            grant_ids: vec![binding.grant_id.clone()],
+                            binding_ids: vec![binding.id.clone()],
+                            period: SearchPeriod {
+                                from: None,
+                                to: None,
+                                include_undated: true,
+                            },
+                        };
+                        let hits = db.search_vectors(
+                            &scope,
+                            &receipt,
+                            &query[0],
+                            model.fingerprint(),
+                            SearchBudget {
+                                max_scanned: 100,
+                                max_results: 100,
+                            },
+                            &|| Ok(()),
+                        )?;
+                        assert_eq!(hits.len(), index.chunk_count as usize);
+                        assert!(hits.iter().all(|h| h.cosine.is_finite()));
+                        assert_eq!(
+                            db.active_vector_receipt(&snapshot.id, &|| Ok(()))?,
+                            Some(receipt)
+                        );
+                        Ok(())
+                    })
+                    .unwrap();
+                let hybrid = crate::ingestion::hybrid_query::query(
+                    &sources,
+                    &op,
+                    &crate::ingestion::hybrid_query::HybridQueryInput {
+                        query: super::input(&snapshot),
+                        candidate_limit: 10,
+                        max_scanned: 100,
+                        max_per_document: 10,
+                        max_source_bytes: 65536,
+                        embedding_budget: input.budget,
+                    },
+                    model,
+                    || 70003,
+                )
+                .unwrap();
+                assert_eq!(hybrid.hits.len(), index.chunk_count as usize);
+                assert!(hybrid.hits.iter().any(|hit| {
+                    hit.chunk.text == "  контекст\r\n"
+                        && hit.semantic_rank.is_some()
+                        && hit.lexical_rank.is_some()
+                }));
+                Ok((model.fingerprint().to_string(), query))
+            },
         )
         .unwrap();
-    sources
-        .with_ingestion_database(&op, |db| {
-            let binding = &db.job("job")?.unwrap().state.selection.bindings[0];
-            let scope = SearchScope {
-                snapshot_id: snapshot.id.clone(),
-                snapshot_generation: snapshot.generation,
-                persona_id: binding.persona_id.clone(),
-                grant_ids: vec![binding.grant_id.clone()],
-                binding_ids: vec![binding.id.clone()],
-                period: SearchPeriod {
-                    from: None,
-                    to: None,
-                    include_undated: true,
-                },
-            };
-            let hits = db.search_vectors(
-                &scope,
-                &receipt,
-                &query[0],
-                model.fingerprint(),
-                SearchBudget {
-                    max_scanned: 100,
-                    max_results: 100,
-                },
-                &|| Ok(()),
-            )?;
-            assert_eq!(hits.len(), index.chunk_count as usize);
-            assert!(hits.iter().all(|h| h.cosine.is_finite()));
-            assert_eq!(
-                db.active_vector_receipt(&snapshot.id, &|| Ok(()))?,
-                Some(receipt)
-            );
-            Ok(())
+    assert!(service.state().runtime_loaded);
+    // Removing only these temporary cache links proves reuse does not reload.
+    // The repository's prepared model artifacts remain unchanged.
+    std::fs::remove_dir_all(&cache_dir).unwrap();
+    let reused = service
+        .with_runtime("real-reuse", input.budget, &|| Ok(()), |model, guard| {
+            assert_eq!(model.fingerprint(), fingerprint);
+            model
+                .embed(&["контекст"], InputKind::Query, &input.budget, guard)
+                .map_err(crate::local_embedding::model::model_error)
         })
         .unwrap();
-    let hybrid = crate::ingestion::hybrid_query::query(
-        &sources,
-        &op,
-        &crate::ingestion::hybrid_query::HybridQueryInput {
-            query: super::input(&snapshot),
-            candidate_limit: 10,
-            max_scanned: 100,
-            max_per_document: 10,
-            max_source_bytes: 65536,
-            embedding_budget: input.budget,
-        },
-        &model,
-        || 70003,
-    )
-    .unwrap();
-    assert_eq!(hybrid.hits.len(), index.chunk_count as usize);
-    assert!(hybrid.hits.iter().any(|hit| {
-        hit.chunk.text == "  контекст\r\n"
-            && hit.semantic_rank.is_some()
-            && hit.lexical_rank.is_some()
-    }));
-    drop(model);
+    let cosine: f32 = original_query[0]
+        .iter()
+        .zip(&reused[0])
+        .map(|(a, b)| a * b)
+        .sum();
+    assert!(cosine > 0.99999);
+    assert!(service.unload().unwrap());
+    assert!(!service.state().runtime_loaded);
+    drop(service);
     drop(op);
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();

@@ -28,7 +28,7 @@ pub struct QueryInput<'a> {
     pub max_duration_ms: i64,
 }
 impl QueryInput<'_> {
-    fn validate(&self) -> Result<(), String> {
+    pub(super) fn validate(&self) -> Result<(), String> {
         if [self.job_id, self.snapshot_id, self.persona_id]
             .iter()
             .any(|id| id.trim().is_empty() || id.len() > 256 || id.chars().any(char::is_control))

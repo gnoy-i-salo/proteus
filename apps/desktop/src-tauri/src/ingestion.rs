@@ -42,8 +42,12 @@ pub mod publication;
 pub mod restore_workflow;
 #[path = "ingestion-search.rs"]
 pub mod search;
+#[path = "ingestion-search-commands.rs"]
+pub mod search_commands;
 #[path = "ingestion-search-query.rs"]
 pub mod search_query;
+#[path = "ingestion-search-workflow.rs"]
+pub mod search_workflow;
 #[path = "selected-page.rs"]
 pub mod selected_page;
 #[path = "selected-page-content.rs"]

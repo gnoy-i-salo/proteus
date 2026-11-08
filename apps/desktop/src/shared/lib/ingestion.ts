@@ -31,7 +31,7 @@ async function confirmCancellation(operation: Cancellation, received: boolean): 
     throw new Error('Не удалось подтвердить отмену импорта. Проверьте его состояние.', { cause });
   }
 }
-async function request<T>(
+export async function requestIngestion<T>(
   command: string,
   args: Record<string, unknown>,
   decode: (value: unknown) => T,
@@ -99,7 +99,7 @@ function jobAction(
   id: string,
   signal?: AbortSignal,
 ): Promise<IngestionJob> {
-  return request(
+  return requestIngestion(
     `${action}_ingestion_job`,
     { jobId: jobId(id) },
     (value) => jobResponse(value, id),
@@ -125,7 +125,7 @@ export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
     )
       throw new Error('Выберите публичную HTTP(S)-страницу без учётных данных.');
     const operationId = crypto.randomUUID();
-    return request(
+    return requestIngestion(
       'preview_ingestion_url',
       { request: { operationId, selectedUrl, budget: decodeIngestionBudget(budget) } },
       (value) => {
@@ -160,7 +160,7 @@ export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
             : undefined;
     if (!sourceFormat) throw new Error('Неподдерживаемый формат сохранённой страницы.');
     const operationId = crypto.randomUUID();
-    return request(
+    return requestIngestion(
       'preview_ingestion_page',
       {
         request: { operationId, sourceHandle, contentType, budget: decodeIngestionBudget(budget) },
@@ -187,7 +187,7 @@ export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
     if (!Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1 || maxDurationMs > 3600000)
       throw new Error('Неверный бюджет времени подготовки.');
     const operationId = crypto.randomUUID();
-    return request(
+    return requestIngestion(
       'prepare_ingestion_job',
       { request: { schemaVersion: 1, operationId, jobId: selectedJob, maxDurationMs } },
       (value) => {
@@ -206,7 +206,7 @@ export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
   },
   async createBinding(input, signal) {
     const selected = decodeIngestionBindingRequest(input);
-    return request(
+    return requestIngestion(
       'create_ingestion_binding',
       { request: selected },
       (value) => {
@@ -231,7 +231,7 @@ export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
   async preview(handle, budget, signal) {
     const sourceHandle = validateIngestionSourceHandle(handle);
     const operationId = crypto.randomUUID();
-    return request(
+    return requestIngestion(
       'preview_ingestion_source',
       { request: { operationId, sourceHandle, budget: decodeIngestionBudget(budget) } },
       (value) => {
@@ -248,7 +248,7 @@ export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
     const operationId = crypto.randomUUID();
     const selected = decodeIngestionSelection(selection);
     const limits = decodeIngestionBudget(budget);
-    return request(
+    return requestIngestion(
       'start_ingestion_job',
       { request: { operationId, selection: selected, budget: limits } },
       (value) => {
@@ -281,7 +281,7 @@ export const nativeIngestion: IngestionPort & CorpusPreparationPort = {
   },
   async publish(id, signal) {
     const operationId = crypto.randomUUID();
-    return request(
+    return requestIngestion(
       'publish_ingestion_job',
       { operationId, jobId: jobId(id) },
       decodeCorpusSnapshot,
@@ -296,7 +296,7 @@ export async function restoreIngestionSource(
   signal?: AbortSignal,
 ): Promise<IngestionJob> {
   const operationId = crypto.randomUUID();
-  return request(
+  return requestIngestion(
     'restore_ingestion_source',
     {
       request: {

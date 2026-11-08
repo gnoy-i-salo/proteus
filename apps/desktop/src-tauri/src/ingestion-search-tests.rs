@@ -349,3 +349,6 @@ fn native_index_checks_snapshot_ownership_before_starting_any_prepared_content_r
 
 #[path = "ingestion-search-query-tests.rs"]
 mod query_tests;
+
+#[path = "ingestion-search-workflow-tests.rs"]
+mod workflow_tests;

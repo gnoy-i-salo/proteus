@@ -16,6 +16,8 @@ mod record_store;
 mod revocation;
 #[path = "corpus-search.rs"]
 pub mod search;
+#[path = "corpus-simulation.rs"]
+pub mod simulation;
 #[path = "corpus-snapshot-store.rs"]
 mod snapshot_store;
 #[path = "corpus-vectors.rs"]

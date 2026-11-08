@@ -3,6 +3,8 @@
 pub mod cache;
 #[path = "e5-embedding.rs"]
 pub mod runtime;
+#[path = "embedding-search.rs"]
+pub mod search;
 #[path = "e5-tokenizer.rs"]
 pub mod tokenizer;
 impl crate::corpus_database::episodes::EpisodeTokenizer for tokenizer::E5Tokenizer {

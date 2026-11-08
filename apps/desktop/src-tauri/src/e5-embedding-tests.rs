@@ -1,5 +1,7 @@
 use super::*;
 use crate::local_embedding::tokenizer::InputKind;
+#[path = "e5-retrieval-observations.rs"]
+mod retrieval_observations;
 fn files() -> ModelFiles {
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../.cache/models");
     ModelFiles {

@@ -6,7 +6,14 @@ use super::*;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Barrier};
+use std::sync::{mpsc, Arc};
+use std::time::{Duration, Instant};
+
+/// Bounded wait for the reader/writer generation handshake in
+/// `concurrent_reads_never_observe_mixed_generations`. Normal completion is
+/// signal-driven through the channels; the bound only turns a genuine
+/// deadlock into a fast, explicit failure instead of a hung CI job.
+const GENERATION_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 
 const SNAPSHOT_A: &str = "snapshot:corpus-a";
 const SNAPSHOT_B: &str = "snapshot:corpus-b";
@@ -1547,12 +1554,13 @@ fn concurrent_reads_never_observe_mixed_generations() {
     rebuilt[0].text = "Поколение два: Марья перенесла встречу, суббота не подходит.".into();
     let path = directory.join("corpus.db");
     let publish_started = Arc::new(AtomicBool::new(false));
-    let stop = Arc::new(AtomicBool::new(false));
-    let barrier = Arc::new(Barrier::new(2));
+    // Deterministic handshakes replace scheduling assumptions: the writer
+    // publishes only after the reader reported a pre-publish read, and the
+    // main thread waits until the reader reported a post-publish read.
+    let (observed_before_publish_tx, observed_before_publish_rx) = mpsc::channel::<()>();
+    let (observed_after_publish_tx, observed_after_publish_rx) = mpsc::channel::<()>();
     let reader_path = path.clone();
     let reader_started = publish_started.clone();
-    let reader_stop = stop.clone();
-    let reader_barrier = barrier.clone();
     let reader = std::thread::spawn(move || {
         let connection = open_database(&reader_path);
         let request = SearchRequest {
@@ -1562,8 +1570,13 @@ fn concurrent_reads_never_observe_mixed_generations() {
             offset: 0,
         };
         let mut seen = Vec::new();
-        reader_barrier.wait();
-        while !reader_stop.load(Ordering::Relaxed) {
+        let mut reported_before_publish = false;
+        let deadline = Instant::now() + GENERATION_HANDSHAKE_TIMEOUT;
+        loop {
+            assert!(
+                Instant::now() < deadline,
+                "reader generation handshake timed out"
+            );
             let response = search(&connection, &request).unwrap();
             let generation = response.index_generation;
             assert!(
@@ -1575,17 +1588,34 @@ fn concurrent_reads_never_observe_mixed_generations() {
             );
             if generation == 2 {
                 assert!(
-                    reader_started.load(Ordering::Relaxed),
+                    reader_started.load(Ordering::Acquire),
                     "new generation before publish started"
                 );
             }
             if seen.last() != Some(&generation) {
                 seen.push(generation);
             }
+            if !reported_before_publish {
+                assert_eq!(
+                    generation, 1,
+                    "reader must observe the initial generation before any publish"
+                );
+                reported_before_publish = true;
+                observed_before_publish_tx.send(()).unwrap();
+            }
+            if generation == 2 {
+                observed_after_publish_tx.send(()).unwrap();
+                break;
+            }
         }
         seen
     });
-    barrier.wait();
+    observed_before_publish_rx
+        .recv_timeout(GENERATION_HANDSHAKE_TIMEOUT)
+        .expect("reader did not report a pre-publish read within the bounded wait");
+    // Set before publishing: once generation 2 is visible to any reader,
+    // `publish_started` is already true, so the reader-side check is race-free.
+    publish_started.store(true, Ordering::Release);
     publish(
         &mut connection,
         SNAPSHOT_A,
@@ -1593,23 +1623,17 @@ fn concurrent_reads_never_observe_mixed_generations() {
         "stage:2",
         &rebuilt,
     );
-    publish_started.store(true, Ordering::Relaxed);
-    let mut spins = 0;
-    loop {
-        let request = SearchRequest {
-            scope: scope_a(),
-            query_text: "суббота".into(),
-            limit: 1,
-            offset: 0,
-        };
-        if search(&connection, &request).unwrap().index_generation == 2 {
-            break;
+    match observed_after_publish_rx.recv_timeout(GENERATION_HANDSHAKE_TIMEOUT) {
+        Ok(()) => {}
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            panic!("reader did not observe generation 2 within the bounded wait");
         }
-        spins += 1;
-        assert!(spins < 1000, "reader never converged");
-        std::thread::yield_now();
+        Err(mpsc::RecvTimeoutError::Disconnected) => match reader.join() {
+            // The reader panicked on its own assertion; surface that failure.
+            Err(payload) => std::panic::resume_unwind(payload),
+            Ok(_) => panic!("reader exited without observing generation 2"),
+        },
     }
-    stop.store(true, Ordering::Relaxed);
     let seen = reader.join().unwrap();
     assert_eq!(seen.first(), Some(&1));
     assert_eq!(seen.last(), Some(&2));

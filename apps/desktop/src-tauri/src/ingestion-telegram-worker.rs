@@ -1,12 +1,13 @@
 //! Bounded archive acquisition. Each checkpoint follows durable records; only a
 //! complete stream matching the confirmed preview can publish a snapshot.
+use super::telegram_identity::ArchiveVersion;
 use super::{
     fingerprint::{FingerprintReader, InputFingerprint},
     grants::authorize_preview_binding,
     operations::Operation,
     preview_store::read_preview,
     telegram_archive_json::{read_telegram_json, ScanControl, TelegramArchiveLimits},
-    telegram_document::{normalize, TelegramDocument},
+    telegram_document::{normalize_with_version, TelegramDocument},
 };
 use crate::{
     corpus_database::{
@@ -21,7 +22,6 @@ use std::{io::Read, time::Duration};
 mod batch;
 use batch::pending;
 
-const ADAPTER: &str = "telegramDesktopJson:1";
 const INVALID: &str = "Контрольная точка не соответствует выбранному архиву.";
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -52,6 +52,7 @@ struct Session<'a, F> {
     operation: &'a Operation,
     job: StoredJob,
     cursor: Cursor,
+    version: ArchiveVersion,
     pending: Vec<Pending>,
     now_ms: F,
 }
@@ -64,17 +65,15 @@ fn acquire<R: Read>(
     now_ms: impl Fn() -> i64,
 ) -> Result<StoredJob, String> {
     super::input::validate_origin(origin)?;
-    let (mut job, preview) = sources.with_ingestion_database(operation, |db| {
+    let (mut job, preview, version) = sources.with_ingestion_database(operation, |db| {
         let job = db.job(job_id)?.ok_or("Задача импорта не найдена.")?;
         authorize(db, &job, now_ms())?;
         let preview = read_preview(db, &job.state.selection.preview_id)?;
-        if preview.provider != "telegram"
-            || preview.adapter_version != ADAPTER
-            || job.state.checkpoint.adapter_version != ADAPTER
-        {
+        let version = ArchiveVersion::from_adapter(&job.state.checkpoint.adapter_version)?;
+        if preview.provider != "telegram" || preview.adapter_version != version.adapter() {
             return Err("Неподдерживаемый адаптер архива.".into());
         }
-        Ok((job, preview))
+        Ok((job, preview, version))
     })?;
     if job.status == JobStatus::Completed {
         return publish(sources, operation, job, now_ms());
@@ -119,6 +118,7 @@ fn acquire<R: Read>(
         operation,
         job,
         cursor,
+        version,
         pending: Vec::new(),
         now_ms,
     };
@@ -162,14 +162,14 @@ fn acquire<R: Read>(
                 return Ok(ScanControl::Continue);
             }
             let location = Location {
-                resource_id: format!("telegram:chat:{}", frame.chat.id),
+                resource_id: String::new(),
                 original_id: String::new(),
                 byte_start: frame.byte_start,
                 byte_end: frame.byte_end,
             };
-            let document = normalize(origin, frame)?;
+            let document = normalize_with_version(version, origin, frame)?;
             if selected(&session.job.state.selection.bindings, &document)? {
-                let item = pending(document, location)?;
+                let item = pending(document, location, version)?;
                 if !session.pending.is_empty()
                     && session.batch_size(Some(&item))? > session.job.state.budget.max_batch_bytes
                 {

@@ -18,7 +18,7 @@ fn origin() -> String {
 #[test]
 fn exact_original_and_rich_text_survive_without_invented_authorship_or_acquisition_time() {
     let raw = r#"{ "id":7,"type":"message","from":"  Маша é ","from_id":"user7","date_unixtime":"1704067200","edited_unixtime":"1704067260","text":["  Привет\r\n",{"type":"bold","text":"é 😀"},"  "],"reply_to_message_id":6,"forwarded_from":"  Друг ","photo":"photos/a.jpg","custom":{"External_Key":"UNCHANGED"} }"#;
-    let value = normalize(&origin(), frame(raw)).unwrap();
+    let value = normalize_with_version(ArchiveVersion::V1, &origin(), frame(raw)).unwrap();
     assert_eq!(value.schema_version, 1);
     assert_eq!(value.raw_json, raw);
     assert_eq!(value.text, "  Привет\r\né 😀  ");
@@ -102,4 +102,75 @@ fn malformed_identity_authors_text_or_timestamps_never_silently_drop_source_cont
         frame(r#"{"id":1,"type":"message","text":"ok"}"#)
     )
     .is_err());
+}
+
+#[test]
+fn peer_class_prevents_shared_bare_ids_from_becoming_revisions_of_another_dialog() {
+    let raw = r#"{"id":7,"type":"message","from_id":"user7","text":"  original\r\n"}"#;
+    let documents = ["personal_chat", "private_group", "private_channel"].map(|kind| {
+        let mut frame = frame(raw);
+        frame.chat.kind = kind.into();
+        normalize(&origin(), frame).unwrap()
+    });
+    let keys: std::collections::BTreeSet<_> = documents.iter().map(|d| &d.source_key).collect();
+    assert_eq!(
+        keys.len(),
+        3,
+        "user/chat/channel IDs belong to distinct namespaces"
+    );
+    for document in &documents {
+        assert_eq!(document.schema_version, 2);
+        assert_eq!(document.raw_json, raw);
+        assert_eq!(document.text, "  original\r\n");
+    }
+    let mut public = frame(raw);
+    public.chat.kind = "public_channel".into();
+    let public = normalize(&origin(), public).unwrap();
+    assert_eq!(public.source_key, documents[2].source_key);
+    assert_eq!(public.id, documents[2].id);
+}
+
+#[test]
+fn peer_class_legacy_identity_matches_the_frozen_v1_address() {
+    let raw = r#"{"id":7,"type":"message","text":"  old original  "}"#;
+    let value = normalize_with_version(ArchiveVersion::V1, &origin(), frame(raw)).unwrap();
+    assert_eq!(value.schema_version, 1);
+    assert_eq!(value.resource_id, "telegram:chat:42");
+    assert_eq!(
+        value.source_key,
+        "telegramArchive:1:45daa8e37e1c005b01104aa5044419b2efc6518ec53de3c74e84f5d29f189b3e"
+    );
+    assert_eq!(
+        value.id,
+        "document:45daa8e37e1c005b01104aa5044419b2efc6518ec53de3c74e84f5d29f189b3e"
+    );
+    assert_eq!(value.raw_json, raw);
+    assert_eq!(value.text, "  old original  ");
+    let current = normalize(&origin(), frame(raw)).unwrap();
+    assert_ne!(current.id, value.id);
+    assert_eq!(current.raw_json, value.raw_json);
+}
+
+#[test]
+fn peer_class_unknown_kinds_are_distinct_without_guessing_a_known_namespace() {
+    let raw = r#"{"id":7,"type":"message","text":"unchanged"}"#;
+    let mut ids = std::collections::BTreeSet::new();
+    for kind in ["", "future_kind", "another_kind", "personal_chat"] {
+        let mut input = frame(raw);
+        input.chat.kind = kind.into();
+        let doc = normalize(&origin(), input).unwrap();
+        assert!(ids.insert(doc.resource_id.clone()));
+        assert_eq!(doc.resource_kind, kind);
+        if kind != "personal_chat" {
+            assert!(doc.resource_id.starts_with("telegram:peer:unknown:"));
+        }
+    }
+    for adapter in [
+        "telegramDesktopJson:0",
+        "telegramDesktopJson:3",
+        "telegramDesktopJson:02",
+        "telegramDesktopJson:2 ",
+    ] {
+        assert!(ArchiveVersion::from_adapter(adapter).is_err());
+    }
 }

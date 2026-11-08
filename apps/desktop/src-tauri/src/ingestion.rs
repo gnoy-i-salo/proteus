@@ -26,6 +26,8 @@ pub mod restore_workflow;
 pub mod telegram_archive_json;
 #[path = "telegram-document.rs"]
 pub mod telegram_document;
+#[path = "telegram-archive-identity.rs"]
+pub mod telegram_identity;
 #[path = "ingestion-telegram-worker.rs"]
 pub mod telegram_worker;
 pub use input::SelectedInputs;

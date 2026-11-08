@@ -133,9 +133,10 @@ pub(super) fn validate_selection(
     now_ms: i64,
 ) -> Result<(), String> {
     let preview = super::preview_store::read_preview(db, &selection.preview_id)?;
-    if preview.provider != "telegram" || preview.adapter_version != "telegramDesktopJson:1" {
+    if preview.provider != "telegram" {
         return Err("Этот формат ещё не поддерживает потоковый импорт.".into());
     }
+    super::telegram_identity::ArchiveVersion::from_adapter(&preview.adapter_version)?;
     for binding in &selection.bindings {
         super::grants::authorize_preview_binding(db, binding, &selection.preview_id, now_ms)?;
     }

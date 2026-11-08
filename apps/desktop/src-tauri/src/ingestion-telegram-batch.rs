@@ -1,6 +1,6 @@
 //! Durable bounded batches for the Telegram worker. Record data is written before
 //! its checkpoint; a retry can replace only its uncommitted deterministic batch.
-use super::{authorize, remaining_ms, Location, Pending, Session, ADAPTER, INVALID};
+use super::{authorize, remaining_ms, ArchiveVersion, Location, Pending, Session, INVALID};
 use crate::corpus_database::{
     Acquisition, HashAlgorithm, JobBatch, JobCheckpoint, JobPhase, JobStatus, ProvenanceLimitation,
     RecordInput, RevisionInput, SourceProvenance,
@@ -10,12 +10,14 @@ use sha2::{Digest, Sha256};
 pub(super) fn pending(
     document: TelegramDocument,
     mut location: Location,
+    version: ArchiveVersion,
 ) -> Result<Pending, String> {
     location.original_id = document.original_id.clone();
+    location.resource_id = document.resource_id.clone();
     let raw_bytes = document.raw_json.len() as i64;
     let provenance = SourceProvenance {
         acquisition: Acquisition::Archive,
-        adapter_version: ADAPTER.into(),
+        adapter_version: version.adapter().into(),
         source_format: "telegramDesktopJson".into(),
         original_object_id: Some(document.original_id.clone()),
         original_byte_length: Some(raw_bytes as u64),
@@ -52,7 +54,7 @@ impl<F: Fn() -> i64> Session<'_, F> {
             .chain(extra)
             .map(|item| &item.location)
             .collect::<Vec<_>>();
-        serde_json::to_string(&serde_json::json!({ "schemaVersion":1, "codec":"telegramArchiveBatch:1", "origin":self.cursor.origin, "acquiredAtMs":self.cursor.started_at_ms, "locations":locations })).map_err(|_| INVALID.into())
+        serde_json::to_string(&serde_json::json!({ "schemaVersion":1, "codec":self.version.batch_codec(), "origin":self.cursor.origin, "acquiredAtMs":self.cursor.started_at_ms, "locations":locations })).map_err(|_| INVALID.into())
     }
     pub(super) fn batch_size(&self, extra: Option<&Pending>) -> Result<i64, String> {
         let mut bytes = self.metadata(extra)?.len()
@@ -109,7 +111,7 @@ impl<F: Fn() -> i64> Session<'_, F> {
         let cursor = serde_json::to_string(&self.cursor).map_err(|_| INVALID)?;
         let batch = JobBatch {
             phase: Some(if complete { JobPhase::Publishing } else { JobPhase::Reading }),
-            checkpoint: JobCheckpoint { adapter_version: ADAPTER.into(), cursor: Some(cursor), committed_batch: self.job.state.checkpoint.committed_batch + 1, staging_generation: self.job.state.checkpoint.staging_generation + 1 },
+            checkpoint: JobCheckpoint { adapter_version: self.version.adapter().into(), cursor: Some(cursor), committed_batch: self.job.state.checkpoint.committed_batch + 1, staging_generation: self.job.state.checkpoint.staging_generation + 1 },
             loaded_documents, loaded_bytes, indexed_documents: 0, analyzed_documents: 0, used_documents: 0,
             total_documents: if complete { Some(self.job.state.coverage.loaded_documents + loaded_documents) } else { None },
             complete, limitations: vec!["Загружены выбранные сообщения архива; индексация и модельное изучение ещё не выполнены. Вложения и отсутствующие сообщения не восстановлены.".into()], record_ids,

@@ -3,6 +3,7 @@
 use super::fingerprint::{FingerprintReader, InputFingerprint};
 use super::preview::{PreviewCollector, PreviewResource};
 use super::telegram_archive_json::{read_telegram_json, ScanControl, TelegramArchiveLimits};
+use super::telegram_identity::ArchiveVersion;
 use serde::Deserialize;
 use std::{cell::RefCell, io::Read, sync::atomic::AtomicBool};
 pub struct ScannedPreview {
@@ -10,6 +11,21 @@ pub struct ScannedPreview {
     pub resources: Vec<PreviewResource>,
 }
 pub fn scan_telegram_preview<R: Read>(
+    reader: R,
+    limits: &TelegramArchiveLimits,
+    metadata_budget: usize,
+    cancelled: &AtomicBool,
+) -> Result<ScannedPreview, String> {
+    scan_telegram_preview_version(
+        ArchiveVersion::CURRENT,
+        reader,
+        limits,
+        metadata_budget,
+        cancelled,
+    )
+}
+pub fn scan_telegram_preview_version<R: Read>(
+    version: ArchiveVersion,
     reader: R,
     limits: &TelegramArchiveLimits,
     metadata_budget: usize,
@@ -31,9 +47,10 @@ pub fn scan_telegram_preview<R: Read>(
         limits,
         cancelled,
         |chat| {
-            collector
-                .borrow_mut()
-                .resource(&resource_id(&chat.id), chat.name.as_deref().unwrap_or(""))
+            collector.borrow_mut().resource(
+                &version.resource_id(chat),
+                chat.name.as_deref().unwrap_or(""),
+            )
         },
         |frame| {
             let value: MessageAuthor = serde_json::from_slice(&frame.raw_json)
@@ -41,7 +58,7 @@ pub fn scan_telegram_preview<R: Read>(
             let author = value.author_id()?;
             collector
                 .borrow_mut()
-                .document(&resource_id(&frame.chat.id), author)?;
+                .document(&version.resource_id(&frame.chat), author)?;
             Ok(ScanControl::Continue)
         },
     )?;
@@ -56,9 +73,6 @@ pub fn scan_telegram_preview<R: Read>(
         fingerprint,
         resources: collector.into_inner().finish()?,
     })
-}
-fn resource_id(chat_id: &str) -> String {
-    format!("telegram:chat:{chat_id}")
 }
 // These two names belong to Telegram's external export schema. Unknown fields
 // are skipped by serde instead of materializing an entire message tree.

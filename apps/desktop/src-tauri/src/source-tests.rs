@@ -277,3 +277,6 @@ mod publication_tests;
 
 #[path = "ingestion-reselection-tests.rs"]
 mod reselection_tests;
+
+#[path = "ingestion-peer-identity-tests.rs"]
+mod peer_identity_tests;

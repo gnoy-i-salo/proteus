@@ -1,8 +1,9 @@
 use super::*;
 use crate::corpus_database::{JobBudget, JobInput, JobPeriod, JobProvider, JobRole, JobSelection};
+use crate::ingestion::telegram_identity::ArchiveVersion;
 use crate::ingestion::{
     grants::{create_binding, BindingRequest},
-    preview_workflow::{preview, PreviewRequest},
+    preview_workflow::{preview_version, PreviewRequest},
     SelectedInputs,
 };
 pub(super) fn archive() -> String {
@@ -29,6 +30,15 @@ pub(super) fn prepare_with_budget(
     raw: &str,
     budget: JobBudget,
 ) -> (SelectedInputs, String, String) {
+    prepare_with_version(sources, dir, raw, budget, ArchiveVersion::CURRENT)
+}
+pub(super) fn prepare_with_version(
+    sources: &Sources,
+    dir: &std::path::Path,
+    raw: &str,
+    budget: JobBudget,
+    version: ArchiveVersion,
+) -> (SelectedInputs, String, String) {
     std::fs::create_dir_all(dir).unwrap();
     let path = dir.join("archive.json");
     std::fs::write(&path, raw).unwrap();
@@ -37,7 +47,7 @@ pub(super) fn prepare_with_budget(
     let op = sources
         .begin_ingestion_operation("setup", JobProvider::Telegram)
         .unwrap();
-    let preview = preview(
+    let preview = preview_version(
         sources,
         &inputs,
         &op,
@@ -46,6 +56,7 @@ pub(super) fn prepare_with_budget(
             source_handle: "selected".into(),
             budget: budget.clone(),
         },
+        version,
     )
     .unwrap();
     sources
@@ -72,7 +83,7 @@ pub(super) fn prepare_with_budget(
             )?;
             db.create_job(&JobInput {
                 id: "job".into(),
-                adapter_version: "telegramDesktopJson:1".into(),
+                adapter_version: preview.adapter_version.clone(),
                 budget,
                 selection: JobSelection {
                     preview_id: preview.id.clone(),

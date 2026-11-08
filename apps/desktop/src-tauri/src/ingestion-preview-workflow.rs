@@ -1,3 +1,4 @@
+use super::telegram_identity::ArchiveVersion;
 use super::{operations::Operation, preview::PreviewResource, SelectedInputs};
 use crate::{corpus_database::JobBudget, sources::Sources};
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,15 @@ pub fn preview(
     operation: &Operation,
     request: PreviewRequest,
 ) -> Result<PreviewResult, String> {
+    preview_version(sources, inputs, operation, request, ArchiveVersion::CURRENT)
+}
+pub(crate) fn preview_version(
+    sources: &Sources,
+    inputs: &SelectedInputs,
+    operation: &Operation,
+    request: PreviewRequest,
+    version: ArchiveVersion,
+) -> Result<PreviewResult, String> {
     crate::corpus_database::validate_ingestion_budget(&request.budget)?;
     operation.check()?;
     let limits = super::telegram_archive_json::TelegramArchiveLimits {
@@ -36,7 +46,8 @@ pub fn preview(
     };
     let metadata_budget = request.budget.max_expanded_bytes.min(32 * 1024 * 1024) as usize;
     let scanned = inputs.read(&request.source_handle, |reader| {
-        super::preview_scan::scan_telegram_preview(
+        super::preview_scan::scan_telegram_preview_version(
+            version,
             reader,
             &limits,
             metadata_budget,
@@ -46,7 +57,7 @@ pub fn preview(
     let stored = super::preview_store::issue_preview(
         "telegram".into(),
         "telegramDesktopJson".into(),
-        "telegramDesktopJson:1".into(),
+        version.adapter().into(),
         scanned.fingerprint,
         scanned.resources,
     )?;

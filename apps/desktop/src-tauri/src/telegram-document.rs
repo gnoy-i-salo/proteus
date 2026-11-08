@@ -1,6 +1,7 @@
 //! Canonical Telegram acquisition data. The exact raw object remains authoritative;
 //! this projection never infers a target author, grant, holdout split or read time.
 //! Archive byte offsets belong to the acquisition receipt, not document identity.
+use super::telegram_identity::ArchiveVersion;
 use crate::ingestion::telegram_archive_json::TelegramMessageFrame;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize)]
@@ -25,6 +26,13 @@ pub struct TelegramDocument {
 }
 const INVALID: &str = "Неподдерживаемое или повреждённое сообщение Telegram.";
 pub fn normalize(origin: &str, frame: TelegramMessageFrame) -> Result<TelegramDocument, String> {
+    normalize_with_version(ArchiveVersion::CURRENT, origin, frame)
+}
+pub fn normalize_with_version(
+    version: ArchiveVersion,
+    origin: &str,
+    frame: TelegramMessageFrame,
+) -> Result<TelegramDocument, String> {
     super::input::validate_origin(origin)?;
     if frame.raw_json.len() > 4 * 1024 * 1024
         || frame.byte_end.checked_sub(frame.byte_start) != Some(frame.raw_json.len() as u64)
@@ -55,8 +63,8 @@ pub fn normalize(origin: &str, frame: TelegramMessageFrame) -> Result<TelegramDo
         return Err(INVALID.into());
     }
     let original_id = message.id.to_string();
-    let resource_id = format!("telegram:chat:{}", frame.chat.id);
-    let source_key = source_key(origin, &resource_id, &original_id)?;
+    let resource_id = version.resource_id(&frame.chat);
+    let (source_key, id) = version.identifiers(origin, &resource_id, &original_id)?;
     let text = match message.text {
         Some(Text::Plain(value)) => value,
         Some(Text::Rich(parts)) => parts
@@ -69,8 +77,8 @@ pub fn normalize(origin: &str, frame: TelegramMessageFrame) -> Result<TelegramDo
         None => String::new(),
     };
     Ok(TelegramDocument {
-        schema_version: 1,
-        id: format!("document:{}", &source_key["telegramArchive:1:".len()..]),
+        schema_version: version.document_version(),
+        id,
         source_key,
         original_id,
         resource_id,
@@ -86,11 +94,6 @@ pub fn normalize(origin: &str, frame: TelegramMessageFrame) -> Result<TelegramDo
         is_forwarded: message.forwarded_from.is_some() || message.forwarded_from_id.is_some(),
         raw_json: String::from_utf8(frame.raw_json).map_err(|_| INVALID)?,
     })
-}
-fn source_key(origin: &str, resource: &str, id: &str) -> Result<String, String> {
-    use sha2::{Digest, Sha256};
-    let bytes = serde_json::to_vec(&(origin, resource, id)).map_err(|_| INVALID)?;
-    Ok(format!("telegramArchive:1:{:x}", Sha256::digest(bytes)))
 }
 fn timestamp(value: UnixTime) -> Result<String, String> {
     let seconds = match value {

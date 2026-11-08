@@ -86,6 +86,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
       - run: rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+          key: ${{ matrix.target }}
+          save-if: ${{ github.event_name != 'pull_request' }}
       - name: Linux prerequisites
         if: runner.os == 'Linux'
         run: |

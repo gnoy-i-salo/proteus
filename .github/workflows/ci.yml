@@ -67,6 +67,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Rust tools
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+          save-if: ${{ github.event_name != 'pull_request' }}
       - name: Linux webview prerequisites
         if: runner.os == 'Linux'
         run: |

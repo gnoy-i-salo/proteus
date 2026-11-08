@@ -1,0 +1,51 @@
+.localModel {
+  font-size: var(--caption);
+  line-height: 1.5;
+
+  h3 {
+    margin: 12px 0 8px;
+  }
+
+  p {
+    margin: 6px 0;
+  }
+
+  dl {
+    margin: 10px 0;
+  }
+
+  dl > div {
+    display: flex;
+    gap: 6px;
+  }
+
+  dd {
+    margin: 0;
+  }
+
+  button {
+    font-size: var(--caption);
+  }
+
+  &__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  &__note {
+    color: var(--muted);
+  }
+
+  &__activity {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+
+    button {
+      flex-shrink: 0;
+    }
+  }
+}

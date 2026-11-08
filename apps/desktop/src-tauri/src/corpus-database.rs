@@ -4,6 +4,8 @@
 mod crypto;
 #[path = "corpus-episodes.rs"]
 pub mod episodes;
+#[path = "corpus-memory-store.rs"]
+pub mod memory_store;
 #[path = "corpus-migrations.rs"]
 mod migrations;
 #[path = "corpus-preparation.rs"]

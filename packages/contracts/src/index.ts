@@ -155,3 +155,17 @@ export {
   decodeIngestionJob,
 } from './ingestion-codec';
 export { decodeCorpusCoverage, decodeCorpusSnapshot } from './corpus-codec';
+
+export type {
+  CorpusSearchPeriod,
+  CorpusSearchQuery,
+  CorpusSearchHit,
+  CorpusSearchResult,
+  CorpusIndexReceipt,
+  CorpusSearchPort,
+} from './corpus-search';
+export {
+  decodeCorpusSearchQuery,
+  decodeCorpusSearchResult,
+  decodeCorpusIndexReceipt,
+} from './corpus-search-codec';

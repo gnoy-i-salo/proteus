@@ -1,7 +1,7 @@
 use super::*;
 use super::{
     command::configure_kimi,
-    invocation::{read_output, stop},
+    invocation::read_output,
     model::{response, valid_id},
 };
 use crate::{
@@ -9,11 +9,7 @@ use crate::{
     experiment_storage::parse_experiment,
 };
 use serde_json::Value;
-use std::{
-    process::Command,
-    sync::mpsc,
-    time::{Duration, Instant},
-};
+use std::{process::Command, sync::mpsc};
 fn parse_smoke_answer(answer: &str) -> Result<Value, serde_json::Error> {
     // Production `structured` accepts a complete Markdown JSON envelope. Match that
     // documented wire format here; never extract JSON from prose or repair its contents.
@@ -267,7 +263,9 @@ fn live_cli_connections() {
 #[test]
 #[cfg(unix)]
 fn cancellation_terminates_the_owned_process_group() {
+    use super::invocation::stop;
     use std::os::unix::process::CommandExt;
+    use std::time::{Duration, Instant};
     let mut child = Command::new("/bin/sh")
         .args(["-c", "sleep 30 & wait"])
         .process_group(0)

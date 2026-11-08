@@ -32,6 +32,8 @@ pub mod restore_workflow;
 pub mod search;
 #[path = "ingestion-search-query.rs"]
 pub mod search_query;
+#[path = "selected-page.rs"]
+pub mod selected_page;
 #[path = "telegram-archive-json.rs"]
 pub mod telegram_archive_json;
 #[path = "telegram-document.rs"]

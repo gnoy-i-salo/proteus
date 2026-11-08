@@ -615,3 +615,22 @@ fn shared_originals_persist_distinct_binding_episodes_without_duplicating_raw_re
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn snapshot_access_guard_interrupts_original_reads_without_mutating_snapshot() {
+    let (db, dir, source, _) = setup();
+    let calls = std::cell::Cell::new(0);
+    let result = db.snapshot_checked(&source.id, &|| {
+        calls.set(calls.get() + 1);
+        if calls.get() == 2 {
+            Err("permission expired".into())
+        } else {
+            Ok(())
+        }
+    });
+    assert_eq!(result.unwrap_err(), "permission expired");
+    assert_eq!(calls.get(), 2);
+    assert_eq!(db.snapshot(&source.id).unwrap(), source);
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}

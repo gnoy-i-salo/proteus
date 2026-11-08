@@ -4,7 +4,7 @@
 use super::telegram_identity::ArchiveVersion;
 use crate::ingestion::telegram_archive_json::TelegramMessageFrame;
 use serde::{Deserialize, Serialize};
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TelegramDocument {
     pub schema_version: u8,
@@ -144,3 +144,7 @@ enum UnixTime {
 #[cfg(test)]
 #[path = "telegram-document-tests.rs"]
 mod tests;
+
+#[path = "telegram-document-read.rs"]
+mod read;
+pub use read::decode_revision;

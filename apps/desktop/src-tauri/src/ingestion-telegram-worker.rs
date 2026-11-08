@@ -229,7 +229,7 @@ fn publish(
         db.job(&job.id)?.ok_or_else(|| INVALID.into())
     })
 }
-fn selected(bindings: &[JobBinding], doc: &TelegramDocument) -> Result<bool, String> {
+pub(super) fn selected(bindings: &[JobBinding], doc: &TelegramDocument) -> Result<bool, String> {
     for binding in bindings
         .iter()
         .filter(|binding| binding.resource_id == doc.resource_id)
@@ -260,7 +260,7 @@ fn selected(bindings: &[JobBinding], doc: &TelegramDocument) -> Result<bool, Str
     }
     Ok(false)
 }
-fn date_ms(value: &str) -> Result<i64, String> {
+pub(super) fn date_ms(value: &str) -> Result<i64, String> {
     if let Ok(date) = chrono::DateTime::parse_from_rfc3339(value) {
         return Ok(date.timestamp_millis());
     }
@@ -286,7 +286,44 @@ pub(super) fn restore_origin(
         })
         .transpose()
 }
+pub(crate) fn completed_origin(
+    job: &StoredJob,
+    fingerprint: &InputFingerprint,
+    now: i64,
+) -> Result<String, String> {
+    if job.status != JobStatus::Completed
+        || !job.state.coverage.complete
+        || job.state.published_snapshot_id.is_none()
+    {
+        return Err(INVALID.into());
+    }
+    let cursor: Cursor =
+        serde_json::from_str(job.state.checkpoint.cursor.as_deref().ok_or(INVALID)?)
+            .map_err(|_| INVALID)?;
+    validate_cursor_data(job, &cursor, fingerprint, now)?;
+    let authorities = job
+        .state
+        .selection
+        .bindings
+        .iter()
+        .map(|binding| binding.grant_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if cursor.attached_authorities != authorities.len() + 1 || job.state.error.is_some() {
+        return Err(INVALID.into());
+    }
+    Ok(cursor.origin)
+}
 fn validate_cursor(
+    job: &StoredJob,
+    cursor: &Cursor,
+    fingerprint: &InputFingerprint,
+    now: i64,
+) -> Result<(), String> {
+    validate_cursor_data(job, cursor, fingerprint, now)?;
+    remaining_ms(job, cursor, now)?;
+    Ok(())
+}
+fn validate_cursor_data(
     job: &StoredJob,
     cursor: &Cursor,
     fingerprint: &InputFingerprint,
@@ -307,7 +344,6 @@ fn validate_cursor(
         return Err(INVALID.into());
     }
     super::input::validate_origin(&cursor.origin)?;
-    remaining_ms(job, cursor, now)?;
     Ok(())
 }
 fn remaining_ms(job: &StoredJob, cursor: &Cursor, now: i64) -> Result<i64, String> {

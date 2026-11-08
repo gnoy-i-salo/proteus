@@ -20,6 +20,13 @@ impl CorpusDatabase {
         tx.commit().map_err(sql_error)?;
         Ok(snapshot)
     }
+    pub fn snapshot_checked(
+        &self,
+        id: &str,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<Snapshot, String> {
+        read_snapshot_checked(&self.connection, id, check)
+    }
     pub fn snapshot(&self, id: &str) -> Result<Snapshot, String> {
         read_snapshot(&self.connection, id)
     }
@@ -153,6 +160,14 @@ fn write_snapshot(
     Ok(snapshot)
 }
 pub(super) fn read_snapshot(connection: &Connection, id: &str) -> Result<Snapshot, String> {
+    read_snapshot_checked(connection, id, &|| Ok(()))
+}
+fn read_snapshot_checked(
+    connection: &Connection,
+    id: &str,
+    check: &dyn Fn() -> Result<(), String>,
+) -> Result<Snapshot, String> {
+    check()?;
     let row:Option<(String,String,i64,Option<String>,String,String)>=connection.query_row("SELECT corpus_id,publication_id,generation,parent_id,created_at,canonical_sha256 FROM snapshots WHERE id=?1",[id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?))).optional().map_err(sql_error)?;
     let (corpus_id, publication_id, generation, parent_id, created_at, hash) =
         row.ok_or("Снимок корпуса не найден или отозван.")?;
@@ -169,6 +184,7 @@ pub(super) fn read_snapshot(connection: &Connection, id: &str) -> Result<Snapsho
         .map_err(sql_error)?;
     // Deletion and corruption never turn a frozen snapshot into access to an old copy.
     for record in &records {
+        check()?;
         if read_record(connection, &record.id)?.is_none_or(|record| record.input.kind == "deleted")
         {
             return Err("Источник снимка отозван.".into());
@@ -186,6 +202,7 @@ pub(super) fn read_snapshot(connection: &Connection, id: &str) -> Result<Snapsho
         .collect::<Result<Vec<_>, _>>()
         .map_err(sql_error)?;
     for reference in &documents {
+        check()?;
         read_revision(connection, reference)?;
     }
     let snapshot = Snapshot {
@@ -201,6 +218,7 @@ pub(super) fn read_snapshot(connection: &Connection, id: &str) -> Result<Snapsho
     if snapshot_hash(&snapshot) != hash {
         return Err(INVALID.into());
     }
+    check()?;
     Ok(snapshot)
 }
 fn snapshot_hash(snapshot: &Snapshot) -> String {

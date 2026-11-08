@@ -165,11 +165,19 @@ pub fn authorize_preview_binding(
     preview_id: &str,
     now_ms: i64,
 ) -> Result<(), String> {
+    preview_deadline(db, binding, preview_id, now_ms).map(|_| ())
+}
+pub(crate) fn preview_deadline(
+    db: &CorpusDatabase,
+    binding: &JobBinding,
+    preview_id: &str,
+    now_ms: i64,
+) -> Result<i64, String> {
     let grant = read_authorized_grant(db, binding, now_ms)?;
     if grant.preview_id != preview_id {
         return Err("Разрешение выдано для другого выбранного архива.".into());
     }
-    Ok(())
+    Ok(grant.expires_at_ms)
 }
 #[cfg(test)]
 #[path = "ingestion-grants-tests.rs"]

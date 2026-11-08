@@ -8,6 +8,7 @@ fn assert_documents(
     op: &crate::ingestion::operations::Operation,
     job: &crate::corpus_database::StoredJob,
     version: ArchiveVersion,
+    origin: &str,
 ) {
     assert_eq!(job.status, JobStatus::Completed);
     assert_eq!(job.state.coverage.loaded_documents, 3);
@@ -34,6 +35,9 @@ fn assert_documents(
             assert_eq!(batch_documents, snapshot.documents.len());
             for reference in &snapshot.documents {
                 let stored = db.revision(reference)?;
+                let decoded =
+                    crate::ingestion::telegram_document::decode_revision(version, origin, &stored)?;
+                assert_eq!(decoded.id, reference.document_id);
                 let value: serde_json::Value = serde_json::from_str(&stored.document_json).unwrap();
                 assert_eq!(value["schemaVersion"], version.document_version());
                 assert_eq!(stored.provenance.adapter_version, version.adapter());
@@ -55,7 +59,7 @@ fn assert_documents(
 fn peer_class_new_jobs_use_matching_v2_preview_checkpoint_and_documents() {
     let (sources, dir) = local();
     let raw = archive();
-    let (inputs, preview_id, _) = prepare(&sources, &dir, &raw);
+    let (inputs, preview_id, origin) = prepare(&sources, &dir, &raw);
     let op = sources
         .begin_ingestion_operation("job", JobProvider::Telegram)
         .unwrap();
@@ -64,7 +68,7 @@ fn peer_class_new_jobs_use_matching_v2_preview_checkpoint_and_documents() {
             run_reader(&sources, &op, "job", file, origin, || 1001)
         })
         .unwrap();
-    assert_documents(&sources, &op, &job, ArchiveVersion::V2);
+    assert_documents(&sources, &op, &job, ArchiveVersion::V2, &origin);
     drop(op);
     drop(inputs);
     drop(sources);
@@ -124,7 +128,7 @@ fn peer_class_legacy_checkpoint_resumes_without_rekeying_saved_v1_documents() {
         .unwrap();
     let job = run_reader(&sources, &op, "job", raw.as_bytes(), &origin, || 1002).unwrap();
     assert!(job.state.checkpoint.committed_batch > prior.state.checkpoint.committed_batch);
-    assert_documents(&sources, &op, &job, ArchiveVersion::V1);
+    assert_documents(&sources, &op, &job, ArchiveVersion::V1, &origin);
     sources
         .with_ingestion_database(&op, |db| {
             let snapshot = db.snapshot(job.state.published_snapshot_id.as_deref().unwrap())?;

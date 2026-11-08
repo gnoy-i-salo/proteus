@@ -280,3 +280,6 @@ mod reselection_tests;
 
 #[path = "ingestion-peer-identity-tests.rs"]
 mod peer_identity_tests;
+
+#[path = "ingestion-preparation-tests.rs"]
+mod preparation_tests;

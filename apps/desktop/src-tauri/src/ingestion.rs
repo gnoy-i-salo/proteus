@@ -18,6 +18,8 @@ pub mod preview_scan;
 pub mod preview_store;
 #[path = "ingestion-preview-workflow.rs"]
 pub mod preview_workflow;
+#[path = "ingestion-projection.rs"]
+pub mod projection;
 #[path = "ingestion-publication.rs"]
 pub mod publication;
 #[path = "ingestion-restore-workflow.rs"]
@@ -28,6 +30,8 @@ pub mod telegram_archive_json;
 pub mod telegram_document;
 #[path = "telegram-archive-identity.rs"]
 pub mod telegram_identity;
+#[path = "telegram-episode-relations.rs"]
+pub mod telegram_relations;
 #[path = "ingestion-telegram-worker.rs"]
 pub mod telegram_worker;
 pub use input::SelectedInputs;

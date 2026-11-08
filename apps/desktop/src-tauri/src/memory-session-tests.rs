@@ -3,6 +3,8 @@ use super::*;
 mod recall_tests;
 #[path = "memory-receipts-tests.rs"]
 mod receipt_tests;
+#[path = "memory-session-registry-tests.rs"]
+mod registry_tests;
 use crate::memory::{
     budget::RecallLimits,
     session::{MemorySession, SessionInput},

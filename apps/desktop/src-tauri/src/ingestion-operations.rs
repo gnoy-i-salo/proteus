@@ -115,6 +115,9 @@ impl Operation {
     pub fn cancelled(&self) -> &AtomicBool {
         &self.flag
     }
+    pub(crate) fn cancellation_handle(&self) -> Arc<AtomicBool> {
+        self.flag.clone()
+    }
     pub fn check(&self) -> Result<(), String> {
         if self.flag.load(Ordering::SeqCst) {
             Err("Операция отменена.".into())

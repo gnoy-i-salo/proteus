@@ -6,6 +6,8 @@ pub mod budget;
 pub mod model_budget;
 #[path = "memory-model-input.rs"]
 pub mod model_input;
+#[path = "memory-session-registry.rs"]
+pub mod registry;
 #[path = "memory-session.rs"]
 pub mod session;
 #[path = "memory-types.rs"]

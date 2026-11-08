@@ -42,6 +42,12 @@ struct MemoryScope {
     )>,
 }
 impl MemorySession {
+    pub(super) fn cancellation_handle(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+        self.scope.operation.cancellation_handle()
+    }
+    pub(super) fn verify_current(&mut self, now_ms: impl Fn() -> i64) -> Result<(), String> {
+        self.ledger.verify(|| self.scope.guard(&now_ms)).map(|_| ())
+    }
     pub fn bind(
         sources: Sources,
         operation: Operation,

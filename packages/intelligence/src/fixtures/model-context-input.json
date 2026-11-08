@@ -1,0 +1,37 @@
+[
+  {
+    "id": "empty",
+    "systemPrompt": "",
+    "task": "",
+    "inputBytes": 7,
+    "inputSha256": "439083f38956ba51ece90631552c6ea23c5c29570d3d5710e408e77e01ba7375"
+  },
+  {
+    "id": "unicode",
+    "systemPrompt": "  Инструкция é\r\n😀  ",
+    "task": "﻿Задача\t\"цитата\"\\ /  ",
+    "inputBytes": 86,
+    "inputSha256": "038ad17be42e20cfe87b52bf5d5a127cc93b0870b1cb1c6f44077e94b5c02e0b"
+  },
+  {
+    "id": "controls",
+    "systemPrompt": "\b\f\n\r\t\u0000\u001f",
+    "task": "</script>",
+    "inputBytes": 38,
+    "inputSha256": "0bacc6dca4e1907885e6d99cab3b97508affd5799ff1eb76821f43d59458947b"
+  },
+  {
+    "id": "framingA",
+    "systemPrompt": "a",
+    "task": "bc",
+    "inputBytes": 10,
+    "inputSha256": "42a6f3f44be0aaf23c936b1547dd5e41d2d25ff25f36a31474eb1851639f6751"
+  },
+  {
+    "id": "framingB",
+    "systemPrompt": "ab",
+    "task": "c",
+    "inputBytes": 10,
+    "inputSha256": "825825018f58e795ae2d3d8df6a879567555c77654e9ca3071df2fe127aa9ebd"
+  }
+]

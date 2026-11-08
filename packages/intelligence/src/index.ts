@@ -19,3 +19,4 @@ export { createUnconfiguredProvider, IntelligenceRunError } from './provider';
 export type { IntelligenceProvider } from './provider';
 export { object, text, texts } from './json-fields';
 export { structured } from './structured-response';
+export { modelContextInput } from './model-context-input';

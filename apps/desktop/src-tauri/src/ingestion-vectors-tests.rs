@@ -402,3 +402,6 @@ fn final_clock_boundary_cancellation_discards_even_a_published_replay() {
 
 #[path = "ingestion-hybrid-query-tests.rs"]
 mod hybrid_tests;
+
+#[path = "ingestion-episode-read-tests.rs"]
+mod episode_read_tests;

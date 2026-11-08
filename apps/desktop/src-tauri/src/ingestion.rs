@@ -1,5 +1,7 @@
 #[path = "ingestion-adapter.rs"]
 pub mod adapter;
+#[path = "ingestion-episode-read.rs"]
+pub mod episode_read;
 #[path = "ingestion-fingerprint.rs"]
 pub mod fingerprint;
 #[path = "ingestion-grants.rs"]

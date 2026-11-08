@@ -4,7 +4,7 @@
 mod compile;
 #[path = "corpus-preparation-cursor.rs"]
 mod cursor;
-pub use cursor::{PreparedCursor, PreparedEntry};
+pub use cursor::{EpisodeReferences, PreparedCursor, PreparedEntry};
 #[path = "corpus-preparation-read.rs"]
 mod read;
 use super::{

@@ -7,6 +7,9 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
+#[path = "corpus-preparation-selection.rs"]
+mod selection;
+pub use selection::EpisodeReferences;
 const BUDGET: &str = "Превышен бюджет чтения подготовленного корпуса.";
 pub struct PreparedCursor {
     snapshot: PreparedSnapshot,

@@ -191,3 +191,6 @@ fn index_publication_revalidates_finished_cursor_including_already_read_rows() {
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[path = "corpus-preparation-selection-tests.rs"]
+mod selection_tests;

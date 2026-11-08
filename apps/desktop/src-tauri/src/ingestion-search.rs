@@ -154,11 +154,24 @@ pub fn rebuild(
             db.commit_search_stage(&stage.stage_id, &manifest, &check)
         })
     })();
-    if result.is_err() {
-        // Cleanup only deletes this attempt's derived stage, even after cancel.
-        sources.with_ingestion_job_state(|db| db.abort_search_stage(&stage.stage_id))?;
+    // Cleanup only deletes this attempt's derived stage, even after cancel.
+    finish_rebuild(result, || {
+        sources.with_ingestion_job_state(|db| db.abort_search_stage(&stage.stage_id))
+    })
+}
+fn finish_rebuild(
+    result: Result<SearchIndexReceipt, String>,
+    cleanup: impl FnOnce() -> Result<(), String>,
+) -> Result<SearchIndexReceipt, String> {
+    match result {
+        Ok(receipt) => Ok(receipt),
+        Err(error) => match cleanup() {
+            Ok(()) => Err(error),
+            Err(cleanup_error) => Err(format!(
+                "{error} Не удалось очистить незавершённый индекс: {cleanup_error}"
+            )),
+        },
     }
-    result
 }
 fn policy(snapshot: &PreparedSnapshot) -> Result<String, String> {
     let bytes = serde_json::to_vec(&(
@@ -210,4 +223,42 @@ fn index_chunk(
         conversation_id: Some(entry.episode.conversation_id.clone()),
         thread_id: entry.episode.thread_id.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn cleanup_failure_preserves_the_original_index_failure_and_reports_both() {
+        let error = finish_rebuild(Err("Разрешение отозвано.".into()), || {
+            Err("Хранилище занято.".into())
+        })
+        .unwrap_err();
+        assert!(
+            error.contains("Разрешение отозвано."),
+            "Lost the primary error: {error}"
+        );
+        assert!(error.contains("Хранилище занято."));
+    }
+    #[test]
+    fn cleanup_success_keeps_the_original_error_and_successful_publication_skips_cleanup() {
+        assert_eq!(
+            finish_rebuild(Err("expired".into()), || Ok(())).unwrap_err(),
+            "expired"
+        );
+        let receipt = SearchIndexReceipt {
+            snapshot_id: "snapshot".into(),
+            snapshot_generation: 1,
+            index_generation: 2,
+            policy_fingerprint: "policy".into(),
+            content_sha256: "hash".into(),
+            chunk_count: 0,
+            created_at: "1".into(),
+        };
+        let result = finish_rebuild(Ok(receipt), || {
+            panic!("A successful stage must not be removed")
+        })
+        .unwrap();
+        assert_eq!(result.index_generation, 2);
+    }
 }

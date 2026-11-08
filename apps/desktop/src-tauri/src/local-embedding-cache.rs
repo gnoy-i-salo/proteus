@@ -53,6 +53,10 @@
 //!   the partial file.
 //! - Timeouts/deadlines are expressed by the caller through `check`; this
 //!   module runs no timer of its own.
+//! - `lookup_verified` is the read-only inspection entry point: it never
+//!   creates the cache directory, never modifies existing bytes, and never
+//!   touches a source reader. A missing cache root or artifact reports `None`;
+//!   a malformed artifact occupying the path is an explicit error.
 use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
@@ -179,6 +183,37 @@ pub fn install_verified_artifact(
 }
 fn checked(check: &dyn Fn() -> Result<(), String>) -> Result<(), CacheInstallError> {
     check().map_err(CacheInstallError::Cancelled)
+}
+/// Read-only inspection of the content-addressed artifact path: returns
+/// `Ok(Some(path))` only when a fully re-verified artifact already occupies
+/// `<cache-dir>/<sha256>`. Returns `Ok(None)` when the cache root or the
+/// artifact is missing; never creates the cache root and never consumes a
+/// source reader. Existing malformed artifacts and blocked paths report the
+/// same explicit errors as [`install_verified_artifact`].
+pub fn lookup_verified(
+    cache_dir: &Path,
+    pin: &ArtifactPin,
+    check: &dyn Fn() -> Result<(), String>,
+) -> Result<Option<PathBuf>, CacheInstallError> {
+    checked(check)?;
+    pin.validate()?;
+    match fs::symlink_metadata(cache_dir) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(CacheInstallError::CacheDirectoryInvalid);
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(CacheInstallError::Io(error)),
+    }
+    let destination = artifact_path(cache_dir, pin);
+    match symlink_metadata_optional(&destination)? {
+        None => Ok(None),
+        Some(_) => {
+            verify_artifact(&destination, pin, check)?;
+            Ok(Some(destination))
+        }
+    }
 }
 fn artifact_path(cache_dir: &Path, pin: &ArtifactPin) -> PathBuf {
     cache_dir.join(&pin.sha256)

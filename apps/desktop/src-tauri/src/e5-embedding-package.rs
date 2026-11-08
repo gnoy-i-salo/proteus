@@ -1,5 +1,6 @@
 //! Checked local model bytes. This module never downloads or reads CLI state.
 use super::{EmbeddingError, Guard, UnavailableReason};
+use crate::local_embedding::manager::ModelPackageDescriptor;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -109,4 +110,64 @@ pub(super) fn fingerprint(pin: &ModelPin, tokenizer: &str) -> Result<String, Emb
     let bytes = serde_json::to_vec(&(pin, tokenizer))
         .map_err(|_| EmbeddingError::Unavailable(UnavailableReason::UnsupportedRuntime))?;
     Ok(format!("e5Embedding:1:{:x}", Sha256::digest(bytes)))
+}
+
+/// The cache and runtime use the same checked-in pins; no frontend pin input.
+pub fn cache_descriptor() -> Result<ModelPackageDescriptor, EmbeddingError> {
+    let model = pin()?;
+    let tokenizer = crate::local_embedding::tokenizer::package::pin()
+        .map_err(|_| EmbeddingError::Unavailable(UnavailableReason::UnsupportedRuntime))?;
+    descriptor(model, tokenizer)
+}
+fn descriptor(
+    model: ModelPin,
+    tokenizer: crate::local_embedding::tokenizer::package::TokenizerPin,
+) -> Result<ModelPackageDescriptor, EmbeddingError> {
+    use crate::local_embedding::cache::ArtifactPin;
+    let unsupported = || EmbeddingError::Unavailable(UnavailableReason::UnsupportedRuntime);
+    if tokenizer.revision != model.revision || !(1..=32 * 1024 * 1024).contains(&tokenizer.bytes) {
+        return Err(unsupported());
+    }
+    let artifact = |bytes: usize, hash: String| {
+        ArtifactPin::new(bytes as u64, hash).map_err(|_| unsupported())
+    };
+    Ok(ModelPackageDescriptor {
+        weights: artifact(model.weights.bytes, model.weights.sha256)?,
+        config: artifact(model.config.bytes, model.config.sha256)?,
+        tokenizer: artifact(tokenizer.bytes, tokenizer.sha256)?,
+    })
+}
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+    #[test]
+    fn cache_descriptor_uses_all_three_runtime_pins_exactly() {
+        let actual = cache_descriptor().unwrap();
+        let model = pin().unwrap();
+        let tokenizer = crate::local_embedding::tokenizer::package::pin().unwrap();
+        assert_eq!(actual.weights.bytes, model.weights.bytes as u64);
+        assert_eq!(actual.weights.sha256, model.weights.sha256);
+        assert_eq!(actual.config.bytes, model.config.bytes as u64);
+        assert_eq!(actual.config.sha256, model.config.sha256);
+        assert_eq!(actual.tokenizer.bytes, tokenizer.bytes as u64);
+        assert_eq!(actual.tokenizer.sha256, tokenizer.sha256);
+    }
+    #[test]
+    fn cache_descriptor_rejects_mismatched_or_unbounded_tokenizer_pins() {
+        for variant in 0..4 {
+            let mut tokenizer = crate::local_embedding::tokenizer::package::pin().unwrap();
+            match variant {
+                0 => tokenizer.revision = "0".repeat(40),
+                1 => tokenizer.bytes = 0,
+                2 => tokenizer.bytes = 32 * 1024 * 1024 + 1,
+                _ => tokenizer.sha256 = "../unexpected".into(),
+            }
+            assert_eq!(
+                descriptor(pin().unwrap(), tokenizer),
+                Err(EmbeddingError::Unavailable(
+                    UnavailableReason::UnsupportedRuntime
+                ))
+            );
+        }
+    }
 }

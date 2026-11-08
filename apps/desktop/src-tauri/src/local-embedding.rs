@@ -1,6 +1,8 @@
 //! Local model adapters. Loading the pinned tokenizer does not run inference.
 #[path = "local-embedding-cache.rs"]
 pub mod cache;
+#[path = "local-model-manager.rs"]
+pub mod manager;
 #[path = "e5-embedding.rs"]
 pub mod runtime;
 #[path = "embedding-search.rs"]

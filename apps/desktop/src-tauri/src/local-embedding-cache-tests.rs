@@ -445,3 +445,98 @@ fn concurrent_same_pin_installs_complete_once_and_all_reuse_the_verified_path() 
     );
     assert_eq!(cache_entries(&cache), vec![pin.sha256.clone()]);
 }
+#[test]
+fn lookup_reports_none_for_missing_cache_root_without_creating_it() {
+    let dir = TestDir::new("lookup-missing-root");
+    let cache = dir.cache();
+    let pin = pin_for(b"anything");
+    let found = lookup_verified(&cache, &pin, &|| Ok(())).expect("lookup");
+    assert_eq!(found, None, "missing cache root must report None");
+    assert!(
+        !cache.exists(),
+        "inspection must never create the cache directory"
+    );
+}
+#[test]
+fn lookup_reports_none_for_missing_artifact() {
+    let dir = TestDir::new("lookup-missing-artifact");
+    let cache = dir.cache();
+    fs::create_dir(&cache).expect("cache dir");
+    let pin = pin_for(b"absent");
+    let found = lookup_verified(&cache, &pin, &|| Ok(())).expect("lookup");
+    assert_eq!(found, None);
+    assert_eq!(cache_entries(&cache), Vec::<String>::new());
+}
+#[test]
+fn lookup_returns_the_verified_path_and_uses_the_deadline_check_at_eof() {
+    let dir = TestDir::new("lookup-verified");
+    let cache = dir.cache();
+    fs::create_dir(&cache).expect("cache dir");
+    let payload = b"verified lookup bytes";
+    let pin = pin_for(payload);
+    let path = cache.join(&pin.sha256);
+    fs::write(&path, payload).expect("seed cache");
+    let found = lookup_verified(&cache, &pin, &|| Ok(())).expect("lookup");
+    assert_eq!(found, Some(path.clone()));
+    // Verification check cadence mirrors install: entry, before first read,
+    // after IO, before the EOF read, after EOF, final recheck. A deadline
+    // expiring at the EOF boundary must cancel instead of reporting ready.
+    let calls = Cell::new(0);
+    let error = lookup_verified(&cache, &pin, &counted_check(&calls, 5)).expect_err("cancelled");
+    assert!(matches!(error, CacheInstallError::Cancelled(_)));
+    assert_eq!(calls.get(), 5);
+    assert_eq!(fs::read(&path).expect("artifact"), payload);
+}
+#[test]
+fn lookup_reports_corrupt_existing_artifact_and_leaves_it_untouched() {
+    let dir = TestDir::new("lookup-corrupt");
+    let cache = dir.cache();
+    fs::create_dir(&cache).expect("cache dir");
+    let payload = b"pinned lookup artifact";
+    let pin = pin_for(payload);
+    let path = cache.join(&pin.sha256);
+    let mut wrong = payload.to_vec();
+    wrong[0] ^= 0xFF;
+    fs::write(&path, &wrong).expect("seed corrupt cache");
+    let error = lookup_verified(&cache, &pin, &|| Ok(())).expect_err("corrupt");
+    assert!(matches!(error, CacheInstallError::ExistingArtifactCorrupt));
+    assert_eq!(fs::read(&path).expect("corrupt file"), wrong);
+}
+#[test]
+fn lookup_refuses_a_directory_at_the_artifact_path() {
+    let dir = TestDir::new("lookup-directory-blocked");
+    let cache = dir.cache();
+    fs::create_dir_all(&cache).expect("cache dir");
+    let pin = pin_for(b"blocked");
+    let path = cache.join(&pin.sha256);
+    fs::create_dir(&path).expect("directory at artifact path");
+    let error = lookup_verified(&cache, &pin, &|| Ok(())).expect_err("blocked path");
+    assert!(matches!(error, CacheInstallError::ArtifactPathBlocked));
+    assert!(path.is_dir());
+}
+#[cfg(unix)]
+#[test]
+fn lookup_refuses_a_symlinked_cache_directory() {
+    use std::os::unix::fs::symlink;
+    let dir = TestDir::new("lookup-symlinked-cache");
+    let real = dir.path().join("real-cache");
+    fs::create_dir(&real).expect("real cache dir");
+    let link = dir.path().join("linked-cache");
+    symlink(&real, &link).expect("cache symlink");
+    let pin = pin_for(b"anything");
+    let error = lookup_verified(&link, &pin, &|| Ok(())).expect_err("refused cache dir");
+    assert!(matches!(error, CacheInstallError::CacheDirectoryInvalid));
+    assert_eq!(cache_entries(&real), Vec::<String>::new());
+}
+#[test]
+fn lookup_rejects_a_structurally_invalid_pin() {
+    let dir = TestDir::new("lookup-invalid-pin");
+    let cache = dir.cache();
+    fs::create_dir(&cache).expect("cache dir");
+    let pin = ArtifactPin {
+        bytes: 0,
+        sha256: "a1".repeat(32),
+    };
+    let error = lookup_verified(&cache, &pin, &|| Ok(())).expect_err("invalid pin");
+    assert!(matches!(error, CacheInstallError::InvalidPin));
+}

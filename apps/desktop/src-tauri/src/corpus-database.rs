@@ -18,6 +18,8 @@ mod revocation;
 pub mod search;
 #[path = "corpus-snapshot-store.rs"]
 mod snapshot_store;
+#[path = "corpus-vectors.rs"]
+pub mod vectors;
 pub use provenance::{Acquisition, HashAlgorithm, ProvenanceLimitation, SourceProvenance};
 #[path = "corpus-job-batch.rs"]
 mod job_batch;

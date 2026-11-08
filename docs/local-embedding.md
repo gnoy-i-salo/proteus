@@ -121,3 +121,23 @@ probe и не доказывают улучшение относительно F
 и не расширяет эпизоды: оба списка уже должны быть разрешены host, который повторно
 проверяет доступ перед выдачей исходного текста. Внешнее расширение эпизодов,
 retrieval receipts и интеграция MemoryPort ещё нужны.
+
+## Durable vector generation storage
+
+Schema v6 stores vectors in the same encrypted corpus database. Native storage
+entry points begin/resume an exact stage, append one finite nonzero f32 vector
+with an explicit matching model fingerprint, then publish only when every chunk
+in the pinned FTS generation is present. Replays compare exact little-endian
+bytes, including signed zero. Source publication drift fails before mutation.
+
+Publication streams rows in binary chunk-ID order, hashes a versioned length-
+prefixed model/dimensions/ID/vector representation, seals the generation and
+switches the active pointer in one transaction. It never copies the full vector
+set. Cancellation checks run before work, for every publication row and before
+commit. A replay of an older sealed receipt cannot move the active pointer back.
+Encrypted reopen tests cover interrupted staging and exact receipt replay.
+
+These storage primitives do not authorize model processing or provide retrieval.
+The native caller must check current grants before embedding and through the
+checkpoint callback. Authorized vector reads, bounded abandoned-stage cleanup,
+model management and worker/MemoryPort integration remain required release work.

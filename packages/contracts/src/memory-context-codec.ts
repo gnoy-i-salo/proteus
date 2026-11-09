@@ -2,9 +2,12 @@ import type { ModelContextRequest } from './memory';
 import { fields, list } from './corpus-wire-validation';
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 function text(value: unknown, maximumBytes: number): string {
-  if (typeof value !== 'string' || encoder.encode(value).length > maximumBytes)
-    throw new Error('Превышен размер входа модели.');
+  if (typeof value !== 'string') throw new Error('Неверный текст входа модели.');
+  const bytes = encoder.encode(value);
+  if (bytes.length > maximumBytes) throw new Error('Превышен размер входа модели.');
+  if (decoder.decode(bytes) !== value) throw new Error('Вход модели содержит неверный Unicode.');
   return value;
 }
 function id(value: unknown): string {

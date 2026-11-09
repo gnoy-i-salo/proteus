@@ -140,20 +140,7 @@ fn identity(
     input_sha256: String,
     now: i64,
 ) -> Result<PublicationMemo, String> {
-    let policy = &scope
-        .authority
-        .bindings
-        .first()
-        .ok_or(INVALID)?
-        .policy_version;
-    if scope
-        .authority
-        .bindings
-        .iter()
-        .any(|b| &b.policy_version != policy)
-    {
-        return Err(INVALID.into());
-    }
+    let policy = scope.policy_version().map_err(|_| INVALID)?;
     let published_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(now)
         .ok_or(INVALID)?
         .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
@@ -174,7 +161,7 @@ fn identity(
                 .iter()
                 .map(|_| native_id("memoryItem"))
                 .collect::<Result<_, _>>()?,
-            policy_version: policy.clone(),
+            policy_version: policy.into(),
             published_at,
         },
     })

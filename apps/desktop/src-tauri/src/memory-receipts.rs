@@ -166,19 +166,8 @@ impl MemorySession {
         now_ms: &dyn Fn() -> i64,
     ) -> Result<RetrievalReceipt, String> {
         let scope = &self.scope;
-        let policy = &scope
-            .authority
-            .bindings
-            .first()
-            .ok_or("Нет разрешённых привязок.")?
-            .policy_version;
-        if started < 0
-            || scope
-                .authority
-                .bindings
-                .iter()
-                .any(|binding| &binding.policy_version != policy)
-        {
+        let policy = scope.policy_version()?;
+        if started < 0 {
             return Err("Несовместимые политики квитанции поиска.".into());
         }
         let embedding_fingerprint = scope
@@ -213,7 +202,7 @@ impl MemorySession {
             operation: operation.into(),
             id,
             snapshot_id: scope.source.snapshot_id.clone(),
-            policy_version: policy.clone(),
+            policy_version: policy.into(),
             retrieval_version: "nativeMemoryRetrieval:1".into(),
             index_generation: scope.source.index_generation,
             embedding_fingerprint,

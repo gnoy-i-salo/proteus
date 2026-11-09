@@ -76,4 +76,14 @@ describe('native model context request', () => {
       decodeModelContextRequest({ ...input, memoryItemIds: ['item:1', 'item:1'] }),
     ).toThrow();
   });
+  it('rejects unpaired surrogates instead of replacing original text at the Rust boundary', () => {
+    for (const field of ['systemPrompt', 'task']) {
+      for (const invalid of ['\ud800', '\udfff', 'before\ud800after']) {
+        expect(() => decodeModelContextRequest({ ...request(), [field]: invalid })).toThrow();
+      }
+    }
+    expect(() => decodeModelContextRequest({ ...request(), receiptIds: ['r:\ud800'] })).toThrow();
+    const exact = '\uFEFF\uFFFD 👩🏽‍🔬\r\n';
+    expect(decodeModelContextRequest({ ...request(), task: exact }).task).toBe(exact);
+  });
 });

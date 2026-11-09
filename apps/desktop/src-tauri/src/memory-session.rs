@@ -175,6 +175,23 @@ impl MemorySession {
     }
 }
 impl MemoryScope {
+    fn policy_version(&self) -> Result<&str, String> {
+        let policy = &self
+            .authority
+            .bindings
+            .first()
+            .ok_or("Нет разрешённых привязок.")?
+            .policy_version;
+        if self
+            .authority
+            .bindings
+            .iter()
+            .any(|binding| &binding.policy_version != policy)
+        {
+            return Err("Несовместимые политики квитанции поиска.".into());
+        }
+        Ok(policy)
+    }
     fn guard(&self, now_ms: &dyn Fn() -> i64) -> Result<i64, String> {
         self.sources.with_ingestion_database(&self.operation, |db| {
             let now = now_ms();

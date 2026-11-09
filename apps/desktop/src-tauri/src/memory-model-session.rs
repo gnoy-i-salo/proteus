@@ -9,6 +9,59 @@ use crate::memory::{
 use std::sync::Arc;
 const UNCONFIGURED: &str = "Модельная сессия памяти не настроена.";
 impl MemorySession {
+    pub fn reserve_context(
+        &mut self,
+        request: &crate::memory::context_wire::ModelContextRequest,
+        now: impl Fn() -> i64,
+    ) -> Result<crate::memory::context_wire::ModelContextLease, String> {
+        use crate::memory::context_wire::{ContextSources, ContextUsage, ModelContextLease};
+        request.validate()?;
+        if request.purpose != "research" {
+            return Err("Контекст Person требует закреплённого manifest.".into());
+        }
+        let deadline = self
+            .scope
+            .deadline
+            .min(self.models.as_ref().ok_or(UNCONFIGURED)?.deadline_ms());
+        let expires_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(deadline)
+            .ok_or("Неверный срок контекста.")?
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let policy_version = self.scope.policy_version()?.to_owned();
+        let records = self.authorized_receipts(&request.receipt_ids, &now)?;
+        let reserved = self.reserve_research_context(
+            &request.receipt_ids,
+            &request.system_prompt,
+            &request.task,
+            request.format_attempt,
+            &now,
+        )?;
+        let lease = ModelContextLease {
+            schema_version: 2,
+            id: reserved.id,
+            single_use: true,
+            persona_id: self.scope.persona_id.clone(),
+            input_sha256: reserved.input.identity.input_sha256.clone(),
+            input_bytes: reserved.input.identity.input_bytes,
+            system_prompt: reserved.input.system_prompt.clone(),
+            task: reserved.input.task.clone(),
+            corpus_snapshot_id: self.scope.source.snapshot_id.clone(),
+            manifest_id: None,
+            purpose: "research",
+            format_attempt: request.format_attempt,
+            policy_version,
+            receipt_ids: request.receipt_ids.clone(),
+            items: vec![],
+            sources: ContextSources(records),
+            context_sha256: reserved.input.context_sha256.clone(),
+            expires_at,
+            usage: ContextUsage {
+                model_calls: reserved.usage.used_calls,
+                input_bytes: reserved.usage.used_input_bytes,
+            },
+        };
+        self.verify_current(now)?;
+        Ok(lease)
+    }
     pub fn completed_context_audit(
         &mut self,
         ids: &[String],

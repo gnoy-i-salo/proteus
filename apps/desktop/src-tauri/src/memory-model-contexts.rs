@@ -59,6 +59,9 @@ pub struct ModelContexts {
 }
 const INVALID: &str = "Контекст модельного вызова недоступен или не соответствует запросу.";
 impl ModelContexts {
+    pub(super) fn deadline_ms(&self) -> i64 {
+        self.ledger.deadline_ms()
+    }
     pub fn completed_audit(
         &mut self,
         ids: &[String],

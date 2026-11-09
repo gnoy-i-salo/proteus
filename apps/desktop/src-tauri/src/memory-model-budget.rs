@@ -151,6 +151,9 @@ pub struct ModelCallLedger {
 }
 
 impl ModelCallLedger {
+    pub(super) fn deadline_ms(&self) -> i64 {
+        self.deadline_ms
+    }
     /// Check completion authority without reserving or charging another call.
     pub fn verify(&mut self, clock: &dyn Fn() -> Result<i64, String>) -> Result<i64, BudgetError> {
         self.fail_if_closed()?;

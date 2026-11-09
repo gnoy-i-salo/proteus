@@ -17,6 +17,115 @@ fn model_budget() -> ModelCallBudget {
     }
 }
 #[test]
+fn wire_lease_preserves_native_input_sources_usage_and_both_deadlines() {
+    use crate::memory::context_wire::ModelContextRequest;
+    let (sources, dir) = local();
+    let (op, snapshot, _) = indexed(&sources, &dir, 0);
+    let grant = enable_model(&sources, &op);
+    for (duration, expected) in [(1000, 71003), (100000, 130002)] {
+        let mut bound = session(&sources, &snapshot, limits()).unwrap();
+        let mut budget = model_budget();
+        budget.max_duration_ms = duration;
+        bound
+            .configure_research_model(model_binding(), budget, || 70003)
+            .unwrap();
+        let receipt = bound.recall_recorded("контекст", None, || 70003).unwrap();
+        let mut request = ModelContextRequest {
+            schema_version: 2,
+            purpose: "research".into(),
+            manifest_id: None,
+            system_prompt: "  Инструкция\r\n".into(),
+            task: "\u{feff}Задача\r\n  ".into(),
+            receipt_ids: vec![receipt.receipt.id.clone()],
+            memory_item_ids: vec![],
+            format_attempt: 2,
+        };
+        request.purpose = "personaReply".into();
+        request.manifest_id = Some("foreign".into());
+        assert!(bound.reserve_context(&request, || 70003).is_err());
+        request.purpose = "research".into();
+        request.manifest_id = None;
+        let lease = bound.reserve_context(&request, || 70003).unwrap();
+        assert_eq!(lease.system_prompt, request.system_prompt);
+        assert!(lease.task.starts_with(&request.task));
+        assert_eq!(lease.persona_id, "personA");
+        assert_eq!(lease.corpus_snapshot_id, snapshot.id);
+        assert_eq!(lease.format_attempt, 2);
+        assert_eq!(lease.usage.model_calls, 1);
+        assert_eq!(lease.usage.input_bytes, lease.input_bytes as u64);
+        let identity =
+            crate::memory::model_input::model_input_identity(&lease.system_prompt, &lease.task)
+                .unwrap();
+        assert_eq!(lease.input_sha256, identity.input_sha256);
+        assert_eq!(lease.input_bytes, identity.input_bytes);
+        assert_eq!(
+            chrono::DateTime::parse_from_rfc3339(&lease.expires_at)
+                .unwrap()
+                .timestamp_millis(),
+            expected
+        );
+        let wire = serde_json::to_value(&lease).unwrap();
+        assert_eq!(wire["schemaVersion"], 2);
+        assert_eq!(wire["singleUse"], true);
+        assert_eq!(wire["purpose"], "research");
+        assert_eq!(wire["manifestId"], serde_json::Value::Null);
+        assert_eq!(
+            wire["sources"],
+            serde_json::to_value(&receipt.sources).unwrap()
+        );
+        assert_eq!(wire["sources"][0]["text"], "  контекст\r\n");
+        assert_eq!(wire["items"], serde_json::json!([]));
+        assert_eq!(wire["receiptIds"], serde_json::json!(request.receipt_ids));
+        assert_eq!(lease.policy_version, receipt.receipt.policy_version);
+        bound
+            .consume_model_context(
+                &lease.id,
+                DispatchInput {
+                    invocation_id: "wire-call",
+                    binding: &model_binding(),
+                    system_prompt: &lease.system_prompt,
+                    task: &lease.task,
+                },
+                || 70003,
+            )
+            .unwrap();
+        assert!(bound
+            .consume_model_context(
+                &lease.id,
+                DispatchInput {
+                    invocation_id: "wire-call-2",
+                    binding: &model_binding(),
+                    system_prompt: &lease.system_prompt,
+                    task: &lease.task,
+                },
+                || 70003
+            )
+            .is_err());
+    }
+    let mut bound = session(&sources, &snapshot, limits()).unwrap();
+    bound
+        .configure_research_model(model_binding(), model_budget(), || 70003)
+        .unwrap();
+    sources
+        .with_ingestion_database(&op, |db| db.remove(&grant))
+        .unwrap();
+    let request = ModelContextRequest {
+        schema_version: 2,
+        purpose: "research".into(),
+        manifest_id: None,
+        system_prompt: String::new(),
+        task: String::new(),
+        receipt_ids: vec![],
+        memory_item_ids: vec![],
+        format_attempt: 1,
+    };
+    assert!(bound.reserve_context(&request, || 70003).is_err());
+    drop(bound);
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
 fn model_context_binds_native_sources_until_completed_and_rejects_revoked_proof() {
     let (sources, dir) = local();
     let (op, snapshot, _) = indexed(&sources, &dir, 0);

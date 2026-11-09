@@ -4,6 +4,8 @@
 pub mod budget;
 #[path = "memory-context-input.rs"]
 mod context_input;
+#[path = "memory-context-wire.rs"]
+pub mod context_wire;
 #[path = "memory-model-budget.rs"]
 pub mod model_budget;
 #[path = "memory-model-contexts.rs"]

@@ -20,9 +20,11 @@ import { structured } from '@proteus-int/intelligence';
 import { withFabricSession } from './fabric-session';
 import type { OpenFabricMemory } from './fabric-session';
 import { parseMemoryProfile } from './parse-memory-profile';
-import { memoryProfileInstructions } from './memory-fabric-prompts';
+import { memoryProfileInstructions, memoryNeutralInstructions } from './memory-fabric-prompts';
+import { neutralProfile } from './neutral-profile';
 
 export interface MemoryFabricInput {
+  readonly role?: 'persona' | 'neutral';
   readonly person: PersonInput;
   readonly palette: PaletteId;
   readonly request: OpenFabricSessionRequest;
@@ -51,6 +53,9 @@ function hostText(value: unknown, maximum: number, nonblank = false): string {
   return value;
 }
 function validate(input: MemoryFabricInput) {
+  const role = input.role === undefined ? 'persona' : input.role;
+  if (role !== 'persona' && role !== 'neutral')
+    throw new Error('Неизвестная роль подготовки памяти.');
   const request = decodeOpenFabricSessionRequest(input.request);
   const scope: FabricContextRequest = decodeFabricContextRequest({
     schemaVersion: 1,
@@ -96,7 +101,15 @@ function validate(input: MemoryFabricInput) {
     model.requestedEffort !== request.model.effort
   )
     throw new Error('Модель Fabric не соответствует манифесту.');
-  return { request, scope, person, draft, palette: input.palette, maxSkills: input.maxSkills };
+  return {
+    request,
+    scope,
+    person,
+    draft,
+    palette: input.palette,
+    maxSkills: input.maxSkills,
+    role,
+  };
 }
 export async function fabricateMemory(
   input: MemoryFabricInput,
@@ -116,14 +129,14 @@ export async function fabricateMemory(
       const { data } = await structured(
         model.provider,
         'PERSON_FABRIC memory',
-        memoryProfileInstructions,
+        selected.role === 'neutral' ? memoryNeutralInstructions : memoryProfileInstructions,
         { person: selected.person, maxSkills: selected.maxSkills },
         sessionSignal,
         selected.request.model.effort,
         (value) => {
           const context = model.context;
           if (!context) throw new Error('Нет завершённого контекста Fabric.');
-          return parseMemoryProfile(value, context, selected.maxSkills);
+          return parseMemoryProfile(value, context, selected.maxSkills, selected.role);
         },
         'generation',
         true,
@@ -131,20 +144,31 @@ export async function fabricateMemory(
       sessionSignal.throwIfAborted();
       const profileSnapshot = decodePersonaProfileSnapshot({
         schemaVersion: 1,
-        label: selected.person.label,
+        label: selected.role === 'neutral' ? neutralProfile().label : selected.person.label,
         palette: selected.palette,
-        archetype: data.rules.length
-          ? data.rules
-              .map(
-                (rule) =>
-                  '[' + rule.status + '; ' + rule.evidenceIds.join(', ') + '] ' + rule.instruction,
-              )
-              .join('\n')
-          : 'Недостаточно сведений для характерных черт. Не приписывайте человеку особенности или способности.',
+        archetype:
+          selected.role === 'neutral'
+            ? neutralProfile().archetype
+            : data.rules.length
+              ? data.rules
+                  .map(
+                    (rule) =>
+                      '[' +
+                      rule.status +
+                      '; ' +
+                      rule.evidenceIds.join(', ') +
+                      '] ' +
+                      rule.instruction,
+                  )
+                  .join('\n')
+              : 'Недостаточно сведений для характерных черт. Не приписывайте человеку особенности или способности.',
         rules: data.rules,
-        sourceStatus: data.rules.some((rule) => rule.status === 'supported')
-          ? 'evidence-informed'
-          : 'synthetic',
+        sourceStatus:
+          selected.role === 'neutral'
+            ? 'neutral'
+            : data.rules.some((rule) => rule.status === 'supported')
+              ? 'evidence-informed'
+              : 'synthetic',
         styleProfile: data.style,
         styleExemplars: data.exemplars,
       });

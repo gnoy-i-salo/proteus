@@ -14,6 +14,32 @@ import {
 const budgetLimitation =
   'Поиск дополнительных оснований ограничен бюджетом; попытки сохранены для извлечения памяти.';
 
+it('preserves an explicit neutral role through research and native profile freeze', async () => {
+  const input = { ...preparationInput(), role: 'neutral' as const };
+  const hosts = preparationHosts(input, {
+    fabricProfileAnswer: {
+      rules: [],
+      style: { reasoningPatterns: [], voiceRules: [], formatRules: [], limitations: [] },
+      skills: [],
+    },
+  });
+  const result = await prepareMemoryPersona(
+    input,
+    hosts.researchProvider,
+    hosts.fabricProvider,
+    hosts.openResearch,
+    hosts.openFabric,
+  );
+  expect(result.profile.sourceStatus).toBe('neutral');
+  expect(result.profile.styleExemplars).toEqual([]);
+  expect(result.freeze.manifest).toMatchObject({
+    schemaVersion: 2,
+    profileSnapshot: { sourceStatus: 'neutral' },
+    exemplarIds: [],
+  });
+  expect(hosts.researchModelRuns[0]!.task).toContain(JSON.stringify(input.person.label));
+});
+
 it('researches memory first, then fabricates one task-free persona from the native publication', async () => {
   const input = preparationInput();
   const hosts = preparationHosts(input);

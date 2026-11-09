@@ -1,7 +1,11 @@
 import type { PersonaStyleProfile, StyleExemplar, StyleRule } from '@proteus-int/contracts';
 import { decodeResponseFields, text, texts } from '@proteus-int/intelligence';
 
-export function parseStyle(raw: unknown, samples: readonly StyleExemplar[]): PersonaStyleProfile {
+export function parseStyle(
+  raw: unknown,
+  samples: readonly StyleExemplar[],
+  neutral = false,
+): PersonaStyleProfile {
   const value = decodeResponseFields(raw, [
     ['reasoning-patterns', 'reasoningPatterns'],
     ['voice-rules', 'voiceRules'],
@@ -54,7 +58,9 @@ export function parseStyle(raw: unknown, samples: readonly StyleExemplar[]): Per
     styleExemplarIds: samples.map((sample) => sample.id),
     limitations: [
       ...texts(value.limitations, 'style.limitations'),
-      'Небольшая выборка позволяет имитировать наблюдаемую манеру, но не гарантирует совпадение с человеком.',
+      neutral
+        ? 'Нейтральный контроль использует сведения без переноса личности и манеры автора.'
+        : 'Небольшая выборка позволяет имитировать наблюдаемую манеру, но не гарантирует совпадение с человеком.',
     ],
   };
 }

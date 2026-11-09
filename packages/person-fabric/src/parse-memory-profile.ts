@@ -62,6 +62,7 @@ export function parseMemoryProfile(
   value: Record<string, unknown>,
   context: FabricContextLease,
   maxSkills: number,
+  role: 'persona' | 'neutral' = 'persona',
 ) {
   if (
     Object.keys(value).length !== 3 ||
@@ -84,8 +85,10 @@ export function parseMemoryProfile(
       ]),
     ],
   }));
-  const exemplars = samples(context);
-  const style = parseStyle(value.style, exemplars);
+  if (role === 'neutral' && rules.length)
+    throw new Error('Нейтральный контроль не перенимает личные черты автора.');
+  const exemplars = role === 'neutral' ? [] : samples(context);
+  const style = parseStyle(value.style, exemplars, role === 'neutral');
   const skills = parseMemorySkills(
     { skills: value.skills },
     { items: context.items, maxSkills },

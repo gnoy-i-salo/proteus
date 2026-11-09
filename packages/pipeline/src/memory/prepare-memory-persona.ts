@@ -30,6 +30,7 @@ export interface PrepareMemoryPersonaLimits {
 }
 
 export interface PrepareMemoryPersonaInput {
+  readonly role?: 'persona' | 'neutral';
   readonly person: PersonInput;
   readonly palette: PaletteId;
   readonly snapshot: CorpusSnapshot;
@@ -60,6 +61,7 @@ const preparationManifestPromptVersion = 'person-fabric-memory:2';
 const preparationPlaceholderId = 'pending:validation';
 
 interface SelectedPreparation {
+  readonly role: 'persona' | 'neutral';
   readonly person: PersonInput;
   readonly palette: PaletteId;
   readonly snapshot: CorpusSnapshot;
@@ -75,6 +77,9 @@ interface SelectedPreparation {
 // stages must share one operation/job/corpus/persona/period scope, and the
 // manifest model bindings must match the requested preparation models.
 function validatePreparation(input: PrepareMemoryPersonaInput): SelectedPreparation {
+  const role = input.role === undefined ? 'persona' : input.role;
+  if (role !== 'persona' && role !== 'neutral')
+    throw new Error('Неизвестная роль подготовки памяти.');
   const research = decodeOpenResearchSessionRequest(input.research);
   const fabric = decodeOpenFabricSessionRequest(input.fabric);
   const snapshot = decodeCorpusSnapshot(input.snapshot);
@@ -108,23 +113,21 @@ function validatePreparation(input: PrepareMemoryPersonaInput): SelectedPreparat
     modelCallBudget: input.manifest.modelCallBudget,
     modelSettings: input.manifest.modelSettings,
   });
-  const researchModel = manifest.modelSettings.find((entry) => entry.component === 'stalker');
-  if (
-    !researchModel ||
-    researchModel.provider !== research.model.provider ||
-    researchModel.requestedModel !== research.model.model ||
-    researchModel.requestedEffort !== research.model.effort
-  )
-    throw new Error('Модель исследования не соответствует манифесту подготовки.');
-  const fabricModel = manifest.modelSettings.find((entry) => entry.component === 'person-fabric');
-  if (
-    !fabricModel ||
-    fabricModel.provider !== fabric.model.provider ||
-    fabricModel.requestedModel !== fabric.model.model ||
-    fabricModel.requestedEffort !== fabric.model.effort
-  )
-    throw new Error('Модель Fabric не соответствует манифесту подготовки.');
+  for (const [component, label, model] of [
+    ['stalker', 'исследования', research.model],
+    ['person-fabric', 'Fabric', fabric.model],
+  ] as const) {
+    const binding = manifest.modelSettings.find((entry) => entry.component === component);
+    if (
+      !binding ||
+      binding.provider !== model.provider ||
+      binding.requestedModel !== model.model ||
+      binding.requestedEffort !== model.effort
+    )
+      throw new Error(`Модель ${label} не соответствует манифесту подготовки.`);
+  }
   return {
+    role,
     person: {
       label: input.person.label,
       context: input.person.context,
@@ -178,6 +181,7 @@ export async function prepareMemoryPersona(
   const researched = await researchMemory(researchInput, researchProvider, openResearch, signal);
   signal?.throwIfAborted();
   const fabricInput: MemoryFabricInput = {
+    role: selected.role,
     person: selected.person,
     palette: selected.palette,
     request: selected.fabric,

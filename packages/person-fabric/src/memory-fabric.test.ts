@@ -89,6 +89,60 @@ const memory: FabricMemoryPort = {
   close,
 };
 const open = vi.fn(() => Promise.resolve(memory));
+
+it('freezes a neutral knowledge control without adopting the source identity or writing style', async () => {
+  const neutralAnswer = {
+    rules: [],
+    style: { reasoningPatterns: [], voiceRules: [], formatRules: [], limitations: [] },
+    skills: output.skills,
+  };
+  run.mockResolvedValue({ answer: JSON.stringify(neutralAnswer), trace });
+  const selected = { ...input, role: 'neutral' as const };
+  const result = await fabricateMemory(selected, provider, open);
+  expect(result.profile).toMatchObject({
+    label: 'Нейтральный контроль',
+    sourceStatus: 'neutral',
+    rules: [],
+    styleExemplars: [],
+    taskSkills: [],
+    skills: [],
+  });
+  expect(result.profile.memory?.skills).toHaveLength(1);
+  expect(
+    result.profile.styleProfile?.contextModes.every((mode) => mode.status === 'insufficient'),
+  ).toBe(true);
+  expect(result.profile.styleProfile?.limitations.join(' ')).not.toContain('имитировать');
+  expect(run.mock.calls[0]![0].systemPrompt).toContain('neutral knowledge control');
+  expect(run.mock.calls[0]![0].task).toContain(input.person.label);
+  expect(freeze.mock.calls[0]![0]).toMatchObject({
+    exemplarIds: [],
+    profileSnapshot: { sourceStatus: 'neutral' },
+  });
+});
+
+it('repairs identity rules proposed for the neutral control instead of silently adopting them', async () => {
+  const neutralAnswer = {
+    rules: [],
+    style: { reasoningPatterns: [], voiceRules: [], formatRules: [], limitations: [] },
+    skills: [],
+  };
+  run.mockResolvedValueOnce({ answer: JSON.stringify(output), trace });
+  run.mockResolvedValueOnce({ answer: JSON.stringify(neutralAnswer), trace });
+  const result = await fabricateMemory({ ...input, role: 'neutral' }, provider, open);
+  expect(reserve.mock.calls.map(([draft]) => draft.formatAttempt)).toEqual([1, 2]);
+  expect(result.profile.sourceStatus).toBe('neutral');
+  expect(result.profile.rules).toEqual([]);
+  expect(result.profile.styleExemplars).toEqual([]);
+});
+
+it.each(['unknown', null])(
+  'rejects an unknown preparation role before opening a native session (%s)',
+  async (role) => {
+    const selected = { ...input, role } as unknown as MemoryFabricInput;
+    await expect(fabricateMemory(selected, provider, open)).rejects.toThrow();
+    expect(open).not.toHaveBeenCalled();
+  },
+);
 function publication(draft: PersonaManifestDraft): ManifestFreezeReceipt {
   const skills: SkillDefinition[] = draft.skills.map((skill, index) => ({
     schemaVersion: 1,

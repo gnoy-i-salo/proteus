@@ -9,6 +9,7 @@ mod receipts;
 use super::budget::{RecallLedger, RecallLimits, RetrievalCharge};
 pub use super::context_input::PreparedModelInput;
 pub use super::model_contexts::{DispatchInput, InvocationBinding, ReservedContext};
+pub use super::research_support::VerifiedResearchSupport;
 use crate::{
     corpus_database::search::{SearchIndexReceipt, SearchPeriod},
     ingestion::{
@@ -56,7 +57,13 @@ impl MemorySession {
         self.scope.operation.cancellation_handle()
     }
     pub(super) fn verify_current(&mut self, now_ms: impl Fn() -> i64) -> Result<(), String> {
-        self.ledger.verify(|| self.scope.guard(&now_ms)).map(|_| ())
+        self.ledger.verify(|| self.scope.guard(&now_ms))?;
+        // The terminal clock check must include both authorities. A later
+        // source-only check cannot return success after model authority expires.
+        if let Some(models) = &mut self.models {
+            models.verify(&|| self.scope.guard(&now_ms))?;
+        }
+        Ok(())
     }
     pub fn bind(
         sources: Sources,

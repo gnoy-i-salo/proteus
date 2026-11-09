@@ -42,6 +42,12 @@ pub struct ModelContexts {
 }
 const INVALID: &str = "Контекст модельного вызова недоступен или не соответствует запросу.";
 impl ModelContexts {
+    pub fn verify(&mut self, clock: &dyn Fn() -> Result<i64, String>) -> Result<(), String> {
+        self.ledger
+            .verify(clock)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
     pub fn new(
         binding: InvocationBinding,
         calls: u32,

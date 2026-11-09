@@ -1,0 +1,57 @@
+.personaMemoryView {
+  --accent: #67e8d3;
+
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  gap: 6px;
+  color: var(--text);
+  font-size: var(--caption);
+
+  > section {
+    flex: 1;
+  }
+
+  &__selectors {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 4px;
+    color: var(--accent);
+  }
+
+  &[data-palette='violet'] {
+    --accent: #c49cff;
+  }
+
+  select {
+    min-width: 0;
+    width: 100%;
+    font-size: var(--caption);
+  }
+
+  &__evidence {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: var(--caption);
+
+    select {
+      flex: 1;
+    }
+
+    button {
+      flex-shrink: 0;
+      font-size: var(--caption);
+    }
+  }
+}

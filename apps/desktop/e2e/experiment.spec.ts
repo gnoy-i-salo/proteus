@@ -556,7 +556,7 @@ for (const [width, height] of [
       ),
     ).toBe(2);
     await page.getByRole('button', { name: /Person A/ }).click();
-    await page.getByRole('button', { name: 'Архетип', exact: true }).click();
+    await page.getByRole('button', { name: 'Профиль', exact: true }).click();
     await expect(page.getByText('Structured planner', { exact: false })).toBeVisible();
   });
 }

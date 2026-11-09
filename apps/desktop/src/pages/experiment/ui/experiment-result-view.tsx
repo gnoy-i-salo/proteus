@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from 'solid-js';
+import { PersonaMemoryView } from '../../../features/persona-memory';
 import type { ExperimentRunModel } from '../model/experiment-run';
 import { createReplyNavigation } from '../model/reply-navigation';
 import type { TraceNavigation } from '../model/trace-navigation';
@@ -103,7 +104,7 @@ export function ExperimentResultView(props: {
                   each={[
                     ['analysis', 'Анализ'],
                     ['answer', 'Ответ'],
-                    ['archetype', 'Архетип'],
+                    ['archetype', 'Профиль'],
                     ['sources', 'Источники'],
                     ['traces', 'Intelligence traces'],
                   ]}
@@ -143,7 +144,19 @@ export function ExperimentResultView(props: {
                     fallback={
                       <Show
                         when={props.detail === 'analysis' && persona()}
-                        fallback={<PagedText text={text()} />}
+                        fallback={
+                          <Show
+                            when={props.detail === 'archetype' && persona()}
+                            fallback={<PagedText text={text()} />}
+                          >
+                            {(person) => (
+                              <PersonaMemoryView
+                                profile={person().profile}
+                                baseProfile={person().baseProfile}
+                              />
+                            )}
+                          </Show>
+                        }
                       >
                         {(person) => (
                           <ResultAnalysis

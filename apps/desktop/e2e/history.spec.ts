@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import type { ExperimentResult } from '@proteus-int/pipeline';
 import { fillReplyExperiment, nativeReplyFixture } from './replies-fixture';
 const fixture = (name: string) =>
   readFileSync(
@@ -256,3 +257,50 @@ for (const [version, file, label] of [
     await expect(page.getByLabel('Имя персоны A')).toHaveValue(label);
     await noProviderCalls(page);
   });
+
+test('saved profile preserves exact sample pages and attribution without provider calls', async ({
+  page,
+}) => {
+  const exact = '  Ёж 👩🏽‍🔬\r\n\t<em>слова автора</em>  '.repeat(40);
+  const saved = JSON.parse(modern) as ExperimentResult;
+  const data = {
+    ...saved,
+    people: saved.people.map((person, index) =>
+      index
+        ? person
+        : {
+            ...person,
+            profile: {
+              ...person.profile,
+              styleExemplars: person.profile.styleExemplars!.map((sample) => ({
+                ...sample,
+                text: exact,
+              })),
+            },
+          },
+    ),
+  };
+  await page.setViewportSize({ width: 640, height: 600 });
+  await historyFixture(page, { profile: JSON.stringify(data) });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'История запусков', exact: true }).click();
+  await page.getByRole('button', { name: 'Открыть profile', exact: true }).click();
+  await page.getByRole('button', { name: 'Профиль', exact: true }).click();
+  await page.getByLabel('Раздел профиля', { exact: true }).selectOption('examples');
+  const body = page.getByLabel('Текст профиля', { exact: true });
+  const next = page.getByRole('button', { name: 'Следующая страница текста', exact: true });
+  await expect(next).toBeEnabled();
+  let reconstructed = '';
+  for (let pageNumber = 0; pageNumber < 500; pageNumber++) {
+    reconstructed += await body.locator('p').textContent();
+    if (await next.isDisabled()) break;
+    await next.click();
+  }
+  expect(reconstructed).toBe(exact);
+  await expect(body.locator('em')).toHaveCount(0);
+  await page.getByLabel('Запись профиля', { exact: true }).selectOption('context:se-a1');
+  await page.getByRole('button', { name: 'Развернуть: Текст профиля', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('Public thread (synthetic)');
+  await expect(page.getByRole('dialog')).toContainText('doc-a-public');
+  await noProviderCalls(page);
+});

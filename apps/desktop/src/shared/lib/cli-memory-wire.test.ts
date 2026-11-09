@@ -20,6 +20,10 @@ describe('CLI memory context reference', () => {
       ...request,
       operation: 'persona-reply',
     });
+    expect(encodeCliRequest({ ...request, operation: 'generation' })).toEqual({
+      ...request,
+      operation: 'generation',
+    });
   });
   it('never drops a memory reference through the legacy writer', () => {
     expect(() => encodeLegacyCliRequest(request)).toThrow();
@@ -39,7 +43,7 @@ describe('CLI memory context reference', () => {
   });
   it.each([
     { sourceContext: false },
-    { operation: 'generation' },
+    { operation: 'fabrication' },
     { operation: 'public-research' },
     { operation: 'source-plan' },
   ])('rejects a context on an unrelated or unmarked invocation (%#)', (change) => {

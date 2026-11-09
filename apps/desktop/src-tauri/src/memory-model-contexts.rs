@@ -2,7 +2,7 @@
 //! receipts and a checked clock; this owner never grants corpus access itself.
 use crate::memory::{
     model_budget::{BudgetUsage, ModelCallLedger},
-    session::{PreparedModelInput, RecordedRetrieval},
+    session::{AuthorizedMemory, PreparedModelInput, RecordedRetrieval},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -48,6 +48,7 @@ struct ContextEntry {
     format_attempt: u8,
     input: Arc<PreparedModelInput>,
     receipts: Vec<Arc<RecordedRetrieval>>,
+    memory: Option<Arc<AuthorizedMemory>>,
     invocation_id: Option<String>,
     completed_at_ms: Option<i64>,
 }
@@ -59,6 +60,9 @@ pub struct ModelContexts {
 }
 const INVALID: &str = "Контекст модельного вызова недоступен или не соответствует запросу.";
 impl ModelContexts {
+    pub(super) fn operation(&self) -> &str {
+        &self.binding.operation
+    }
     pub(super) fn deadline_ms(&self) -> i64 {
         self.ledger.deadline_ms()
     }
@@ -110,7 +114,8 @@ impl ModelContexts {
     ) -> Result<Self, String> {
         if !["codex", "kimi"].contains(&binding.provider.as_str())
             || !["low", "medium", "high"].contains(&binding.effort.as_str())
-            || !["corpus-analysis", "persona-reply"].contains(&binding.operation.as_str())
+            || !["corpus-analysis", "persona-reply", "generation"]
+                .contains(&binding.operation.as_str())
             || binding.model.trim().is_empty()
             || binding.model.len() > 120
             || binding.model.contains(['\n', '\r', '\0'])
@@ -134,6 +139,37 @@ impl ModelContexts {
         format_attempt: u8,
         clock: &dyn Fn() -> Result<i64, String>,
     ) -> Result<ReservedContext, String> {
+        self.reserve_authorized(system_prompt, task, receipts, None, format_attempt, clock)
+    }
+    pub(super) fn reserve_memory(
+        &mut self,
+        system_prompt: &str,
+        task: &str,
+        memory: Arc<AuthorizedMemory>,
+        format_attempt: u8,
+        clock: &dyn Fn() -> Result<i64, String>,
+    ) -> Result<ReservedContext, String> {
+        if self.binding.operation != "generation" {
+            return Err(INVALID.into());
+        }
+        self.reserve_authorized(
+            system_prompt,
+            task,
+            memory.receipts().to_vec(),
+            Some(memory),
+            format_attempt,
+            clock,
+        )
+    }
+    fn reserve_authorized(
+        &mut self,
+        system_prompt: &str,
+        task: &str,
+        receipts: Vec<Arc<RecordedRetrieval>>,
+        memory: Option<Arc<AuthorizedMemory>>,
+        format_attempt: u8,
+        clock: &dyn Fn() -> Result<i64, String>,
+    ) -> Result<ReservedContext, String> {
         let mut seen = HashSet::new();
         if receipts.len() > 1000 || receipts.iter().any(|r| !seen.insert(&r.receipt.id)) {
             return Err(INVALID.into());
@@ -142,7 +178,7 @@ impl ModelContexts {
             system_prompt,
             task,
             &receipts,
-            &[],
+            memory.as_ref().map_or(&[], |value| value.items()),
         )?);
         let id = format!(
             "modelContext:{}",
@@ -167,6 +203,7 @@ impl ModelContexts {
                 format_attempt,
                 input: input.clone(),
                 receipts,
+                memory,
                 invocation_id: None,
                 completed_at_ms: None,
             },
@@ -269,6 +306,20 @@ impl ModelContexts {
         }
         self.ledger.verify(clock).map_err(|e| e.to_string())?;
         Ok(receipts)
+    }
+    pub(super) fn completed_memory(
+        &mut self,
+        ids: &[String],
+        clock: &dyn Fn() -> Result<i64, String>,
+    ) -> Result<Vec<Arc<AuthorizedMemory>>, String> {
+        let entries = Self::completed_entries(&self.entries, ids)?;
+        let mut memory = Vec::with_capacity(entries.len());
+        for (_, entry) in entries {
+            self.ledger.verify(clock).map_err(|e| e.to_string())?;
+            memory.push(entry.memory.as_ref().ok_or(INVALID)?.clone());
+        }
+        self.ledger.verify(clock).map_err(|e| e.to_string())?;
+        Ok(memory)
     }
     fn completed_entries<'a>(
         entries_by_id: &'a HashMap<String, ContextEntry>,

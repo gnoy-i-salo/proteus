@@ -93,7 +93,8 @@ pub(super) fn validate(request: &Request) -> Result<(), String> {
                     .all(|b| b.is_ascii_alphanumeric() || b":_-".contains(&b))
         };
         if !request.source_context
-            || !["corpus-analysis", "persona-reply"].contains(&request.operation.as_str())
+            || !["corpus-analysis", "persona-reply", "generation"]
+                .contains(&request.operation.as_str())
             || !valid_handle(&context.session_id)
             || !valid_handle(&context.lease_id)
         {

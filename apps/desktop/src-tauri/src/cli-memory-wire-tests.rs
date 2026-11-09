@@ -7,7 +7,7 @@ fn memory_request() -> Value {
 }
 #[test]
 fn native_cli_memory_reference_preserves_exact_input_and_both_handles() {
-    for operation in ["corpus-analysis", "persona-reply"] {
+    for operation in ["corpus-analysis", "persona-reply", "generation"] {
         let mut value = memory_request();
         value["operation"] = operation.into();
         let request: Request = serde_json::from_value(value.clone()).unwrap();
@@ -37,7 +37,7 @@ fn native_cli_memory_reference_rejects_malformed_scope_extensions_and_aliases() 
     }
     for (key, replacement) in [
         ("sourceContext", json!(false)),
-        ("operation", json!("generation")),
+        ("operation", json!("fabrication")),
         ("operation", json!("public-research")),
         ("operation", json!("source-plan")),
         ("provider", json!("kimi")),

@@ -256,3 +256,69 @@ fn late_admission_expiry_never_leaves_an_undisclosed_session_or_operation() {
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn fabric_admission_binds_native_source_scope_and_separate_model_role() {
+    let (sources, dir) = local();
+    let (op, snapshot, _) = indexed(&sources, &dir, 0);
+    let grant = enable_model(&sources, &op);
+    let mut researcher = session(&sources, &snapshot, limits()).unwrap();
+    let draft = super::publication_session_tests::draft(&mut researcher);
+    let publication = researcher.publish_research(&draft, || 70004).unwrap();
+    drop(researcher);
+    let sessions = MemorySessions::default();
+    let mut input = request(&snapshot.id);
+    input.mode = research_workflow::ResearchMode::Hybrid;
+    assert!(
+        research_workflow::open_fabric(&sources, &sessions, &input, || panic!(
+            "invalid mode touched clock"
+        ))
+        .is_err()
+    );
+    input.mode = research_workflow::ResearchMode::Lexical;
+    let opened = research_workflow::open_fabric(&sources, &sessions, &input, || 70005).unwrap();
+    let json = serde_json::to_value(&opened).unwrap();
+    assert_eq!(json["purpose"], "fabric");
+    assert_eq!(json["corpusSnapshotId"], snapshot.id);
+    assert_eq!(json["personaId"], "personA");
+    let lease = sessions
+        .with_session(
+            &opened.session.id,
+            || 70005,
+            |s| {
+                s.reserve_fabric_context(
+                    &crate::memory::session::FabricContextRequest {
+                        schema_version: 1,
+                        memory_snapshot_id: publication.snapshot.id,
+                        item_ids: publication.snapshot.item_ids,
+                        system_prompt: "Fabric".into(),
+                        task: "Persona context".into(),
+                        format_attempt: 1,
+                    },
+                    || 70005,
+                )
+            },
+        )
+        .unwrap();
+    assert_eq!(lease.purpose, "fabric");
+    assert_eq!(lease.items.len(), 1);
+    assert!(sessions
+        .with_session(
+            &opened.session.id,
+            || 70005,
+            |s| s.reserve_research_context(&[], "", "", 1, || 70005)
+        )
+        .is_err());
+    sources
+        .with_ingestion_database(&op, |db| db.remove(&grant))
+        .unwrap();
+    assert!(sessions
+        .with_session(&opened.session.id, || 70006, |_| Ok(()))
+        .is_err());
+    sessions.close(&opened.session.id).unwrap();
+    assert!(research_workflow::open_fabric(&sources, &sessions, &input, || 70006).is_err());
+    drop(sessions);
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}

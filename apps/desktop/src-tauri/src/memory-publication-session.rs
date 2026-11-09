@@ -27,6 +27,13 @@ impl MemorySession {
         now: impl Fn() -> i64,
     ) -> Result<ResearchPublicationReceipt, String> {
         self.verify_current(&now)?;
+        if self
+            .models
+            .as_ref()
+            .is_none_or(|models| models.operation() != "corpus-analysis")
+        {
+            return Err(INVALID.into());
+        }
         draft.validate()?;
         let hash = format!(
             "{:x}",

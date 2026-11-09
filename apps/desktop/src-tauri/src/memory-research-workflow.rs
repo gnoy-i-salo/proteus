@@ -88,6 +88,34 @@ pub fn open(
     configure(&mut session, request.mode, model, &now)?;
     admit(session, sessions, now)
 }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FabricSession {
+    #[serde(flatten)]
+    pub session: ResearchSession,
+    pub purpose: &'static str,
+}
+pub fn open_fabric(
+    sources: &Sources,
+    sessions: &MemorySessions,
+    request: &OpenResearchRequest,
+    now: impl Fn() -> i64,
+) -> Result<FabricSession, String> {
+    // Fabric reads pinned reference episodes; it does not issue semantic queries.
+    if request.mode != ResearchMode::Lexical {
+        return Err("Сессия Fabric читает опубликованную память без гибридного поиска.".into());
+    }
+    let mut session = bind_source(sources, request, &now)?;
+    session.configure_fabric_model(
+        model_binding(request, "generation"),
+        request.model_budget.clone(),
+        &now,
+    )?;
+    Ok(FabricSession {
+        session: admit(session, sessions, now)?,
+        purpose: "fabric",
+    })
+}
 pub fn embedding_budget() -> crate::local_embedding::runtime::EmbeddingBudget {
     crate::local_embedding::runtime::EmbeddingBudget {
         max_batch_items: 1,
@@ -100,16 +128,40 @@ pub fn prepare(
     sources: &Sources,
     request: &OpenResearchRequest,
     now: impl Fn() -> i64,
+) -> Result<MemorySession, String> {
+    let mut session = bind_source(sources, request, &now)?;
+    session.configure_research_model(
+        model_binding(request, "corpus-analysis"),
+        request.model_budget.clone(),
+        now,
+    )?;
+    Ok(session)
+}
+fn model_binding(
+    request: &OpenResearchRequest,
+    operation: &str,
+) -> super::session::InvocationBinding {
+    super::session::InvocationBinding {
+        provider: request.model.provider.clone(),
+        model: request.model.model.clone(),
+        effort: request.model.effort.clone(),
+        operation: operation.into(),
+    }
+}
+fn bind_source(
+    sources: &Sources,
+    request: &OpenResearchRequest,
+    now: impl Fn() -> i64,
 ) -> Result<super::session::MemorySession, String> {
     use super::{
         budget::RecallLimits,
-        session::{InvocationBinding, MemorySession, SessionInput},
+        session::{MemorySession, SessionInput},
     };
     request.validate()?;
     let provider = crate::ingestion::job_workflow::job_provider(sources, &request.job_id)?;
     let operation = sources.begin_ingestion_operation(&request.operation_id, provider)?;
     let budget = &request.recall_budget;
-    let mut session = MemorySession::bind(
+    MemorySession::bind(
         sources.clone(),
         operation,
         SessionInput {
@@ -131,18 +183,7 @@ pub fn prepare(
             },
         },
         &now,
-    )?;
-    session.configure_research_model(
-        InvocationBinding {
-            provider: request.model.provider.clone(),
-            model: request.model.model.clone(),
-            effort: request.model.effort.clone(),
-            operation: "corpus-analysis".into(),
-        },
-        request.model_budget.clone(),
-        now,
-    )?;
-    Ok(session)
+    )
 }
 pub fn configure(
     session: &mut super::session::MemorySession,

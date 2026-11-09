@@ -9,7 +9,7 @@ use std::{
         Arc, Mutex,
     },
 };
-fn fixture(dir: &Path) -> std::path::PathBuf {
+pub(super) fn fixture(dir: &Path) -> std::path::PathBuf {
     let source = dir.join("fixture.rs");
     std::fs::write(&source, include_str!("fixtures/cli-memory-process.rs")).unwrap();
     let binary = dir.join(if cfg!(windows) {

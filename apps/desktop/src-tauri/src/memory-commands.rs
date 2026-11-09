@@ -57,6 +57,33 @@ pub async fn open_research_session(
     .map_err(|_| "Не удалось открыть исследовательскую сессию.".to_string())?
 }
 #[tauri::command]
+pub async fn open_fabric_session(
+    request: OpenResearchRequest,
+    sources: tauri::State<'_, Sources>,
+    sessions: tauri::State<'_, Arc<MemorySessions>>,
+) -> Result<research_workflow::FabricSession, String> {
+    request.validate()?;
+    let sources = sources.inner().clone();
+    let sessions = sessions.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        research_workflow::open_fabric(&sources, &sessions, &request, now)
+    })
+    .await
+    .map_err(|_| "Не удалось открыть сессию Person Fabric.".to_string())?
+}
+#[tauri::command]
+pub async fn reserve_fabric_memory_context(
+    session_id: String,
+    request: super::session::FabricContextRequest,
+    sessions: tauri::State<'_, Arc<MemorySessions>>,
+) -> Result<ModelContextLease, String> {
+    request.validate()?;
+    in_session(sessions.inner().clone(), session_id, move |session| {
+        session.reserve_fabric_context(&request, now)
+    })
+    .await
+}
+#[tauri::command]
 pub fn close_memory_session(
     session_id: String,
     sessions: tauri::State<'_, Arc<MemorySessions>>,

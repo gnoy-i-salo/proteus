@@ -3,8 +3,14 @@
 #[path = "memory-catalog-session.rs"]
 mod catalog_session;
 pub use catalog_session::ResearchCatalogResponse;
+#[path = "memory-fabric-session.rs"]
+mod fabric_session;
+pub use fabric_session::FabricContextRequest;
 #[path = "memory-model-session.rs"]
 mod model_session;
+#[path = "memory-published-read.rs"]
+mod published_read;
+pub use published_read::AuthorizedMemory;
 #[path = "memory-publication-session.rs"]
 mod publication_session;
 #[path = "memory-recall.rs"]

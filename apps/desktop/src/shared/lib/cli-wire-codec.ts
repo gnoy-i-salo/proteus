@@ -265,7 +265,7 @@ export function encodeCliRequest(value: unknown): CliWireRequest {
   if (
     'memoryContext' in source &&
     (source['sourceContext'] !== true ||
-      !['corpus-analysis', 'persona-reply'].includes(String(source['operation'])))
+      !['corpus-analysis', 'persona-reply', 'generation'].includes(String(source['operation'])))
   )
     throw new Error('Контекст памяти требует операции с источниками.');
   return {

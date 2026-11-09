@@ -93,7 +93,16 @@ impl MemorySession {
         budget: ModelCallBudget,
         now: impl Fn() -> i64,
     ) -> Result<(), String> {
-        if self.models.is_some() || binding.operation != "corpus-analysis" {
+        self.configure_model(binding, budget, "corpus-analysis", now)
+    }
+    pub(super) fn configure_model(
+        &mut self,
+        binding: InvocationBinding,
+        budget: ModelCallBudget,
+        operation: &str,
+        now: impl Fn() -> i64,
+    ) -> Result<(), String> {
+        if self.models.is_some() || binding.operation != operation {
             return Err("Модельная сессия уже настроена или имеет другое назначение.".into());
         }
         budget.validate()?;
@@ -116,7 +125,11 @@ impl MemorySession {
         format_attempt: u8,
         now: impl Fn() -> i64,
     ) -> Result<ReservedContext, String> {
-        if self.models.is_none() {
+        if self
+            .models
+            .as_ref()
+            .is_none_or(|models| models.operation() != "corpus-analysis")
+        {
             return Err(UNCONFIGURED.into());
         }
         let receipts = self.authorized_receipts(ids, &now)?;

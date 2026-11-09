@@ -24,7 +24,7 @@ fn configure(bound: &mut MemorySession) -> InvocationBinding {
         .unwrap();
     binding
 }
-fn draft(bound: &mut MemorySession) -> ResearchPublicationDraft {
+pub(super) fn draft(bound: &mut MemorySession) -> ResearchPublicationDraft {
     let record = bound.recall_recorded("контекст", None, || 70003).unwrap();
     let binding = configure(bound);
     let reserved = bound
@@ -324,3 +324,6 @@ fn publication_timestamp_never_precedes_completed_analysis_when_clock_recovers()
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
+
+#[path = "memory-published-read-tests.rs"]
+mod published_read_tests;

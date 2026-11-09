@@ -30,36 +30,40 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return found;
 }
 
-export function decodeSourceDocument(value: unknown): SourceDocument {
-  const source = fields(value, [
-    'id',
-    'provider',
-    'resourceId',
-    'authorId',
-    'authorship',
-    'authorLabel',
-    'kind',
-    'mode',
-    'text',
-    'sourceUrl',
-    'createdAt',
-    'retrievedAt',
-    'contentHash',
-    'replyTo',
-    'isForwarded',
-    'truncated',
-    'partition',
-  ]);
+const metadataFields = [
+  'id',
+  'provider',
+  'resourceId',
+  'authorId',
+  'authorship',
+  'authorLabel',
+  'kind',
+  'mode',
+  'sourceUrl',
+  'createdAt',
+  'retrievedAt',
+  'contentHash',
+  'replyTo',
+  'isForwarded',
+  'truncated',
+  'partition',
+] as const;
+
+// Shared metadata boundary; an excerpt has no full-document text to invent.
+export function decodeSourceDocumentMetadata<Provider extends string>(
+  value: unknown,
+  providers: readonly Provider[],
+): Omit<SourceDocument, 'text' | 'provider'> & { readonly provider: Provider } {
+  const source = fields(value, metadataFields);
   return {
     id: text(source['id']),
-    provider: choice(source['provider'], ['telegram', 'vk', 'instagram', 'github'] as const),
+    provider: choice(source['provider'], providers),
     resourceId: text(source['resourceId']),
     authorId: nullableText(source['authorId']),
     authorship: choice(source['authorship'], ['owner', 'other', 'unknown'] as const),
     authorLabel: nullableText(source['authorLabel']),
     kind: choice(source['kind'], ['message', 'post', 'comment', 'code', 'document'] as const),
     mode: choice(source['mode'], ['dialogue', 'comment', 'formal'] as const),
-    text: text(source['text']),
     sourceUrl: nullableText(source['sourceUrl']),
     createdAt: nullableText(source['createdAt']),
     retrievedAt: nullableText(source['retrievedAt']),
@@ -68,6 +72,37 @@ export function decodeSourceDocument(value: unknown): SourceDocument {
     isForwarded: boolean(source['isForwarded']),
     truncated: boolean(source['truncated']),
     partition: choice(source['partition'], ['reference', 'holdout'] as const),
+  };
+}
+
+export function decodeSourceDocument(value: unknown): SourceDocument {
+  const source = fields(value, [...metadataFields, 'text']);
+  const { text: sourceText, ...metadata } = source;
+  const document = decodeSourceDocumentMetadata(metadata, [
+    'telegram',
+    'vk',
+    'instagram',
+    'github',
+  ] as const);
+  // Keep canonical property order as well as exact source strings for existing writers.
+  return {
+    id: document.id,
+    provider: document.provider,
+    resourceId: document.resourceId,
+    authorId: document.authorId,
+    authorship: document.authorship,
+    authorLabel: document.authorLabel,
+    kind: document.kind,
+    mode: document.mode,
+    text: text(sourceText),
+    sourceUrl: document.sourceUrl,
+    createdAt: document.createdAt,
+    retrievedAt: document.retrievedAt,
+    contentHash: document.contentHash,
+    replyTo: document.replyTo,
+    isForwarded: document.isForwarded,
+    truncated: document.truncated,
+    partition: document.partition,
   };
 }
 

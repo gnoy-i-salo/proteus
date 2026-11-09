@@ -7,6 +7,7 @@ import type {
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { fabricateMemory } from './memory-fabric';
+import { adaptMemory } from './adapt-memory';
 import type { MemoryFabricInput } from './memory-fabric';
 import { request, selection, session, source, lease } from './testing/fabric-fixtures';
 import { skillMemoryItem } from './testing/memory-skill-fixtures';
@@ -137,6 +138,168 @@ beforeEach(() => {
   run.mockResolvedValue({ answer: JSON.stringify(output), trace });
   freeze.mockImplementation((draft) => Promise.resolve(publication(draft)));
   close.mockResolvedValue();
+});
+
+it('adapts a published base through a fresh native Fabric context without publishing a new persona', async () => {
+  const prepared = await fabricateMemory(input, provider, open);
+  const original = structuredClone(prepared.publication);
+  const task = '\uFEFFНапиши Борису é 👩🏽‍🔬\r\n';
+  run.mockResolvedValue({
+    answer: JSON.stringify({
+      skills: [
+        {
+          id: 's1',
+          instruction: '  Сверь условия\r\n',
+          evidenceIds: ['item-1'],
+          status: 'supported',
+          limitations: [],
+        },
+      ],
+    }),
+    trace,
+  });
+  const result = await adaptMemory(
+    { publication: prepared.publication, request, task },
+    provider,
+    open,
+  );
+  expect(result.adaptation).toEqual({
+    schemaVersion: 1,
+    manifestId: prepared.publication.manifest.id,
+    task,
+    strategies: [
+      {
+        id: 's1',
+        instruction: 'Сверь условия',
+        evidenceIds: ['item-1'],
+        status: 'hypothesis',
+        limitations: ['Одна запись'],
+      },
+    ],
+  });
+  expect(result.traces).toEqual([trace]);
+  expect(prepared.publication).toEqual(original);
+  expect(prepared.profile.taskSkills).toEqual([]);
+  expect(freeze).toHaveBeenCalledOnce();
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(close).toHaveBeenCalledTimes(2);
+  const sent = run.mock.calls[1]![0];
+  expect(sent).toMatchObject({
+    operation: 'generation',
+    sourceContext: true,
+    memoryContext: { sessionId: session.id, leaseId: 'lease:2' },
+    model: request.model.model,
+    effort: request.model.effort,
+  });
+  expect(sent.task).toContain(JSON.stringify(task));
+  expect(reserve.mock.calls[1]![0]).toMatchObject({
+    memorySnapshotId: prepared.publication.manifest.memorySnapshotId,
+    itemIds: ['item-1', 'item-2'],
+  });
+});
+
+it('rejects mismatched adaptation scope and malformed task before opening native memory', async () => {
+  const prepared = await fabricateMemory(input, provider, open);
+  open.mockClear();
+  run.mockClear();
+  for (const candidate of [
+    {
+      publication: prepared.publication,
+      request: { ...request, personaId: 'foreign' },
+      task: 'task',
+    },
+    {
+      publication: prepared.publication,
+      request: { ...request, snapshotId: 'foreign' },
+      task: 'task',
+    },
+    {
+      publication: prepared.publication,
+      request: { ...request, model: { ...request.model, model: 'foreign' } },
+      task: 'task',
+    },
+    { publication: prepared.publication, request, task: '\ud800' },
+  ])
+    await expect(adaptMemory(candidate, provider, open)).rejects.toThrow();
+  expect(open).not.toHaveBeenCalled();
+  expect(run).not.toHaveBeenCalled();
+});
+
+it('rechecks source permission before sending a task adaptation to the provider and closes on refusal', async () => {
+  const prepared = await fabricateMemory(input, provider, open);
+  run.mockClear();
+  close.mockClear();
+  reserve.mockRejectedValueOnce(new Error('grant revoked'));
+  await expect(
+    adaptMemory({ publication: prepared.publication, request, task: 'task' }, provider, open),
+  ).rejects.toThrow('grant revoked');
+  expect(run).not.toHaveBeenCalled();
+  expect(close).toHaveBeenCalledOnce();
+  expect(freeze).toHaveBeenCalledOnce();
+});
+
+it('repairs invented adaptation evidence with a fresh lease and retains both observable traces', async () => {
+  const prepared = await fabricateMemory(input, provider, open);
+  const strategy = {
+    id: 's1',
+    instruction: 'Уточнить условия',
+    evidenceIds: ['item-1'],
+    status: 'hypothesis',
+    limitations: [],
+  };
+  run.mockResolvedValueOnce({
+    answer: JSON.stringify({ skills: [{ ...strategy, evidenceIds: ['foreign'] }] }),
+    trace,
+  });
+  run.mockResolvedValueOnce({ answer: JSON.stringify({ skills: [strategy] }), trace });
+  const result = await adaptMemory(
+    { publication: prepared.publication, request, task: 'task' },
+    provider,
+    open,
+  );
+  expect(reserve.mock.calls.slice(1).map(([draft]) => draft.formatAttempt)).toEqual([1, 2]);
+  expect(result.traces).toEqual([trace, trace]);
+  expect(result.adaptation.strategies[0]?.evidenceIds).toEqual(['item-1']);
+  expect(freeze).toHaveBeenCalledOnce();
+});
+
+it('snapshots the stored profile, task and model before awaiting the adaptation session', async () => {
+  const prepared = await fabricateMemory(input, provider, open);
+  const chosen = {
+    publication: structuredClone(prepared.publication),
+    request: structuredClone(request),
+    task: '  Exact task\r\n',
+  };
+  const expectedTask = chosen.task;
+  open.mockImplementationOnce(() => {
+    chosen.task = 'changed task';
+    Object.assign(chosen.request.model, { model: 'changed model' });
+    if (chosen.publication.manifest.schemaVersion === 2)
+      Object.assign(chosen.publication.manifest.profileSnapshot, {
+        archetype: 'CHANGED_PROFILE_CANARY',
+      });
+    return Promise.resolve(memory);
+  });
+  run.mockResolvedValue({
+    answer: JSON.stringify({
+      skills: [
+        {
+          id: 's1',
+          instruction: 'Уточнить условия',
+          evidenceIds: [],
+          status: 'hypothesis',
+          limitations: [],
+        },
+      ],
+    }),
+    trace,
+  });
+  const result = await adaptMemory(chosen, provider, open);
+  const sent = run.mock.calls[1]![0];
+  expect(sent.task).toContain(JSON.stringify(expectedTask));
+  expect(sent.task).not.toContain('CHANGED_PROFILE_CANARY');
+  expect(sent.model).toBe(request.model.model);
+  expect(result.adaptation.task).toBe(expectedTask);
 });
 it('builds a task-free profile with observed skills, exact exemplars and a native frozen manifest', async () => {
   const result = await fabricateMemory(

@@ -5,4 +5,7 @@ export { neutralProfile } from './neutral-profile';
 export { parseMemorySkills } from './parse-memory-skills';
 export type { MemorySkillScope } from './parse-memory-skills';
 export { fabricateMemory } from './memory-fabric';
-export type { MemoryFabricInput, MemoryFabricResult, OpenFabricMemory } from './memory-fabric';
+export type { MemoryFabricInput, MemoryFabricResult } from './memory-fabric';
+export type { OpenFabricMemory } from './fabric-session';
+export { adaptMemory } from './adapt-memory';
+export type { MemoryAdaptationInput, MemoryAdaptationResult } from './adapt-memory';

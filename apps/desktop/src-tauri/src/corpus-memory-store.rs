@@ -34,6 +34,9 @@ use std::collections::HashSet;
 #[path = "corpus-persona-manifest.rs"]
 mod manifest;
 pub use manifest::ManifestBundle;
+#[path = "corpus-manifest-pin.rs"]
+mod manifest_pin;
+pub use manifest_pin::ManifestPin;
 
 #[path = "corpus-research-publication.rs"]
 mod publication;

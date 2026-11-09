@@ -2,6 +2,117 @@ use super::*;
 use crate::memory::types::{PersonaManifest, SkillDefinition};
 use serde_json::json;
 
+#[test]
+fn manifest_pin_rechecks_identity_and_membership_without_reinterpreting_the_bundle() {
+    let (mut db, dir) = setup();
+    let (manifest, skills) = fixture(&mut db);
+    let saved = db
+        .freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+        .unwrap();
+    let pin = db
+        .pin_manifest_checked(&manifest.id, PERSONA, &|| Ok(()))
+        .unwrap();
+    assert_eq!(pin.bundle(), &saved);
+    db.verify_manifest_pin(&pin, &|| Ok(())).unwrap();
+    assert!(db
+        .pin_manifest_checked(&manifest.id, OTHER_PERSONA, &|| Ok(()))
+        .is_err());
+    assert!(db
+        .verify_manifest_pin(&pin, &|| Err("cancelled".into()))
+        .is_err());
+    db.connection
+        .execute("DELETE FROM memory_skills WHERE id=?1", [&skills[0].id])
+        .unwrap();
+    assert!(db.verify_manifest_pin(&pin, &|| Ok(())).is_err());
+    assert!(db
+        .pin_manifest_checked(&manifest.id, PERSONA, &|| Ok(()))
+        .is_err());
+    assert_eq!(
+        pin.bundle(),
+        &saved,
+        "cached exact words remain immutable, never repaired"
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn manifest_pin_rejects_changed_metadata_and_deleted_bundle() {
+    for mutation in [
+        "UPDATE memory_manifests SET canonical_sha256=printf('%064d',0)",
+        "UPDATE memory_skills SET canonical_sha256=printf('%064d',0)",
+        "UPDATE memory_manifests SET payload_bytes=payload_bytes+1",
+        "UPDATE memory_skills SET payload_bytes=payload_bytes+1",
+        "DELETE FROM memory_manifests",
+    ] {
+        let (mut db, dir) = setup();
+        let (manifest, skills) = fixture(&mut db);
+        db.freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+            .unwrap();
+        let pin = db
+            .pin_manifest_checked(&manifest.id, PERSONA, &|| Ok(()))
+            .unwrap();
+        db.connection
+            .execute_batch(
+                "PRAGMA ignore_check_constraints=ON; DROP TRIGGER memory_manifests_immutable; DROP TRIGGER memory_skills_immutable",
+            )
+            .unwrap();
+        db.connection.execute_batch(mutation).unwrap();
+        assert!(
+            db.verify_manifest_pin(&pin, &|| Ok(())).is_err(),
+            "{mutation}"
+        );
+        drop(db);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[test]
+fn manifest_pin_preserves_valid_json_spelling_and_caller_transaction_on_cancel() {
+    let (mut db, dir) = setup();
+    let (manifest, skills) = fixture(&mut db);
+    db.freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+        .unwrap();
+    let json = serde_json::to_string_pretty(&manifest).unwrap();
+    db.connection
+        .execute_batch("DROP TRIGGER memory_manifests_immutable")
+        .unwrap();
+    db.connection
+        .execute(
+            "UPDATE memory_manifests SET data_json=?1,payload_bytes=?2,canonical_sha256=?3",
+            params![json, json.len() as i64, digest(json.as_bytes())],
+        )
+        .unwrap();
+    db.connection.execute_batch("BEGIN").unwrap();
+    let count = std::cell::Cell::new(0);
+    let pin = db
+        .pin_manifest_checked(&manifest.id, PERSONA, &|| {
+            count.set(count.get() + 1);
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(pin.bundle().manifest, manifest);
+    db.verify_manifest_pin(&pin, &|| Ok(())).unwrap();
+    let last = count.get();
+    for cutoff in [1, last / 2, last] {
+        count.set(0);
+        assert!(db
+            .pin_manifest_checked(&manifest.id, PERSONA, &|| {
+                count.set(count.get() + 1);
+                if count.get() == cutoff {
+                    Err("cancelled pin".into())
+                } else {
+                    Ok(())
+                }
+            })
+            .is_err());
+        assert!(!db.connection.is_autocommit());
+    }
+    db.connection.execute_batch("ROLLBACK").unwrap();
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 fn fixture(db: &mut CorpusDatabase) -> (PersonaManifest, Vec<SkillDefinition>) {
     fixture_with_support(db, MemoryItemKind::Procedure, MemoryItemSupport::Observed)
 }

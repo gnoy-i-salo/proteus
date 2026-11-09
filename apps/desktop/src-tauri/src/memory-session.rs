@@ -10,6 +10,9 @@ pub use fabric_session::FabricContextRequest;
 mod manifest_session;
 #[path = "memory-model-session.rs"]
 mod model_session;
+#[path = "memory-persona-session.rs"]
+mod persona_session;
+pub use persona_session::PersonaSessionInput;
 #[path = "memory-published-read.rs"]
 mod published_read;
 pub use published_read::AuthorizedMemory;
@@ -60,6 +63,7 @@ struct MemoryScope {
     source: SearchIndexReceipt,
     persona_id: String,
     period: SearchPeriod,
+    persona: Option<persona_session::PersonaBinding>,
     hybrid: Option<(
         crate::corpus_database::vectors::VectorReceipt,
         crate::local_embedding::runtime::EmbeddingBudget,
@@ -161,6 +165,7 @@ impl MemorySession {
                 source,
                 persona_id: input.persona_id.into(),
                 period: input.period,
+                persona: None,
                 hybrid: None,
             },
             ledger,
@@ -266,6 +271,19 @@ impl MemoryScope {
                     != Some(vectors)
                 {
                     return Err("Векторный индекс сессии изменился.".into());
+                }
+            }
+            if let Some(persona) = &self.persona {
+                let check = || self.checked_time(now_ms).map(|_| ());
+                db.verify_manifest_pin(&persona.pin, &check)?;
+                if let Some(vectors) = &persona.vectors {
+                    if db
+                        .active_vector_receipt(&self.source.snapshot_id, &check)?
+                        .as_ref()
+                        != Some(vectors)
+                    {
+                        return Err("Векторный индекс закреплённой персоны изменился.".into());
+                    }
                 }
             }
             let finished = now_ms();

@@ -136,16 +136,8 @@ impl MemorySession {
                     &research.publication.model_contexts,
                 )?;
                 let prepared = db.prepared_snapshot_checked(&scope.source.snapshot_id, &check)?;
-                let preparation_hash = format!(
-                    "{:x}",
-                    Sha256::digest(
-                        serde_json::to_vec(&(
-                            &prepared.tokenizer_version,
-                            &prepared.chunking_version
-                        ))
-                        .map_err(|_| INVALID)?
-                    )
-                );
+                let preparation_version =
+                    preparation_version(&prepared.tokenizer_version, &prepared.chunking_version)?;
                 let embedding_fingerprint = db
                     .active_vector_receipt(&scope.source.snapshot_id, &check)?
                     .map(|receipt| {
@@ -168,7 +160,7 @@ impl MemorySession {
                     memory_snapshot_id: draft.memory_snapshot_id.clone(),
                     source_refs,
                     split_version: prepared.split_version,
-                    preparation_version: format!("nativePreparation:1:{preparation_hash}"),
+                    preparation_version,
                     retrieval_version: "nativeMemoryRetrieval:1".into(),
                     prompt_version: draft.prompt_version.clone(),
                     embedding_fingerprint,
@@ -191,6 +183,10 @@ impl MemorySession {
     }
 }
 
+pub(super) fn preparation_version(tokenizer: &str, chunking: &str) -> Result<String, String> {
+    let hash = Sha256::digest(serde_json::to_vec(&(tokenizer, chunking)).map_err(|_| INVALID)?);
+    Ok(format!("nativePreparation:1:{hash:x}"))
+}
 fn verify_models(
     settings: &[ModelSettingsEntry],
     component: ModelComponent,

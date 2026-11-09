@@ -72,6 +72,10 @@ impl MemorySession {
                     || pin.tokenizer_version != model.tokenizer_fingerprint()
                     || vectors.model_fingerprint != model.fingerprint()
                     || vectors.dimensions != model.dimensions()
+                    || scope
+                        .persona
+                        .as_ref()
+                        .is_some_and(|persona| persona.vectors.as_ref() != Some(&vectors))
                 {
                     return Err("Векторный индекс принадлежит другой модели или источнику.".into());
                 }

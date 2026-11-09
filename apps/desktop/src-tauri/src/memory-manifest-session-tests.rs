@@ -1,4 +1,6 @@
 use super::*;
+#[path = "memory-persona-session-tests.rs"]
+mod persona_session_tests;
 use crate::memory::{
     manifest_draft::{PersonaManifestDraft, SkillDefinitionDraft},
     types::{

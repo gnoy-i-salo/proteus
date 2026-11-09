@@ -1,0 +1,93 @@
+# Legacy saved-result fixtures — provenance
+
+Representative saved-result fixtures for the upcoming native history reader (x1y.16) and
+compatibility boundary work (x1y.13). Envelopes were assembled from the actual types and
+writer literals at pinned public commits; scoring/artifacts and v3/v4 export filters were
+executed from those commits. These are synthetic schema-derived fixtures, not completed
+end-to-end experiment runs. The per-fixture sections distinguish assembly from execution. All persona names,
+task texts, source URLs, excerpts and style samples are **clearly synthetic**; no private or
+user data is included, and source-identity fields that the historical formats supported are
+preserved (not anonymized) with synthetic identity-shaped values.
+
+Repository state: `gnoy-i-salo/proteus` @ `ba0c4a5e4d77600827a3cddc9dc09d564b915796` (public HEAD).
+Generation harness: `/tmp/proteus-legacy-gen/` (temporary; `gen.ts` driver, `src/` holds exact
+sources extracted via `git show`; no repository tests/builds were run, no network, no providers,
+no CLI, no installs). Node v26.4.0 with built-in TypeScript type stripping executed the modules.
+
+Repository integration applies Prettier JSON layout only; parsed values and every string
+were compared with the generated originals and remain identical. File whitespace is not
+a byte-for-byte sample of the historical serializer. The reader never rewrites user files.
+
+## Fixture inventory
+
+| File                             | Era                            | Saved shape on disk                                                                                                       |
+| -------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `v1-unversioned-result.json`     | v1 (unversioned)               | raw `runExperiment` output                                                                                                |
+| `v2-kebab-result.json`           | v2 kebab                       | raw `runExperiment` output (compact `JSON.stringify(data)` at save time; stored here pretty-printed, same JSON semantics) |
+| `v3-kebab-export.json`           | v3 kebab                       | `exportExperiment` output incl. `export-metadata`                                                                         |
+| `v4-camel-no-execution.json`     | early v4 camel (pre-lifecycle) | `exportExperiment` output incl. `exportMetadata`, no `execution` key                                                      |
+| `v4-current-with-execution.json` | current v4                     | `exportExperiment` output incl. `exportMetadata` and `execution` (schemaVersion 1)                                        |
+
+## Per-fixture provenance
+
+### 1. `v1-unversioned-result.json` — v1, unversioned
+
+- Source commit: `4e1c7c34de5c889af2664622c36a1efccf33229a` (`feat(pipeline): implement complete two-person experiment`).
+- Writer: `packages/pipeline/src/index.ts` @ `4e1c7c3` (`runExperiment` return literal: `{input, people, comparison, 'finished-at'}` — no version field, no `status`/`control`/`trials`/`traces`).
+- Contracts: `packages/contracts/src/index.ts` @ `4e1c7c3` (`ExperimentInput`, minimal `Evidence {id,'source-url',kind,summary}`, `PersonProfile {id,label,palette,archetype,skills}`, `IntelligenceTrace {provider,'reasoning-ms','terminal-ms',summary}`, `PersonScore {'person-id','reasoning-minutes',bsc}`); `packages/stalker/src/index.ts` @ `4e1c7c3` (`StalkerReport` incl. `'estimated-bsc'`, `effort`); `packages/brain-analyzator/src/index.ts` @ `4e1c7c3` (`BrainAnalysis {summary,scores,'key-differences',people,ratio}`).
+- Generation method: **schema-derived assembly** (the v1 orchestrator needs provider adapters and is not executable locally without workspace installs; assembly mirrors the writer's object literals line by line). Actual pinned pure functions invoked: `scorePerson` from `packages/brain-scoring/src/index.ts` @ `4e1c7c3` (historical v1 formula `bsc = reasoningMinutes / estimated-bsc`; **not** recomputed as BSC v2) and `personaArtifacts` from `packages/person/src/index.ts` @ `4e1c7c3`.
+- Root integration also executed the exact pinned `analyzePeople` and `structured` functions using a fixed synthetic test provider (no CLI/network). This corrected the assembled comparison ratio from `null` to the writer-produced `1.2000000000000002`; every other field and string was compared and unchanged. The reader itself never calculates this ratio. The temporary verification driver is `/tmp/proteus-legacy-gen/verify-v1-comparison.ts`.
+- Versions: no schema/scoring/prompt version fields exist in this era.
+- Synthetic input origin: personas "Ada Sample"/"Boris Fixture", task "Design a public reading room", `https://sample.example/ada-notes` (identity-shaped, synthetic).
+- Required fields (reader classification inventory): top-level `input`, `people`, `comparison`, `'finished-at'`; per-person `report` (with `'estimated-bsc'`), `profile`, `attempt`, `score` (with `'reasoning-minutes'` + `bsc`), `artifacts`; trace spelling `'reasoning-ms'` on `attempt.trace`; comparison `scores`/`'key-differences'`/`ratio`.
+- Limitations: not an actual export (v1 had no export filter and, at `4e1c7c3`, no desktop save path; files of this shape existed only as in-app/download JSON). Scores/artifacts are actual function outputs; the envelope is hand-assembled per the writer.
+
+### 2. `v2-kebab-result.json` — v2 kebab
+
+- Source commit: `b900397f750b5eb8970ce31f368a5ca797bd38af` (`feat(pipeline): introduce controlled BSC v2 experiments`).
+- Writer: `packages/pipeline/src/experiment.ts` @ `b900397` (result literal: `'schema-version': 2`, `'scoring-version': 2`, `status`, `input`, `protocol`, `people`, `control`, `trials`, `comparison`, `traces`, `'finished-at'`). Saved verbatim: desktop `apps/desktop/src/shared/lib/cli.ts:114` `saveExperiment(output)` → compact `JSON.stringify(data)` (stored pretty-printed here; whitespace only difference).
+- Contracts @ `b900397`: `packages/contracts/src/experiment.ts` (protocol `version: 2`, `'prompt-version': 'bsc-v2.1'`, **no** `'source-snapshots'`), `packages/contracts/src/evaluation.ts` (`EvaluationRubric version: 2`; `TrialScore`/`ScoreSummary` `version: 2` with kebab keys `'criterion-id'`, `'required-status'`, `'judge-disagreement'`, `'comparison-eligible'`), `packages/contracts/src/index.ts` (kebab `IntelligenceTrace` incl. `'cli-version'`, `'active-reasoning-ms'`), `packages/contracts/src/persona.ts` (kebab `PersonProfile` with `rules`/`'task-skills'`/`'source-status'`, `Evidence` with `verification`/`excerpt`/`'retrieved-at'`/`limitations`; no style fields yet), `packages/stalker/src/index.ts` @ `b900397` (`StalkerReport` without `'estimated-bsc'`).
+- Generation method: **schema-derived assembly** with actual pinned pure functions: `scoreTrial`, `summarizeScores`, `difference` from `packages/brain-scoring/src/evaluation.ts` @ `b900397`; `personaArtifacts` from `packages/person/src/index.ts` @ `b900397`. Two judge passes per trial feed the real BSC v2 scoring; BSC values are function outputs, not hand-picked.
+- Versions: schema 2, scoring 2, protocol 2, prompt `bsc-v2.1`.
+- Synthetic input origin: same synthetic personas; answers/statuses chosen to produce deterministic intervals (A [100,100], B [75,75], neutral [75,75]) through the real scoring code; stage traces follow the writer's 13-stage plan for `repetitions: 1` with the combined-trace field set the writer produces (`'requested-model'`, `'resolved-model': null`, `'applied-effort': null`, `'cli-version': null`, …).
+- Required fields: kebab top-level set above; per-person `'base-profile'`, `trials`, `'preparation-wall-time-ms'`, `'solution-wall-time-ms'`, `'baseline-difference'`; `comparison {'comparison-eligible', difference}`; trace entries `{id, stage, person, label, trace, attempts}`; trials `{id, round, 'person-id', status, attempt, score, evaluations, error}`.
+- Limitations: no export filter existed at `b900397`, so this file has no `export-metadata` — that is authentic for the era. `freezing`/`structuredClone` behavior of the writer not reproduced (irrelevant to serialized bytes). Cyrillic appears in writer-produced labels (e.g. `'Нейтральный контроль'`, stage labels).
+
+### 3. `v3-kebab-export.json` — v3 kebab with export metadata
+
+- Source commit: `fb92c37c962455e75bfe8b250df888a30da3011a` (`fix(stalker): preserve source identity through persona construction`) — last v3-era commit; its desktop saved `JSON.parse(exportExperiment(output))` (`apps/desktop/src/pages/experiment/ui/experiment-page.tsx:744` @ `fb92c37`).
+- Writer: result literal in `packages/pipeline/src/experiment.ts` @ `fb92c37` (`'schema-version': 3`, protocol `version: 2` with `'prompt-version': 'bsc-v2.3-source-identity'` and unconditional `'source-snapshots'`); export filter `packages/pipeline/src/export.ts` @ `fb92c37` (introduced at `7e5b42c`, unchanged through `fb92c37` except key spelling later) appends kebab `'export-metadata'`.
+- Contracts @ `fb92c37`: `packages/contracts/src/experiment.ts`, `packages/contracts/src/persona.ts` (kebab; `Evidence.verification` adds `'source-retrieved'`, optional `'document-ids'`; `PersonProfile` adds `'source-context'`, `'style-profile'` v1, `'style-exemplars'` with `'export-allowed'`/`'document-id'`), `packages/contracts/src/style.ts` (`PersonaStyleProfile version: 1` kebab), `packages/contracts/src/sources.ts` (kebab `SourceCoverage`), `packages/stalker/src/index.ts` @ `fb92c37` (`StalkerReport` with `'style-exemplars'`, `'source-coverage'`).
+- Generation method: **actual export invocation**. The exact `export.ts` source @ `fb92c37` was executed (module specifier `@proteus-int/person` rewired to the exact `personaArtifacts` @ `fb92c37`; type-only imports erased by Node). Scoring/artifacts via actual `packages/brain-scoring/src/evaluation.ts` @ `fb92c37` and `packages/person/src/index.ts` @ `fb92c37`. The result envelope was assembled per the writer literal (same assembly caveat as v2 — orchestrator not executable without providers).
+- Versions: schema 3, scoring 2, protocol 2, prompt `bsc-v2.3-source-identity`.
+- Source/style restrictions demonstrated (all produced by the actual export filter, not hand-edited): private style exemplars filtered from `profile`/`'base-profile'`/`report` (`'export-allowed': false` samples dropped, counted in `'omitted-style-exemplars': 2`); `'source-retrieved'` evidence excerpts set to `null` with `'Source excerpt omitted from export'` limitation appended (`'omitted-source-excerpts': 2`); stalker/person-fabric traces emptied (`reasoning: []`, summary `'[private preparation trace omitted from export]'`) because a connected source exists; a quoted private snippet (≥ 20 chars) inside an answer replaced with `'[private source text omitted from export]'` (`'answer-text-may-be-redacted': true`). `'scores-reference-original-answers': true` and the two standard limitations strings come from the writer.
+- Preserved Unicode/CRLF: protocol/input task keeps Cyrillic, `«»` quotes and a literal CRLF (`\r\n`); the private sample text itself contains Cyrillic + CRLF (JSON-escaped by `JSON.stringify`, exactly as the historical writer emitted). These are writer-supported: the export passes string values through (only known-private snippets are replaced).
+- Source identity preserved (synthetic values): `'source-url'`, `verification: 'source-retrieved'`, `'retrieved-at'`, `'document-ids'`, report `'source-coverage'` with `'snapshot-id'`, protocol `'source-snapshots': [['snap-a-0001'], []]`, profile `'source-context': true`. Model-reported evidence keeps its excerpt (only connected-source excerpts are omitted).
+- Limitations: same assembly caveat as v2 for the pre-export envelope; the export layer itself is the actual unmodified function. Export metadata counts depend on the synthetic inputs and are labeled in the file itself.
+
+### 4. `v4-camel-no-execution.json` — early v4 camel, no execution
+
+- Source commit: `b483cfef4c22c9a7edb643395f8b8f63149c3990` (`refactor(contracts): migrate owned TypeScript fields to camelCase`) — first `schemaVersion: 4` writer, before the execution-lifecycle work.
+- Writer: `packages/pipeline/src/experiment.ts` @ `b483cfe` (result literal `schemaVersion: 4`, `finishedAt`, no `execution` key); export `packages/pipeline/src/export.ts` @ `b483cfe` appends camel `exportMetadata`. Desktop saved `JSON.parse(exportExperiment(output))` (`experiment-page.tsx:754` @ `b483cfe`).
+- Contracts @ `b483cfe`: `packages/contracts/src/experiment.ts` (protocol `version: 3`, `promptVersion` written as `'bsc-v2.4-camel-case'`, `sourceSnapshots` present), `packages/contracts/src/persona.ts`/`style.ts` (camel; `PersonaStyleProfile version: 2`, wrapped `style-exemplars.json` artifact envelope `{format: 'proteus-style-exemplars', version: 2, exemplars}` from `personaArtifacts`), `packages/contracts/src/evaluation.ts` @ `b483cfe` (identical to current HEAD).
+- Generation method: **actual export invocation** (`export.ts` @ `b483cfe`, personaArtifacts @ `b483cfe`) over an assembled per-writer envelope; scoring via actual `packages/brain-scoring/src/evaluation.ts` @ `b483cfe`.
+- Versions: schema 4, scoring 2, protocol 3, prompt `bsc-v2.4-camel-case`.
+- Content: complete run, no connected sources, single export-allowed style exemplar → `exportMetadata.redacted: false`, zero omitted counts, empty `limitations`. This complements the v3 fixture (redacted case) with the unredacted export case and documents the absence of `execution` in pre-lifecycle v4 files.
+- Limitations: same assembly caveat; `execution` absence is intentional (historical v4 files read `execution: null` through `decodeExecutionSnapshot(undefined)`).
+
+### 5. `v4-current-with-execution.json` — current public v4 with execution
+
+- Source commit: `ba0c4a5e4d77600827a3cddc9dc09d564b915796` (public HEAD).
+- Writer: `packages/pipeline/src/experiment/result.ts` (`buildExperimentResult`) + `packages/pipeline/src/experiment/run-experiment.ts` (`{...buildExperimentResult(...), execution: execution.snapshot()}`); export `packages/pipeline/src/export/export-experiment.ts` validates `execution` via `decodeExecutionSnapshot` and appends `exportMetadata`. Desktop saves `JSON.parse(exportExperiment(output))` (`apps/desktop/src/pages/experiment/model/experiment-run.ts:276`).
+- Contracts @ HEAD: `packages/contracts/src/experiment.ts`, `evaluation.ts`, `persona.ts`, `style.ts`, `execution.ts`, `execution-metadata.ts` (strict `schemaVersion: 1` decoder), `intelligence.ts`.
+- Generation method: **actual export invocation** of current `exportExperiment` (with actual `decodeExecutionSnapshot` and `personaArtifacts`), scoring via actual current `scoreTrial`/`summarizeScores`/`difference`. The execution snapshot was synthesized to satisfy the real decoder (13 `completed` stages for `repetitions: 1`, one `completed` call each, strict `YYYY-MM-DDTHH:MM:SS.sssZ` timestamps, `trigger: 'initial'` ⇔ `formatAttempt: 1`, unique stage/call ids, `runId` reused across stages) — the export function's built-in validation accepted it.
+- Versions: schema 4, scoring 2, protocol 3, prompt `bsc-v2.4-camel-case`, execution extension `schemaVersion: 1`.
+- Preserved Unicode/CRLF: answer A keeps Cyrillic and a literal CRLF through the actual export; all traces carry the writer's `lifecycle` (`StageLifecycle`) alongside `attempts`.
+- Limitations: stage/call ids and the run id are synthetic fixed identifiers (real runs use `crypto.randomUUID()`); timestamps are fixed synthetic values; per-stage wall times are uniform. Snapshot content mirrors `executionLifecycle` field order and terminal-state semantics but was not produced by running the orchestrator.
+
+## Cross-cutting notes for the reader work
+
+- Key spelling is era-exact: v1–v3 kebab (`'finished-at'`, `'base-profile'`, `'comparison-eligible'`), v4 camel (`finishedAt`, `baseProfile`, `comparisonEligible`). No mixed-key fixture was created; mixing is a negative case for the reader's own tests.
+- BSC values are era-native: v1 `bsc` (minutes/estimate, e.g. `0.1`) is the historical formula output and must never be recomputed or compared to v2 intervals ([0,100]).
+- All files parse as UTF-8 JSON, are far below the 8 MiB native save cap, and keep 2-space pretty printing for review (the v2-era on-disk form was compact; the v3/v4 export writers pretty-print with 2 spaces).
+- These fixtures support upcoming TDD; they do not by themselves satisfy any x1y acceptance criteria.

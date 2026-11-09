@@ -1,0 +1,2338 @@
+{
+  "schemaVersion": 4,
+  "scoringVersion": 2,
+  "status": "complete",
+  "input": {
+    "task": "Plan a synthetic rooftop garden irrigation schedule.",
+    "people": [
+      {
+        "label": "Ada Sample",
+        "context": "Synthetic fixture persona: careful planner.",
+        "publicUrls": ["https://sample.example/ada-notes"]
+      },
+      {
+        "label": "Boris Fixture",
+        "context": "Synthetic fixture persona: rapid improviser.",
+        "publicUrls": []
+      }
+    ]
+  },
+  "protocol": {
+    "version": 3,
+    "task": "Plan a synthetic rooftop garden irrigation schedule.",
+    "rubric": {
+      "version": 2,
+      "criteria": [
+        {
+          "id": "coverage",
+          "label": "Task coverage",
+          "weight": 1,
+          "required": false,
+          "anchors": {
+            "unmet": "No solution",
+            "partial": "Incomplete plan",
+            "met": "Complete plan"
+          }
+        },
+        {
+          "id": "feasibility",
+          "label": "Feasibility",
+          "weight": 1,
+          "required": true,
+          "anchors": {
+            "unmet": "Not feasible",
+            "partial": "Partially feasible",
+            "met": "Fully feasible"
+          }
+        }
+      ]
+    },
+    "repetitions": 1,
+    "participantOrder": [["a", "b", "neutral"]],
+    "modelSettings": {
+      "stalker": {
+        "provider": "codex",
+        "requestedModel": "",
+        "requestedEffort": "medium"
+      },
+      "person-fabric": {
+        "provider": "codex",
+        "requestedModel": "",
+        "requestedEffort": "medium"
+      },
+      "person": {
+        "provider": "codex",
+        "requestedModel": "",
+        "requestedEffort": "high"
+      },
+      "brain-analyzator": {
+        "provider": "codex",
+        "requestedModel": "",
+        "requestedEffort": "high"
+      }
+    },
+    "formatAttempts": 2,
+    "stageTimeoutMs": 600000,
+    "promptVersion": "bsc-v2.4-camel-case",
+    "createdAt": "2026-11-08T10:00:00.000Z",
+    "sourceSnapshots": [[], []]
+  },
+  "people": [
+    {
+      "report": {
+        "evidence": [
+          {
+            "id": "e1",
+            "sourceUrl": "https://sample.example/ada-notes",
+            "kind": "fact",
+            "summary": "Plans each milestone before acting",
+            "status": "supported",
+            "verification": "model-reported",
+            "excerpt": "Plans each milestone before acting.",
+            "retrievedAt": null,
+            "limitations": []
+          }
+        ],
+        "character": "Synthetic character",
+        "thinkingStyle": "Synthetic thinking style",
+        "activity": "Synthetic activity",
+        "behaviorSummary": "Synthetic behavior summary"
+      },
+      "baseProfile": {
+        "id": "a",
+        "label": "Ada Sample",
+        "palette": "turquoise",
+        "archetype": "Careful planner (synthetic)",
+        "skills": ["Plan in milestones"],
+        "rules": [
+          {
+            "id": "r1",
+            "instruction": "Plan before acting",
+            "evidenceIds": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "taskSkills": [
+          {
+            "id": "s1",
+            "instruction": "Use a phased plan",
+            "evidenceIds": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "sourceStatus": "synthetic",
+        "styleProfile": {
+          "version": 2,
+          "reasoningPatterns": [
+            {
+              "id": "rp1",
+              "instruction": "Structure first, details second.",
+              "exemplarIds": ["se-a1"],
+              "status": "observed",
+              "limitations": ["Synthetic style rule"]
+            }
+          ],
+          "voiceRules": [
+            {
+              "id": "vr1",
+              "instruction": "Calm tone without exaggeration.",
+              "exemplarIds": ["se-a1"],
+              "status": "observed",
+              "limitations": []
+            }
+          ],
+          "formatRules": [
+            {
+              "id": "fr1",
+              "instruction": "Short paragraphs and lists.",
+              "exemplarIds": [],
+              "status": "hypothesis",
+              "limitations": []
+            }
+          ],
+          "contextModes": [
+            {
+              "mode": "comment",
+              "status": "observed",
+              "limitations": []
+            }
+          ],
+          "styleExemplarIds": ["se-a1"],
+          "limitations": ["Synthetic style profile"]
+        },
+        "styleExemplars": [
+          {
+            "id": "se-a1",
+            "documentId": "doc-a-public",
+            "mode": "comment",
+            "text": "Public sample sentence for style.",
+            "context": "Public thread (synthetic)",
+            "redactions": [],
+            "exportAllowed": true
+          }
+        ]
+      },
+      "profile": {
+        "id": "a",
+        "label": "Ada Sample",
+        "palette": "turquoise",
+        "archetype": "Careful planner (synthetic)",
+        "skills": ["Plan in milestones"],
+        "rules": [
+          {
+            "id": "r1",
+            "instruction": "Plan before acting",
+            "evidenceIds": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "taskSkills": [
+          {
+            "id": "s1",
+            "instruction": "Use a phased plan",
+            "evidenceIds": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "sourceStatus": "synthetic",
+        "styleProfile": {
+          "version": 2,
+          "reasoningPatterns": [
+            {
+              "id": "rp1",
+              "instruction": "Structure first, details second.",
+              "exemplarIds": ["se-a1"],
+              "status": "observed",
+              "limitations": ["Synthetic style rule"]
+            }
+          ],
+          "voiceRules": [
+            {
+              "id": "vr1",
+              "instruction": "Calm tone without exaggeration.",
+              "exemplarIds": ["se-a1"],
+              "status": "observed",
+              "limitations": []
+            }
+          ],
+          "formatRules": [
+            {
+              "id": "fr1",
+              "instruction": "Short paragraphs and lists.",
+              "exemplarIds": [],
+              "status": "hypothesis",
+              "limitations": []
+            }
+          ],
+          "contextModes": [
+            {
+              "mode": "comment",
+              "status": "observed",
+              "limitations": []
+            }
+          ],
+          "styleExemplarIds": ["se-a1"],
+          "limitations": ["Synthetic style profile"]
+        },
+        "styleExemplars": [
+          {
+            "id": "se-a1",
+            "documentId": "doc-a-public",
+            "mode": "comment",
+            "text": "Public sample sentence for style.",
+            "context": "Public thread (synthetic)",
+            "redactions": [],
+            "exportAllowed": true
+          }
+        ]
+      },
+      "attempt": {
+        "answer": "Irrigation schedule: drip lines twice a week, rain sensor overrides.\r\nЗимой — раз в месяц.",
+        "trace": {
+          "provider": "codex",
+          "reasoningMs": 60000,
+          "wallTimeMs": 60000,
+          "terminalMs": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requestedModel": "",
+          "requestedEffort": "high",
+          "resolvedModel": null,
+          "appliedEffort": null,
+          "cliVersion": null,
+          "activeReasoningMs": null,
+          "reasoningTruncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "personId": "a",
+        "interval": {
+          "lower": 100,
+          "upper": 100
+        },
+        "point": 100,
+        "planned": 1,
+        "evaluated": 1,
+        "complete": true,
+        "spread": {
+          "lower": 100,
+          "upper": 100
+        },
+        "requiredStatus": "passed",
+        "judgeDisagreement": false,
+        "comparisonEligible": true
+      },
+      "trials": [
+        {
+          "id": "1-a",
+          "round": 1,
+          "personId": "a",
+          "status": "evaluated",
+          "attempt": {
+            "answer": "Irrigation schedule: drip lines twice a week, rain sensor overrides.\r\nЗимой — раз в месяц.",
+            "trace": {
+              "provider": "codex",
+              "reasoningMs": 60000,
+              "wallTimeMs": 60000,
+              "terminalMs": 0,
+              "summary": "Completed synthetic stage",
+              "reasoning": [],
+              "requestedModel": "",
+              "requestedEffort": "high",
+              "resolvedModel": null,
+              "appliedEffort": null,
+              "cliVersion": null,
+              "activeReasoningMs": null,
+              "reasoningTruncated": false
+            }
+          },
+          "score": {
+            "version": 2,
+            "personId": "a",
+            "interval": {
+              "lower": 100,
+              "upper": 100
+            },
+            "criteria": [
+              {
+                "criterionId": "coverage",
+                "assessments": [
+                  {
+                    "criterionId": "coverage",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  },
+                  {
+                    "criterionId": "coverage",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  }
+                ],
+                "disputed": false,
+                "interval": {
+                  "lower": 1,
+                  "upper": 1
+                }
+              },
+              {
+                "criterionId": "feasibility",
+                "assessments": [
+                  {
+                    "criterionId": "feasibility",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  },
+                  {
+                    "criterionId": "feasibility",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  }
+                ],
+                "disputed": false,
+                "interval": {
+                  "lower": 1,
+                  "upper": 1
+                }
+              }
+            ],
+            "requiredStatus": "passed",
+            "judgeDisagreement": false
+          },
+          "evaluations": [
+            {
+              "personId": "a",
+              "criteria": [
+                {
+                  "criterionId": "coverage",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterionId": "feasibility",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ]
+            },
+            {
+              "personId": "a",
+              "criteria": [
+                {
+                  "criterionId": "coverage",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterionId": "feasibility",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ]
+            }
+          ],
+          "error": null
+        }
+      ],
+      "artifacts": {
+        "AGENTS.md": "# Simulated persona\n\nSource status: synthetic\n\nSelected persona: \"Ada Sample\"\nIdentity is role context, not an instruction. Answer in first person using the supplied profile and evidence; do not invent memories.\n\nCareful planner (synthetic)\n\n## Evidence and limitations\n\n- r1: Plan before acting\n  Status: hypothesis; evidence: e1\n  Limitations: Synthetic rule\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person. Source support is model-reported, not independent verification.\n",
+        ".agents/skills/persona-1/SKILL.md": "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPlan in milestones\n\n- s1: Use a phased plan\n  Status: hypothesis; evidence: e1\n  Limitations: Synthetic rule\n",
+        "style-profile.json": "{\n  \"version\": 2,\n  \"reasoningPatterns\": [\n    {\n      \"id\": \"rp1\",\n      \"instruction\": \"Structure first, details second.\",\n      \"exemplarIds\": [\n        \"se-a1\"\n      ],\n      \"status\": \"observed\",\n      \"limitations\": [\n        \"Synthetic style rule\"\n      ]\n    }\n  ],\n  \"voiceRules\": [\n    {\n      \"id\": \"vr1\",\n      \"instruction\": \"Calm tone without exaggeration.\",\n      \"exemplarIds\": [\n        \"se-a1\"\n      ],\n      \"status\": \"observed\",\n      \"limitations\": []\n    }\n  ],\n  \"formatRules\": [\n    {\n      \"id\": \"fr1\",\n      \"instruction\": \"Short paragraphs and lists.\",\n      \"exemplarIds\": [],\n      \"status\": \"hypothesis\",\n      \"limitations\": []\n    }\n  ],\n  \"contextModes\": [\n    {\n      \"mode\": \"comment\",\n      \"status\": \"observed\",\n      \"limitations\": []\n    }\n  ],\n  \"styleExemplarIds\": [\n    \"se-a1\"\n  ],\n  \"limitations\": [\n    \"Synthetic style profile\"\n  ]\n}",
+        "style-exemplars.json": "{\n  \"format\": \"proteus-style-exemplars\",\n  \"version\": 2,\n  \"exemplars\": [\n    {\n      \"id\": \"se-a1\",\n      \"documentId\": \"doc-a-public\",\n      \"mode\": \"comment\",\n      \"text\": \"Public sample sentence for style.\",\n      \"context\": \"Public thread (synthetic)\",\n      \"redactions\": [],\n      \"exportAllowed\": true\n    }\n  ]\n}"
+      },
+      "baselineDifference": {
+        "lower": 25,
+        "upper": 25
+      },
+      "preparationWallTimeMs": 180000,
+      "solutionWallTimeMs": 60000
+    },
+    {
+      "report": {
+        "evidence": [
+          {
+            "id": "e1",
+            "sourceUrl": "",
+            "kind": "hypothesis",
+            "summary": "Tests ideas quickly",
+            "status": "hypothesis",
+            "verification": "unverified",
+            "excerpt": null,
+            "retrievedAt": null,
+            "limitations": ["User description only"]
+          }
+        ],
+        "character": "Synthetic character",
+        "thinkingStyle": "Synthetic thinking style",
+        "activity": "Synthetic activity",
+        "behaviorSummary": "Synthetic behavior summary"
+      },
+      "baseProfile": {
+        "id": "b",
+        "label": "Boris Fixture",
+        "palette": "violet",
+        "archetype": "Rapid improviser (synthetic)",
+        "skills": ["Prototype early"],
+        "rules": [
+          {
+            "id": "r1",
+            "instruction": "Prototype first",
+            "evidenceIds": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "taskSkills": [
+          {
+            "id": "s1",
+            "instruction": "Iterate with visitors",
+            "evidenceIds": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "sourceStatus": "synthetic"
+      },
+      "profile": {
+        "id": "b",
+        "label": "Boris Fixture",
+        "palette": "violet",
+        "archetype": "Rapid improviser (synthetic)",
+        "skills": ["Prototype early"],
+        "rules": [
+          {
+            "id": "r1",
+            "instruction": "Prototype first",
+            "evidenceIds": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "taskSkills": [
+          {
+            "id": "s1",
+            "instruction": "Iterate with visitors",
+            "evidenceIds": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "sourceStatus": "synthetic"
+      },
+      "attempt": {
+        "answer": "Manual watering on demand with a shared calendar.",
+        "trace": {
+          "provider": "codex",
+          "reasoningMs": 60000,
+          "wallTimeMs": 60000,
+          "terminalMs": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requestedModel": "",
+          "requestedEffort": "high",
+          "resolvedModel": null,
+          "appliedEffort": null,
+          "cliVersion": null,
+          "activeReasoningMs": null,
+          "reasoningTruncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "personId": "b",
+        "interval": {
+          "lower": 75,
+          "upper": 75
+        },
+        "point": 75,
+        "planned": 1,
+        "evaluated": 1,
+        "complete": true,
+        "spread": {
+          "lower": 75,
+          "upper": 75
+        },
+        "requiredStatus": "passed",
+        "judgeDisagreement": false,
+        "comparisonEligible": true
+      },
+      "trials": [
+        {
+          "id": "1-b",
+          "round": 1,
+          "personId": "b",
+          "status": "evaluated",
+          "attempt": {
+            "answer": "Manual watering on demand with a shared calendar.",
+            "trace": {
+              "provider": "codex",
+              "reasoningMs": 60000,
+              "wallTimeMs": 60000,
+              "terminalMs": 0,
+              "summary": "Completed synthetic stage",
+              "reasoning": [],
+              "requestedModel": "",
+              "requestedEffort": "high",
+              "resolvedModel": null,
+              "appliedEffort": null,
+              "cliVersion": null,
+              "activeReasoningMs": null,
+              "reasoningTruncated": false
+            }
+          },
+          "score": {
+            "version": 2,
+            "personId": "b",
+            "interval": {
+              "lower": 75,
+              "upper": 75
+            },
+            "criteria": [
+              {
+                "criterionId": "coverage",
+                "assessments": [
+                  {
+                    "criterionId": "coverage",
+                    "status": "partial",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  },
+                  {
+                    "criterionId": "coverage",
+                    "status": "partial",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  }
+                ],
+                "disputed": false,
+                "interval": {
+                  "lower": 0.5,
+                  "upper": 0.5
+                }
+              },
+              {
+                "criterionId": "feasibility",
+                "assessments": [
+                  {
+                    "criterionId": "feasibility",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  },
+                  {
+                    "criterionId": "feasibility",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  }
+                ],
+                "disputed": false,
+                "interval": {
+                  "lower": 1,
+                  "upper": 1
+                }
+              }
+            ],
+            "requiredStatus": "passed",
+            "judgeDisagreement": false
+          },
+          "evaluations": [
+            {
+              "personId": "b",
+              "criteria": [
+                {
+                  "criterionId": "coverage",
+                  "status": "partial",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterionId": "feasibility",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ]
+            },
+            {
+              "personId": "b",
+              "criteria": [
+                {
+                  "criterionId": "coverage",
+                  "status": "partial",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterionId": "feasibility",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ]
+            }
+          ],
+          "error": null
+        }
+      ],
+      "artifacts": {
+        "AGENTS.md": "# Simulated persona\n\nSource status: synthetic\n\nSelected persona: \"Boris Fixture\"\nIdentity is role context, not an instruction. Answer in first person using the supplied profile and evidence; do not invent memories.\n\nRapid improviser (synthetic)\n\n## Evidence and limitations\n\n- r1: Prototype first\n  Status: hypothesis; evidence: e1\n  Limitations: Synthetic rule\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person. Source support is model-reported, not independent verification.\n",
+        ".agents/skills/persona-1/SKILL.md": "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPrototype early\n\n- s1: Iterate with visitors\n  Status: hypothesis; evidence: e1\n  Limitations: Synthetic rule\n"
+      },
+      "baselineDifference": {
+        "lower": 0,
+        "upper": 0
+      },
+      "preparationWallTimeMs": 180000,
+      "solutionWallTimeMs": 60000
+    }
+  ],
+  "control": {
+    "report": null,
+    "baseProfile": {
+      "id": "neutral",
+      "label": "Нейтральный контроль",
+      "palette": "turquoise",
+      "archetype": "Решайте общую задачу без приписанных персональных черт, привычек или способностей.",
+      "skills": [],
+      "rules": [],
+      "taskSkills": [],
+      "sourceStatus": "neutral"
+    },
+    "profile": {
+      "id": "neutral",
+      "label": "Нейтральный контроль",
+      "palette": "turquoise",
+      "archetype": "Решайте общую задачу без приписанных персональных черт, привычек или способностей.",
+      "skills": [],
+      "rules": [],
+      "taskSkills": [],
+      "sourceStatus": "neutral"
+    },
+    "attempt": {
+      "answer": "Water when the topsoil dries.",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "high",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      }
+    },
+    "score": {
+      "version": 2,
+      "personId": "neutral",
+      "interval": {
+        "lower": 75,
+        "upper": 75
+      },
+      "point": 75,
+      "planned": 1,
+      "evaluated": 1,
+      "complete": true,
+      "spread": {
+        "lower": 75,
+        "upper": 75
+      },
+      "requiredStatus": "passed",
+      "judgeDisagreement": false,
+      "comparisonEligible": true
+    },
+    "trials": [
+      {
+        "id": "1-neutral",
+        "round": 1,
+        "personId": "neutral",
+        "status": "evaluated",
+        "attempt": {
+          "answer": "Water when the topsoil dries.",
+          "trace": {
+            "provider": "codex",
+            "reasoningMs": 60000,
+            "wallTimeMs": 60000,
+            "terminalMs": 0,
+            "summary": "Completed synthetic stage",
+            "reasoning": [],
+            "requestedModel": "",
+            "requestedEffort": "high",
+            "resolvedModel": null,
+            "appliedEffort": null,
+            "cliVersion": null,
+            "activeReasoningMs": null,
+            "reasoningTruncated": false
+          }
+        },
+        "score": {
+          "version": 2,
+          "personId": "neutral",
+          "interval": {
+            "lower": 75,
+            "upper": 75
+          },
+          "criteria": [
+            {
+              "criterionId": "coverage",
+              "assessments": [
+                {
+                  "criterionId": "coverage",
+                  "status": "partial",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterionId": "coverage",
+                  "status": "partial",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ],
+              "disputed": false,
+              "interval": {
+                "lower": 0.5,
+                "upper": 0.5
+              }
+            },
+            {
+              "criterionId": "feasibility",
+              "assessments": [
+                {
+                  "criterionId": "feasibility",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterionId": "feasibility",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ],
+              "disputed": false,
+              "interval": {
+                "lower": 1,
+                "upper": 1
+              }
+            }
+          ],
+          "requiredStatus": "passed",
+          "judgeDisagreement": false
+        },
+        "evaluations": [
+          {
+            "personId": "neutral",
+            "criteria": [
+              {
+                "criterionId": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterionId": "feasibility",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ]
+          },
+          {
+            "personId": "neutral",
+            "criteria": [
+              {
+                "criterionId": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterionId": "feasibility",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ]
+          }
+        ],
+        "error": null
+      }
+    ],
+    "artifacts": {
+      "AGENTS.md": "# Simulated persona\n\nSource status: neutral\n\nNeutral participant: do not adopt a personal identity.\n\nРешайте общую задачу без приписанных персональных черт, привычек или способностей.\n\n## Evidence and limitations\n\nInsufficient personal evidence; no characteristic traits asserted.\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person. Source support is model-reported, not independent verification.\n"
+    },
+    "baselineDifference": null,
+    "preparationWallTimeMs": 60000,
+    "solutionWallTimeMs": 60000
+  },
+  "trials": [
+    {
+      "id": "1-a",
+      "round": 1,
+      "personId": "a",
+      "status": "evaluated",
+      "attempt": {
+        "answer": "Irrigation schedule: drip lines twice a week, rain sensor overrides.\r\nЗимой — раз в месяц.",
+        "trace": {
+          "provider": "codex",
+          "reasoningMs": 60000,
+          "wallTimeMs": 60000,
+          "terminalMs": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requestedModel": "",
+          "requestedEffort": "high",
+          "resolvedModel": null,
+          "appliedEffort": null,
+          "cliVersion": null,
+          "activeReasoningMs": null,
+          "reasoningTruncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "personId": "a",
+        "interval": {
+          "lower": 100,
+          "upper": 100
+        },
+        "criteria": [
+          {
+            "criterionId": "coverage",
+            "assessments": [
+              {
+                "criterionId": "coverage",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterionId": "coverage",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 1,
+              "upper": 1
+            }
+          },
+          {
+            "criterionId": "feasibility",
+            "assessments": [
+              {
+                "criterionId": "feasibility",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterionId": "feasibility",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 1,
+              "upper": 1
+            }
+          }
+        ],
+        "requiredStatus": "passed",
+        "judgeDisagreement": false
+      },
+      "evaluations": [
+        {
+          "personId": "a",
+          "criteria": [
+            {
+              "criterionId": "coverage",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterionId": "feasibility",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        },
+        {
+          "personId": "a",
+          "criteria": [
+            {
+              "criterionId": "coverage",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterionId": "feasibility",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "1-b",
+      "round": 1,
+      "personId": "b",
+      "status": "evaluated",
+      "attempt": {
+        "answer": "Manual watering on demand with a shared calendar.",
+        "trace": {
+          "provider": "codex",
+          "reasoningMs": 60000,
+          "wallTimeMs": 60000,
+          "terminalMs": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requestedModel": "",
+          "requestedEffort": "high",
+          "resolvedModel": null,
+          "appliedEffort": null,
+          "cliVersion": null,
+          "activeReasoningMs": null,
+          "reasoningTruncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "personId": "b",
+        "interval": {
+          "lower": 75,
+          "upper": 75
+        },
+        "criteria": [
+          {
+            "criterionId": "coverage",
+            "assessments": [
+              {
+                "criterionId": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterionId": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 0.5,
+              "upper": 0.5
+            }
+          },
+          {
+            "criterionId": "feasibility",
+            "assessments": [
+              {
+                "criterionId": "feasibility",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterionId": "feasibility",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 1,
+              "upper": 1
+            }
+          }
+        ],
+        "requiredStatus": "passed",
+        "judgeDisagreement": false
+      },
+      "evaluations": [
+        {
+          "personId": "b",
+          "criteria": [
+            {
+              "criterionId": "coverage",
+              "status": "partial",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterionId": "feasibility",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        },
+        {
+          "personId": "b",
+          "criteria": [
+            {
+              "criterionId": "coverage",
+              "status": "partial",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterionId": "feasibility",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "1-neutral",
+      "round": 1,
+      "personId": "neutral",
+      "status": "evaluated",
+      "attempt": {
+        "answer": "Water when the topsoil dries.",
+        "trace": {
+          "provider": "codex",
+          "reasoningMs": 60000,
+          "wallTimeMs": 60000,
+          "terminalMs": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requestedModel": "",
+          "requestedEffort": "high",
+          "resolvedModel": null,
+          "appliedEffort": null,
+          "cliVersion": null,
+          "activeReasoningMs": null,
+          "reasoningTruncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "personId": "neutral",
+        "interval": {
+          "lower": 75,
+          "upper": 75
+        },
+        "criteria": [
+          {
+            "criterionId": "coverage",
+            "assessments": [
+              {
+                "criterionId": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterionId": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 0.5,
+              "upper": 0.5
+            }
+          },
+          {
+            "criterionId": "feasibility",
+            "assessments": [
+              {
+                "criterionId": "feasibility",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterionId": "feasibility",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 1,
+              "upper": 1
+            }
+          }
+        ],
+        "requiredStatus": "passed",
+        "judgeDisagreement": false
+      },
+      "evaluations": [
+        {
+          "personId": "neutral",
+          "criteria": [
+            {
+              "criterionId": "coverage",
+              "status": "partial",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterionId": "feasibility",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        },
+        {
+          "personId": "neutral",
+          "criteria": [
+            {
+              "criterionId": "coverage",
+              "status": "partial",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterionId": "feasibility",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        }
+      ],
+      "error": null
+    }
+  ],
+  "comparison": {
+    "summary": "Предварительный эксперимент: один прогон. Баллы описывают выполнение критериев, устойчивость не установлена.",
+    "comparisonEligible": false,
+    "difference": {
+      "lower": 25,
+      "upper": 25
+    }
+  },
+  "traces": [
+    {
+      "id": "rubric",
+      "stage": "brain-analyzator",
+      "person": null,
+      "label": "Критерии задачи",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "high",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-01",
+        "logicalStageId": "rubric",
+        "component": "brain-analyzator",
+        "person": null,
+        "label": "Критерии задачи",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:00:35.000Z",
+        "finishedAt": "2026-11-08T10:01:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-01",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:00:35.000Z",
+            "returnedAt": "2026-11-08T10:00:55.000Z",
+            "finishedAt": "2026-11-08T10:01:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "sources-0",
+      "stage": "stalker",
+      "person": 0,
+      "label": "Наблюдения и источники",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "medium",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-02",
+        "logicalStageId": "sources-0",
+        "component": "stalker",
+        "person": 0,
+        "label": "Наблюдения и источники",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:01:35.000Z",
+        "finishedAt": "2026-11-08T10:02:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-02",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:01:35.000Z",
+            "returnedAt": "2026-11-08T10:01:55.000Z",
+            "finishedAt": "2026-11-08T10:02:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "profile-0",
+      "stage": "person-fabric",
+      "person": 0,
+      "label": "Устойчивый профиль",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "medium",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-03",
+        "logicalStageId": "profile-0",
+        "component": "person-fabric",
+        "person": 0,
+        "label": "Устойчивый профиль",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:02:35.000Z",
+        "finishedAt": "2026-11-08T10:03:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-03",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:02:35.000Z",
+            "returnedAt": "2026-11-08T10:02:55.000Z",
+            "finishedAt": "2026-11-08T10:03:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "sources-1",
+      "stage": "stalker",
+      "person": 1,
+      "label": "Наблюдения и источники",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "medium",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-04",
+        "logicalStageId": "sources-1",
+        "component": "stalker",
+        "person": 1,
+        "label": "Наблюдения и источники",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:03:35.000Z",
+        "finishedAt": "2026-11-08T10:04:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-04",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:03:35.000Z",
+            "returnedAt": "2026-11-08T10:03:55.000Z",
+            "finishedAt": "2026-11-08T10:04:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "profile-1",
+      "stage": "person-fabric",
+      "person": 1,
+      "label": "Устойчивый профиль",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "medium",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-05",
+        "logicalStageId": "profile-1",
+        "component": "person-fabric",
+        "person": 1,
+        "label": "Устойчивый профиль",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:04:35.000Z",
+        "finishedAt": "2026-11-08T10:05:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-05",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:04:35.000Z",
+            "returnedAt": "2026-11-08T10:04:55.000Z",
+            "finishedAt": "2026-11-08T10:05:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "adapt-0",
+      "stage": "person-fabric",
+      "person": 0,
+      "label": "Стратегия для задачи",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "medium",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-06",
+        "logicalStageId": "adapt-0",
+        "component": "person-fabric",
+        "person": 0,
+        "label": "Стратегия для задачи",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:05:35.000Z",
+        "finishedAt": "2026-11-08T10:06:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-06",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:05:35.000Z",
+            "returnedAt": "2026-11-08T10:05:55.000Z",
+            "finishedAt": "2026-11-08T10:06:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "adapt-1",
+      "stage": "person-fabric",
+      "person": 1,
+      "label": "Стратегия для задачи",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "medium",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-07",
+        "logicalStageId": "adapt-1",
+        "component": "person-fabric",
+        "person": 1,
+        "label": "Стратегия для задачи",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:06:35.000Z",
+        "finishedAt": "2026-11-08T10:07:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-07",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:06:35.000Z",
+            "returnedAt": "2026-11-08T10:06:55.000Z",
+            "finishedAt": "2026-11-08T10:07:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "adapt-2",
+      "stage": "person-fabric",
+      "person": 2,
+      "label": "Стратегия для задачи",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "medium",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-08",
+        "logicalStageId": "adapt-2",
+        "component": "person-fabric",
+        "person": 2,
+        "label": "Стратегия для задачи",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:07:35.000Z",
+        "finishedAt": "2026-11-08T10:08:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-08",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:07:35.000Z",
+            "returnedAt": "2026-11-08T10:07:55.000Z",
+            "finishedAt": "2026-11-08T10:08:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "solve-1-a",
+      "stage": "person",
+      "person": 0,
+      "label": "Решение · прогон 1",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "high",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-09",
+        "logicalStageId": "solve-1-a",
+        "component": "person",
+        "person": 0,
+        "label": "Решение · прогон 1",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:08:35.000Z",
+        "finishedAt": "2026-11-08T10:09:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-09",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:08:35.000Z",
+            "returnedAt": "2026-11-08T10:08:55.000Z",
+            "finishedAt": "2026-11-08T10:09:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "solve-1-b",
+      "stage": "person",
+      "person": 1,
+      "label": "Решение · прогон 1",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "high",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-10",
+        "logicalStageId": "solve-1-b",
+        "component": "person",
+        "person": 1,
+        "label": "Решение · прогон 1",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:09:35.000Z",
+        "finishedAt": "2026-11-08T10:10:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-10",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:09:35.000Z",
+            "returnedAt": "2026-11-08T10:09:55.000Z",
+            "finishedAt": "2026-11-08T10:10:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "solve-1-neutral",
+      "stage": "person",
+      "person": 2,
+      "label": "Решение · прогон 1",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "high",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-11",
+        "logicalStageId": "solve-1-neutral",
+        "component": "person",
+        "person": 2,
+        "label": "Решение · прогон 1",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:10:35.000Z",
+        "finishedAt": "2026-11-08T10:11:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-11",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:10:35.000Z",
+            "returnedAt": "2026-11-08T10:10:55.000Z",
+            "finishedAt": "2026-11-08T10:11:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "judge-1-0",
+      "stage": "brain-analyzator",
+      "person": null,
+      "label": "Слепая оценка · прогон 1 · порядок 1",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [
+          {
+            "id": "1:r1",
+            "kind": "summary",
+            "text": "Public synthetic summary."
+          }
+        ],
+        "requestedModel": "",
+        "requestedEffort": "high",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-12",
+        "logicalStageId": "judge-1-0",
+        "component": "brain-analyzator",
+        "person": null,
+        "label": "Слепая оценка · прогон 1 · порядок 1",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:11:35.000Z",
+        "finishedAt": "2026-11-08T10:12:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-12",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:11:35.000Z",
+            "returnedAt": "2026-11-08T10:11:55.000Z",
+            "finishedAt": "2026-11-08T10:12:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "judge-1-1",
+      "stage": "brain-analyzator",
+      "person": null,
+      "label": "Слепая оценка · прогон 1 · порядок 2",
+      "trace": {
+        "provider": "codex",
+        "reasoningMs": 60000,
+        "wallTimeMs": 60000,
+        "terminalMs": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requestedModel": "",
+        "requestedEffort": "high",
+        "resolvedModel": null,
+        "appliedEffort": null,
+        "cliVersion": null,
+        "activeReasoningMs": null,
+        "reasoningTruncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wallTimeMs": 60000,
+          "error": null
+        }
+      ],
+      "lifecycle": {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-13",
+        "logicalStageId": "judge-1-1",
+        "component": "brain-analyzator",
+        "person": null,
+        "label": "Слепая оценка · прогон 1 · порядок 2",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:12:35.000Z",
+        "finishedAt": "2026-11-08T10:13:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-13",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:12:35.000Z",
+            "returnedAt": "2026-11-08T10:12:55.000Z",
+            "finishedAt": "2026-11-08T10:13:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    }
+  ],
+  "finishedAt": "2026-11-08T10:24:36.000Z",
+  "execution": {
+    "schemaVersion": 1,
+    "runId": "run-fixture-0001",
+    "stages": [
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-01",
+        "logicalStageId": "rubric",
+        "component": "brain-analyzator",
+        "person": null,
+        "label": "Критерии задачи",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:00:35.000Z",
+        "finishedAt": "2026-11-08T10:01:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-01",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:00:35.000Z",
+            "returnedAt": "2026-11-08T10:00:55.000Z",
+            "finishedAt": "2026-11-08T10:01:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-02",
+        "logicalStageId": "sources-0",
+        "component": "stalker",
+        "person": 0,
+        "label": "Наблюдения и источники",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:01:35.000Z",
+        "finishedAt": "2026-11-08T10:02:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-02",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:01:35.000Z",
+            "returnedAt": "2026-11-08T10:01:55.000Z",
+            "finishedAt": "2026-11-08T10:02:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-03",
+        "logicalStageId": "profile-0",
+        "component": "person-fabric",
+        "person": 0,
+        "label": "Устойчивый профиль",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:02:35.000Z",
+        "finishedAt": "2026-11-08T10:03:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-03",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:02:35.000Z",
+            "returnedAt": "2026-11-08T10:02:55.000Z",
+            "finishedAt": "2026-11-08T10:03:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-04",
+        "logicalStageId": "sources-1",
+        "component": "stalker",
+        "person": 1,
+        "label": "Наблюдения и источники",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:03:35.000Z",
+        "finishedAt": "2026-11-08T10:04:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-04",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:03:35.000Z",
+            "returnedAt": "2026-11-08T10:03:55.000Z",
+            "finishedAt": "2026-11-08T10:04:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-05",
+        "logicalStageId": "profile-1",
+        "component": "person-fabric",
+        "person": 1,
+        "label": "Устойчивый профиль",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:04:35.000Z",
+        "finishedAt": "2026-11-08T10:05:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-05",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:04:35.000Z",
+            "returnedAt": "2026-11-08T10:04:55.000Z",
+            "finishedAt": "2026-11-08T10:05:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-06",
+        "logicalStageId": "adapt-0",
+        "component": "person-fabric",
+        "person": 0,
+        "label": "Стратегия для задачи",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:05:35.000Z",
+        "finishedAt": "2026-11-08T10:06:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-06",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:05:35.000Z",
+            "returnedAt": "2026-11-08T10:05:55.000Z",
+            "finishedAt": "2026-11-08T10:06:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-07",
+        "logicalStageId": "adapt-1",
+        "component": "person-fabric",
+        "person": 1,
+        "label": "Стратегия для задачи",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:06:35.000Z",
+        "finishedAt": "2026-11-08T10:07:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-07",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:06:35.000Z",
+            "returnedAt": "2026-11-08T10:06:55.000Z",
+            "finishedAt": "2026-11-08T10:07:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-08",
+        "logicalStageId": "adapt-2",
+        "component": "person-fabric",
+        "person": 2,
+        "label": "Стратегия для задачи",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:07:35.000Z",
+        "finishedAt": "2026-11-08T10:08:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-08",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:07:35.000Z",
+            "returnedAt": "2026-11-08T10:07:55.000Z",
+            "finishedAt": "2026-11-08T10:08:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-09",
+        "logicalStageId": "solve-1-a",
+        "component": "person",
+        "person": 0,
+        "label": "Решение · прогон 1",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:08:35.000Z",
+        "finishedAt": "2026-11-08T10:09:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-09",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:08:35.000Z",
+            "returnedAt": "2026-11-08T10:08:55.000Z",
+            "finishedAt": "2026-11-08T10:09:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-10",
+        "logicalStageId": "solve-1-b",
+        "component": "person",
+        "person": 1,
+        "label": "Решение · прогон 1",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:09:35.000Z",
+        "finishedAt": "2026-11-08T10:10:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-10",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:09:35.000Z",
+            "returnedAt": "2026-11-08T10:09:55.000Z",
+            "finishedAt": "2026-11-08T10:10:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-11",
+        "logicalStageId": "solve-1-neutral",
+        "component": "person",
+        "person": 2,
+        "label": "Решение · прогон 1",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:10:35.000Z",
+        "finishedAt": "2026-11-08T10:11:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-11",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:10:35.000Z",
+            "returnedAt": "2026-11-08T10:10:55.000Z",
+            "finishedAt": "2026-11-08T10:11:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-12",
+        "logicalStageId": "judge-1-0",
+        "component": "brain-analyzator",
+        "person": null,
+        "label": "Слепая оценка · прогон 1 · порядок 1",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:11:35.000Z",
+        "finishedAt": "2026-11-08T10:12:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-12",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:11:35.000Z",
+            "returnedAt": "2026-11-08T10:11:55.000Z",
+            "finishedAt": "2026-11-08T10:12:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      },
+      {
+        "schemaVersion": 1,
+        "runId": "run-fixture-0001",
+        "stageId": "stage-fixture-13",
+        "logicalStageId": "judge-1-1",
+        "component": "brain-analyzator",
+        "person": null,
+        "label": "Слепая оценка · прогон 1 · порядок 2",
+        "status": "completed",
+        "startedAt": "2026-11-08T10:12:35.000Z",
+        "finishedAt": "2026-11-08T10:13:05.000Z",
+        "error": null,
+        "calls": [
+          {
+            "callId": "call-fixture-13",
+            "operation": "generation",
+            "trigger": "initial",
+            "formatAttempt": 1,
+            "status": "completed",
+            "startedAt": "2026-11-08T10:12:35.000Z",
+            "returnedAt": "2026-11-08T10:12:55.000Z",
+            "finishedAt": "2026-11-08T10:13:05.000Z",
+            "wallTimeMs": 30000,
+            "error": null,
+            "validationError": null
+          }
+        ]
+      }
+    ]
+  },
+  "exportMetadata": {
+    "version": 1,
+    "redacted": false,
+    "omittedStyleExemplars": 0,
+    "omittedSourceExcerpts": 0,
+    "preparationReasoningOmitted": false,
+    "answerTextMayBeRedacted": false,
+    "scoresReferenceOriginalAnswers": true,
+    "limitations": []
+  }
+}

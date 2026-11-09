@@ -1,0 +1,135 @@
+{
+  "input": {
+    "task": "Design a public reading room",
+    "people": [
+      {
+        "label": "Ada Sample",
+        "context": "Synthetic fixture persona: careful planner.",
+        "public-urls": ["https://sample.example/ada-notes"]
+      },
+      {
+        "label": "Boris Fixture",
+        "context": "Synthetic fixture persona: rapid improviser.",
+        "public-urls": []
+      }
+    ]
+  },
+  "people": [
+    {
+      "report": {
+        "evidence": [
+          {
+            "id": "e1",
+            "source-url": "https://sample.example/ada-notes",
+            "kind": "fact",
+            "summary": "Plans each milestone before acting"
+          }
+        ],
+        "estimated-bsc": 15,
+        "effort": "medium",
+        "character": "Deliberate",
+        "thinking-style": "Structured",
+        "activity": "Planning",
+        "behavior-summary": "Synthetic behavior summary for fixture persona A"
+      },
+      "profile": {
+        "id": "a",
+        "label": "Ada Sample",
+        "palette": "turquoise",
+        "archetype": "Careful planner (synthetic)",
+        "skills": ["Plan in milestones"]
+      },
+      "attempt": {
+        "answer": "Answer A: phased plan with milestones.",
+        "trace": {
+          "provider": "codex",
+          "reasoning-ms": 90000,
+          "terminal-ms": 0,
+          "summary": "Completed synthetic run"
+        }
+      },
+      "score": {
+        "person-id": "a",
+        "reasoning-minutes": 1.5,
+        "bsc": 0.1
+      },
+      "artifacts": {
+        "AGENTS.md": "# Simulated persona\n\nCareful planner (synthetic)\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person.\n",
+        ".agents/skills/persona-1/SKILL.md": "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPlan in milestones\n"
+      }
+    },
+    {
+      "report": {
+        "evidence": [
+          {
+            "id": "e1",
+            "source-url": "",
+            "kind": "hypothesis",
+            "summary": "Tests ideas quickly"
+          }
+        ],
+        "estimated-bsc": 12,
+        "effort": "medium",
+        "character": "Quick",
+        "thinking-style": "Exploratory",
+        "activity": "Prototyping",
+        "behavior-summary": "Synthetic behavior summary for fixture persona B"
+      },
+      "profile": {
+        "id": "b",
+        "label": "Boris Fixture",
+        "palette": "violet",
+        "archetype": "Rapid improviser (synthetic)",
+        "skills": ["Prototype early"]
+      },
+      "attempt": {
+        "answer": "Answer B: quick prototype sketch.",
+        "trace": {
+          "provider": "codex",
+          "reasoning-ms": 60000,
+          "terminal-ms": 0,
+          "summary": "Completed synthetic run"
+        }
+      },
+      "score": {
+        "person-id": "b",
+        "reasoning-minutes": 1,
+        "bsc": 0.08333333333333333
+      },
+      "artifacts": {
+        "AGENTS.md": "# Simulated persona\n\nRapid improviser (synthetic)\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person.\n",
+        ".agents/skills/persona-1/SKILL.md": "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPrototype early\n"
+      }
+    }
+  ],
+  "comparison": {
+    "summary": "Synthetic comparative summary: planning depth differs between fixtures.",
+    "scores": [
+      {
+        "person-id": "a",
+        "reasoning-minutes": 1.5,
+        "bsc": 0.1
+      },
+      {
+        "person-id": "b",
+        "reasoning-minutes": 1,
+        "bsc": 0.08333333333333333
+      }
+    ],
+    "key-differences": ["Fixture A plans in phases; fixture B prototypes first."],
+    "people": [
+      {
+        "strengths": ["Structure"],
+        "weaknesses": [],
+        "observations": ["Plans before acting"]
+      },
+      {
+        "strengths": ["Speed"],
+        "weaknesses": [],
+        "observations": ["Tests ideas quickly"]
+      }
+    ],
+    "ratio": 1.2000000000000002
+  },
+  "finished-at": "2026-11-08T10:24:36.000Z"
+}

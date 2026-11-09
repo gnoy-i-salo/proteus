@@ -1,0 +1,1650 @@
+{
+  "schema-version": 3,
+  "scoring-version": 2,
+  "status": "complete",
+  "input": {
+    "task": "Спроектируйте читальный зал «Лира».\r\nСезонная подсветка — обязательное условие.",
+    "people": [
+      {
+        "label": "Ada Sample",
+        "context": "Synthetic fixture persona: careful planner.",
+        "public-urls": ["https://sample.example/ada-notes"]
+      },
+      {
+        "label": "Boris Fixture",
+        "context": "Synthetic fixture persona: rapid improviser.",
+        "public-urls": []
+      }
+    ]
+  },
+  "protocol": {
+    "version": 2,
+    "task": "Спроектируйте читальный зал «Лира».\r\nСезонная подсветка — обязательное условие.",
+    "rubric": {
+      "version": 2,
+      "criteria": [
+        {
+          "id": "coverage",
+          "label": "Task coverage",
+          "weight": 1,
+          "required": false,
+          "anchors": {
+            "unmet": "No solution",
+            "partial": "Incomplete plan",
+            "met": "Complete plan"
+          }
+        },
+        {
+          "id": "seasonal-lighting",
+          "label": "Seasonal lighting",
+          "weight": 1,
+          "required": true,
+          "anchors": {
+            "unmet": "No lighting plan",
+            "partial": "Partial lighting plan",
+            "met": "Full lighting plan"
+          }
+        }
+      ]
+    },
+    "repetitions": 1,
+    "participant-order": [["a", "b", "neutral"]],
+    "model-settings": {
+      "stalker": {
+        "provider": "codex",
+        "requested-model": "",
+        "requested-effort": "medium"
+      },
+      "person-fabric": {
+        "provider": "codex",
+        "requested-model": "",
+        "requested-effort": "medium"
+      },
+      "person": {
+        "provider": "codex",
+        "requested-model": "",
+        "requested-effort": "high"
+      },
+      "brain-analyzator": {
+        "provider": "codex",
+        "requested-model": "",
+        "requested-effort": "high"
+      }
+    },
+    "format-attempts": 2,
+    "stage-timeout-ms": 600000,
+    "prompt-version": "bsc-v2.3-source-identity",
+    "created-at": "2026-11-08T10:00:00.000Z",
+    "source-snapshots": [["snap-a-0001"], []]
+  },
+  "people": [
+    {
+      "report": {
+        "evidence": [
+          {
+            "id": "e1",
+            "source-url": "https://sample.example/ada-notes",
+            "kind": "fact",
+            "summary": "Plans each milestone before acting",
+            "status": "supported",
+            "verification": "model-reported",
+            "excerpt": "Plans each milestone before acting.",
+            "retrieved-at": null,
+            "limitations": []
+          },
+          {
+            "id": "e2",
+            "source-url": "https://sources.example/ada/2024-11",
+            "kind": "fact",
+            "summary": "Seasonal lighting requirements (connected source)",
+            "status": "supported",
+            "verification": "source-retrieved",
+            "excerpt": null,
+            "retrieved-at": "2026-11-08T09:45:00.000Z",
+            "document-ids": ["doc-a-private"],
+            "limitations": ["Source excerpt omitted from export"]
+          },
+          {
+            "id": "e3",
+            "source-url": "https://sources.example/ada/2025-02",
+            "kind": "fact",
+            "summary": "Reading room capacity notes (connected source)",
+            "status": "supported",
+            "verification": "source-retrieved",
+            "excerpt": null,
+            "retrieved-at": "2026-11-08T09:46:00.000Z",
+            "document-ids": ["doc-a-private"],
+            "limitations": ["Source excerpt omitted from export"]
+          }
+        ],
+        "character": "Synthetic character",
+        "thinking-style": "Synthetic thinking style",
+        "activity": "Synthetic activity",
+        "behavior-summary": "Synthetic behavior summary",
+        "style-exemplars": [],
+        "source-coverage": [
+          {
+            "snapshot-id": "snap-a-0001",
+            "coverage": {
+              "documents": 2,
+              "total-documents": 2,
+              "bytes": 2048,
+              "complete": true,
+              "truncated": false,
+              "not-analyzed": 0,
+              "unavailable": []
+            },
+            "analyzed-documents": 2,
+            "limitations": ["Synthetic coverage"]
+          }
+        ]
+      },
+      "base-profile": {
+        "id": "a",
+        "label": "Ada Sample",
+        "palette": "turquoise",
+        "archetype": "Careful planner (synthetic)",
+        "skills": ["Plan in milestones"],
+        "rules": [
+          {
+            "id": "r1",
+            "instruction": "Plan before acting",
+            "evidence-ids": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "task-skills": [
+          {
+            "id": "s1",
+            "instruction": "Use a phased plan",
+            "evidence-ids": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "source-status": "evidence-informed",
+        "source-context": true,
+        "style-profile": {
+          "version": 1,
+          "reasoning-patterns": [
+            {
+              "id": "rp1",
+              "instruction": "Сначала структура, потом детали.",
+              "exemplar-ids": ["se-a1"],
+              "status": "observed",
+              "limitations": ["Synthetic style rule"]
+            }
+          ],
+          "voice-rules": [
+            {
+              "id": "vr1",
+              "instruction": "Спокойный тон без преувеличений.",
+              "exemplar-ids": ["se-a1"],
+              "status": "observed",
+              "limitations": []
+            }
+          ],
+          "format-rules": [
+            {
+              "id": "fr1",
+              "instruction": "Короткие абзацы и списки.",
+              "exemplar-ids": [],
+              "status": "hypothesis",
+              "limitations": []
+            }
+          ],
+          "context-modes": [
+            {
+              "mode": "comment",
+              "status": "observed",
+              "limitations": []
+            }
+          ],
+          "style-exemplar-ids": ["se-a1", "se-a2"],
+          "limitations": ["Synthetic style profile"]
+        },
+        "style-exemplars": [
+          {
+            "id": "se-a1",
+            "document-id": "doc-a-public",
+            "mode": "comment",
+            "text": "Short public note from the synthetic thread.",
+            "context": "Public thread (synthetic)",
+            "redactions": [],
+            "export-allowed": true
+          }
+        ]
+      },
+      "profile": {
+        "id": "a",
+        "label": "Ada Sample",
+        "palette": "turquoise",
+        "archetype": "Careful planner (synthetic)",
+        "skills": ["Plan in milestones"],
+        "rules": [
+          {
+            "id": "r1",
+            "instruction": "Plan before acting",
+            "evidence-ids": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "task-skills": [
+          {
+            "id": "s1",
+            "instruction": "Use a phased plan",
+            "evidence-ids": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "source-status": "evidence-informed",
+        "source-context": true,
+        "style-profile": {
+          "version": 1,
+          "reasoning-patterns": [
+            {
+              "id": "rp1",
+              "instruction": "Сначала структура, потом детали.",
+              "exemplar-ids": ["se-a1"],
+              "status": "observed",
+              "limitations": ["Synthetic style rule"]
+            }
+          ],
+          "voice-rules": [
+            {
+              "id": "vr1",
+              "instruction": "Спокойный тон без преувеличений.",
+              "exemplar-ids": ["se-a1"],
+              "status": "observed",
+              "limitations": []
+            }
+          ],
+          "format-rules": [
+            {
+              "id": "fr1",
+              "instruction": "Короткие абзацы и списки.",
+              "exemplar-ids": [],
+              "status": "hypothesis",
+              "limitations": []
+            }
+          ],
+          "context-modes": [
+            {
+              "mode": "comment",
+              "status": "observed",
+              "limitations": []
+            }
+          ],
+          "style-exemplar-ids": ["se-a1", "se-a2"],
+          "limitations": ["Synthetic style profile"]
+        },
+        "style-exemplars": [
+          {
+            "id": "se-a1",
+            "document-id": "doc-a-public",
+            "mode": "comment",
+            "text": "Short public note from the synthetic thread.",
+            "context": "Public thread (synthetic)",
+            "redactions": [],
+            "export-allowed": true
+          }
+        ]
+      },
+      "attempt": {
+        "answer": "Опираюсь на набросок: «[private source text omitted from export]» Учту сезонную подсветку и расписание.",
+        "trace": {
+          "provider": "codex",
+          "reasoning-ms": 60000,
+          "wall-time-ms": 60000,
+          "terminal-ms": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requested-model": "",
+          "requested-effort": "high",
+          "resolved-model": null,
+          "applied-effort": null,
+          "cli-version": null,
+          "active-reasoning-ms": null,
+          "reasoning-truncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "person-id": "a",
+        "interval": {
+          "lower": 100,
+          "upper": 100
+        },
+        "point": 100,
+        "planned": 1,
+        "evaluated": 1,
+        "complete": true,
+        "spread": {
+          "lower": 100,
+          "upper": 100
+        },
+        "required-status": "passed",
+        "judge-disagreement": false,
+        "comparison-eligible": true
+      },
+      "trials": [
+        {
+          "id": "1-a",
+          "round": 1,
+          "person-id": "a",
+          "status": "evaluated",
+          "attempt": {
+            "answer": "Опираюсь на набросок: «[private source text omitted from export]» Учту сезонную подсветку и расписание.",
+            "trace": {
+              "provider": "codex",
+              "reasoning-ms": 60000,
+              "wall-time-ms": 60000,
+              "terminal-ms": 0,
+              "summary": "Completed synthetic stage",
+              "reasoning": [],
+              "requested-model": "",
+              "requested-effort": "high",
+              "resolved-model": null,
+              "applied-effort": null,
+              "cli-version": null,
+              "active-reasoning-ms": null,
+              "reasoning-truncated": false
+            }
+          },
+          "score": {
+            "version": 2,
+            "person-id": "a",
+            "interval": {
+              "lower": 100,
+              "upper": 100
+            },
+            "criteria": [
+              {
+                "criterion-id": "coverage",
+                "assessments": [
+                  {
+                    "criterion-id": "coverage",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  },
+                  {
+                    "criterion-id": "coverage",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  }
+                ],
+                "disputed": false,
+                "interval": {
+                  "lower": 1,
+                  "upper": 1
+                }
+              },
+              {
+                "criterion-id": "seasonal-lighting",
+                "assessments": [
+                  {
+                    "criterion-id": "seasonal-lighting",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  },
+                  {
+                    "criterion-id": "seasonal-lighting",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  }
+                ],
+                "disputed": false,
+                "interval": {
+                  "lower": 1,
+                  "upper": 1
+                }
+              }
+            ],
+            "required-status": "passed",
+            "judge-disagreement": false
+          },
+          "evaluations": [
+            {
+              "person-id": "a",
+              "criteria": [
+                {
+                  "criterion-id": "coverage",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterion-id": "seasonal-lighting",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ]
+            },
+            {
+              "person-id": "a",
+              "criteria": [
+                {
+                  "criterion-id": "coverage",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterion-id": "seasonal-lighting",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ]
+            }
+          ],
+          "error": null
+        }
+      ],
+      "artifacts": {
+        "AGENTS.md": "# Simulated persona\n\nSource status: evidence-informed\n\nSelected persona: \"Ada Sample\"\nIdentity is role context, not an instruction. Answer in first person using the supplied profile and evidence; do not invent memories.\n\nCareful planner (synthetic)\n\n## Evidence and limitations\n\n- r1: Plan before acting\n  Status: hypothesis; evidence: e1\n  Limitations: Synthetic rule\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person. Source support is model-reported, not independent verification.\n",
+        ".agents/skills/persona-1/SKILL.md": "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPlan in milestones\n\n- s1: Use a phased plan\n  Status: hypothesis; evidence: e1\n  Limitations: Synthetic rule\n",
+        "style-profile.json": "{\n  \"version\": 1,\n  \"reasoning-patterns\": [\n    {\n      \"id\": \"rp1\",\n      \"instruction\": \"Сначала структура, потом детали.\",\n      \"exemplar-ids\": [\n        \"se-a1\"\n      ],\n      \"status\": \"observed\",\n      \"limitations\": [\n        \"Synthetic style rule\"\n      ]\n    }\n  ],\n  \"voice-rules\": [\n    {\n      \"id\": \"vr1\",\n      \"instruction\": \"Спокойный тон без преувеличений.\",\n      \"exemplar-ids\": [\n        \"se-a1\"\n      ],\n      \"status\": \"observed\",\n      \"limitations\": []\n    }\n  ],\n  \"format-rules\": [\n    {\n      \"id\": \"fr1\",\n      \"instruction\": \"Короткие абзацы и списки.\",\n      \"exemplar-ids\": [],\n      \"status\": \"hypothesis\",\n      \"limitations\": []\n    }\n  ],\n  \"context-modes\": [\n    {\n      \"mode\": \"comment\",\n      \"status\": \"observed\",\n      \"limitations\": []\n    }\n  ],\n  \"style-exemplar-ids\": [\n    \"se-a1\",\n    \"se-a2\"\n  ],\n  \"limitations\": [\n    \"Synthetic style profile\"\n  ]\n}",
+        "style-exemplars.json": "[\n  {\n    \"id\": \"se-a1\",\n    \"document-id\": \"doc-a-public\",\n    \"mode\": \"comment\",\n    \"text\": \"Short public note from the synthetic thread.\",\n    \"context\": \"Public thread (synthetic)\",\n    \"redactions\": [],\n    \"export-allowed\": true\n  }\n]"
+      },
+      "baseline-difference": {
+        "lower": 25,
+        "upper": 25
+      },
+      "preparation-wall-time-ms": 180000,
+      "solution-wall-time-ms": 60000
+    },
+    {
+      "report": {
+        "evidence": [
+          {
+            "id": "e1",
+            "source-url": "",
+            "kind": "hypothesis",
+            "summary": "Tests ideas quickly",
+            "status": "hypothesis",
+            "verification": "unverified",
+            "excerpt": null,
+            "retrieved-at": null,
+            "limitations": ["User description only"]
+          }
+        ],
+        "character": "Synthetic character",
+        "thinking-style": "Synthetic thinking style",
+        "activity": "Synthetic activity",
+        "behavior-summary": "Synthetic behavior summary"
+      },
+      "base-profile": {
+        "id": "b",
+        "label": "Boris Fixture",
+        "palette": "violet",
+        "archetype": "Rapid improviser (synthetic)",
+        "skills": ["Prototype early"],
+        "rules": [
+          {
+            "id": "r1",
+            "instruction": "Prototype first",
+            "evidence-ids": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "task-skills": [
+          {
+            "id": "s1",
+            "instruction": "Iterate with visitors",
+            "evidence-ids": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "source-status": "synthetic"
+      },
+      "profile": {
+        "id": "b",
+        "label": "Boris Fixture",
+        "palette": "violet",
+        "archetype": "Rapid improviser (synthetic)",
+        "skills": ["Prototype early"],
+        "rules": [
+          {
+            "id": "r1",
+            "instruction": "Prototype first",
+            "evidence-ids": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "task-skills": [
+          {
+            "id": "s1",
+            "instruction": "Iterate with visitors",
+            "evidence-ids": ["e1"],
+            "status": "hypothesis",
+            "limitations": ["Synthetic rule"]
+          }
+        ],
+        "source-status": "synthetic"
+      },
+      "attempt": {
+        "answer": "Соберу модульную схему зала и проверю её на синтетических данных.",
+        "trace": {
+          "provider": "codex",
+          "reasoning-ms": 60000,
+          "wall-time-ms": 60000,
+          "terminal-ms": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requested-model": "",
+          "requested-effort": "high",
+          "resolved-model": null,
+          "applied-effort": null,
+          "cli-version": null,
+          "active-reasoning-ms": null,
+          "reasoning-truncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "person-id": "b",
+        "interval": {
+          "lower": 75,
+          "upper": 75
+        },
+        "point": 75,
+        "planned": 1,
+        "evaluated": 1,
+        "complete": true,
+        "spread": {
+          "lower": 75,
+          "upper": 75
+        },
+        "required-status": "passed",
+        "judge-disagreement": false,
+        "comparison-eligible": true
+      },
+      "trials": [
+        {
+          "id": "1-b",
+          "round": 1,
+          "person-id": "b",
+          "status": "evaluated",
+          "attempt": {
+            "answer": "Соберу модульную схему зала и проверю её на синтетических данных.",
+            "trace": {
+              "provider": "codex",
+              "reasoning-ms": 60000,
+              "wall-time-ms": 60000,
+              "terminal-ms": 0,
+              "summary": "Completed synthetic stage",
+              "reasoning": [],
+              "requested-model": "",
+              "requested-effort": "high",
+              "resolved-model": null,
+              "applied-effort": null,
+              "cli-version": null,
+              "active-reasoning-ms": null,
+              "reasoning-truncated": false
+            }
+          },
+          "score": {
+            "version": 2,
+            "person-id": "b",
+            "interval": {
+              "lower": 75,
+              "upper": 75
+            },
+            "criteria": [
+              {
+                "criterion-id": "coverage",
+                "assessments": [
+                  {
+                    "criterion-id": "coverage",
+                    "status": "partial",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  },
+                  {
+                    "criterion-id": "coverage",
+                    "status": "partial",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  }
+                ],
+                "disputed": false,
+                "interval": {
+                  "lower": 0.5,
+                  "upper": 0.5
+                }
+              },
+              {
+                "criterion-id": "seasonal-lighting",
+                "assessments": [
+                  {
+                    "criterion-id": "seasonal-lighting",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  },
+                  {
+                    "criterion-id": "seasonal-lighting",
+                    "status": "met",
+                    "reason": "Observable coverage of the task",
+                    "quote": "plan"
+                  }
+                ],
+                "disputed": false,
+                "interval": {
+                  "lower": 1,
+                  "upper": 1
+                }
+              }
+            ],
+            "required-status": "passed",
+            "judge-disagreement": false
+          },
+          "evaluations": [
+            {
+              "person-id": "b",
+              "criteria": [
+                {
+                  "criterion-id": "coverage",
+                  "status": "partial",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterion-id": "seasonal-lighting",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ]
+            },
+            {
+              "person-id": "b",
+              "criteria": [
+                {
+                  "criterion-id": "coverage",
+                  "status": "partial",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterion-id": "seasonal-lighting",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ]
+            }
+          ],
+          "error": null
+        }
+      ],
+      "artifacts": {
+        "AGENTS.md": "# Simulated persona\n\nSource status: synthetic\n\nSelected persona: \"Boris Fixture\"\nIdentity is role context, not an instruction. Answer in first person using the supplied profile and evidence; do not invent memories.\n\nRapid improviser (synthetic)\n\n## Evidence and limitations\n\n- r1: Prototype first\n  Status: hypothesis; evidence: e1\n  Limitations: Synthetic rule\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person. Source support is model-reported, not independent verification.\n",
+        ".agents/skills/persona-1/SKILL.md": "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPrototype early\n\n- s1: Iterate with visitors\n  Status: hypothesis; evidence: e1\n  Limitations: Synthetic rule\n"
+      },
+      "baseline-difference": {
+        "lower": 0,
+        "upper": 0
+      },
+      "preparation-wall-time-ms": 180000,
+      "solution-wall-time-ms": 60000
+    }
+  ],
+  "control": {
+    "report": null,
+    "base-profile": {
+      "id": "neutral",
+      "label": "Нейтральный контроль",
+      "palette": "turquoise",
+      "archetype": "Решайте общую задачу без приписанных персональных черт, привычек или способностей.",
+      "skills": [],
+      "rules": [],
+      "task-skills": [],
+      "source-status": "neutral"
+    },
+    "profile": {
+      "id": "neutral",
+      "label": "Нейтральный контроль",
+      "palette": "turquoise",
+      "archetype": "Решайте общую задачу без приписанных персональных черт, привычек или способностей.",
+      "skills": [],
+      "rules": [],
+      "task-skills": [],
+      "source-status": "neutral"
+    },
+    "attempt": {
+      "answer": "Общий план: зал, освещение, расписание работ.",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "high",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      }
+    },
+    "score": {
+      "version": 2,
+      "person-id": "neutral",
+      "interval": {
+        "lower": 75,
+        "upper": 75
+      },
+      "point": 75,
+      "planned": 1,
+      "evaluated": 1,
+      "complete": true,
+      "spread": {
+        "lower": 75,
+        "upper": 75
+      },
+      "required-status": "passed",
+      "judge-disagreement": false,
+      "comparison-eligible": true
+    },
+    "trials": [
+      {
+        "id": "1-neutral",
+        "round": 1,
+        "person-id": "neutral",
+        "status": "evaluated",
+        "attempt": {
+          "answer": "Общий план: зал, освещение, расписание работ.",
+          "trace": {
+            "provider": "codex",
+            "reasoning-ms": 60000,
+            "wall-time-ms": 60000,
+            "terminal-ms": 0,
+            "summary": "Completed synthetic stage",
+            "reasoning": [],
+            "requested-model": "",
+            "requested-effort": "high",
+            "resolved-model": null,
+            "applied-effort": null,
+            "cli-version": null,
+            "active-reasoning-ms": null,
+            "reasoning-truncated": false
+          }
+        },
+        "score": {
+          "version": 2,
+          "person-id": "neutral",
+          "interval": {
+            "lower": 75,
+            "upper": 75
+          },
+          "criteria": [
+            {
+              "criterion-id": "coverage",
+              "assessments": [
+                {
+                  "criterion-id": "coverage",
+                  "status": "partial",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterion-id": "coverage",
+                  "status": "partial",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ],
+              "disputed": false,
+              "interval": {
+                "lower": 0.5,
+                "upper": 0.5
+              }
+            },
+            {
+              "criterion-id": "seasonal-lighting",
+              "assessments": [
+                {
+                  "criterion-id": "seasonal-lighting",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                },
+                {
+                  "criterion-id": "seasonal-lighting",
+                  "status": "met",
+                  "reason": "Observable coverage of the task",
+                  "quote": "plan"
+                }
+              ],
+              "disputed": false,
+              "interval": {
+                "lower": 1,
+                "upper": 1
+              }
+            }
+          ],
+          "required-status": "passed",
+          "judge-disagreement": false
+        },
+        "evaluations": [
+          {
+            "person-id": "neutral",
+            "criteria": [
+              {
+                "criterion-id": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterion-id": "seasonal-lighting",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ]
+          },
+          {
+            "person-id": "neutral",
+            "criteria": [
+              {
+                "criterion-id": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterion-id": "seasonal-lighting",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ]
+          }
+        ],
+        "error": null
+      }
+    ],
+    "artifacts": {
+      "AGENTS.md": "# Simulated persona\n\nSource status: neutral\n\nNeutral participant: do not adopt a personal identity.\n\nРешайте общую задачу без приписанных персональных черт, привычек или способностей.\n\n## Evidence and limitations\n\nInsufficient personal evidence; no characteristic traits asserted.\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person. Source support is model-reported, not independent verification.\n"
+    },
+    "baseline-difference": null,
+    "preparation-wall-time-ms": 60000,
+    "solution-wall-time-ms": 60000
+  },
+  "trials": [
+    {
+      "id": "1-a",
+      "round": 1,
+      "person-id": "a",
+      "status": "evaluated",
+      "attempt": {
+        "answer": "Опираюсь на набросок: «[private source text omitted from export]» Учту сезонную подсветку и расписание.",
+        "trace": {
+          "provider": "codex",
+          "reasoning-ms": 60000,
+          "wall-time-ms": 60000,
+          "terminal-ms": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requested-model": "",
+          "requested-effort": "high",
+          "resolved-model": null,
+          "applied-effort": null,
+          "cli-version": null,
+          "active-reasoning-ms": null,
+          "reasoning-truncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "person-id": "a",
+        "interval": {
+          "lower": 100,
+          "upper": 100
+        },
+        "criteria": [
+          {
+            "criterion-id": "coverage",
+            "assessments": [
+              {
+                "criterion-id": "coverage",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterion-id": "coverage",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 1,
+              "upper": 1
+            }
+          },
+          {
+            "criterion-id": "seasonal-lighting",
+            "assessments": [
+              {
+                "criterion-id": "seasonal-lighting",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterion-id": "seasonal-lighting",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 1,
+              "upper": 1
+            }
+          }
+        ],
+        "required-status": "passed",
+        "judge-disagreement": false
+      },
+      "evaluations": [
+        {
+          "person-id": "a",
+          "criteria": [
+            {
+              "criterion-id": "coverage",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterion-id": "seasonal-lighting",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        },
+        {
+          "person-id": "a",
+          "criteria": [
+            {
+              "criterion-id": "coverage",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterion-id": "seasonal-lighting",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "1-b",
+      "round": 1,
+      "person-id": "b",
+      "status": "evaluated",
+      "attempt": {
+        "answer": "Соберу модульную схему зала и проверю её на синтетических данных.",
+        "trace": {
+          "provider": "codex",
+          "reasoning-ms": 60000,
+          "wall-time-ms": 60000,
+          "terminal-ms": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requested-model": "",
+          "requested-effort": "high",
+          "resolved-model": null,
+          "applied-effort": null,
+          "cli-version": null,
+          "active-reasoning-ms": null,
+          "reasoning-truncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "person-id": "b",
+        "interval": {
+          "lower": 75,
+          "upper": 75
+        },
+        "criteria": [
+          {
+            "criterion-id": "coverage",
+            "assessments": [
+              {
+                "criterion-id": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterion-id": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 0.5,
+              "upper": 0.5
+            }
+          },
+          {
+            "criterion-id": "seasonal-lighting",
+            "assessments": [
+              {
+                "criterion-id": "seasonal-lighting",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterion-id": "seasonal-lighting",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 1,
+              "upper": 1
+            }
+          }
+        ],
+        "required-status": "passed",
+        "judge-disagreement": false
+      },
+      "evaluations": [
+        {
+          "person-id": "b",
+          "criteria": [
+            {
+              "criterion-id": "coverage",
+              "status": "partial",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterion-id": "seasonal-lighting",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        },
+        {
+          "person-id": "b",
+          "criteria": [
+            {
+              "criterion-id": "coverage",
+              "status": "partial",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterion-id": "seasonal-lighting",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "1-neutral",
+      "round": 1,
+      "person-id": "neutral",
+      "status": "evaluated",
+      "attempt": {
+        "answer": "Общий план: зал, освещение, расписание работ.",
+        "trace": {
+          "provider": "codex",
+          "reasoning-ms": 60000,
+          "wall-time-ms": 60000,
+          "terminal-ms": 0,
+          "summary": "Completed synthetic stage",
+          "reasoning": [],
+          "requested-model": "",
+          "requested-effort": "high",
+          "resolved-model": null,
+          "applied-effort": null,
+          "cli-version": null,
+          "active-reasoning-ms": null,
+          "reasoning-truncated": false
+        }
+      },
+      "score": {
+        "version": 2,
+        "person-id": "neutral",
+        "interval": {
+          "lower": 75,
+          "upper": 75
+        },
+        "criteria": [
+          {
+            "criterion-id": "coverage",
+            "assessments": [
+              {
+                "criterion-id": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterion-id": "coverage",
+                "status": "partial",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 0.5,
+              "upper": 0.5
+            }
+          },
+          {
+            "criterion-id": "seasonal-lighting",
+            "assessments": [
+              {
+                "criterion-id": "seasonal-lighting",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              },
+              {
+                "criterion-id": "seasonal-lighting",
+                "status": "met",
+                "reason": "Observable coverage of the task",
+                "quote": "plan"
+              }
+            ],
+            "disputed": false,
+            "interval": {
+              "lower": 1,
+              "upper": 1
+            }
+          }
+        ],
+        "required-status": "passed",
+        "judge-disagreement": false
+      },
+      "evaluations": [
+        {
+          "person-id": "neutral",
+          "criteria": [
+            {
+              "criterion-id": "coverage",
+              "status": "partial",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterion-id": "seasonal-lighting",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        },
+        {
+          "person-id": "neutral",
+          "criteria": [
+            {
+              "criterion-id": "coverage",
+              "status": "partial",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            },
+            {
+              "criterion-id": "seasonal-lighting",
+              "status": "met",
+              "reason": "Observable coverage of the task",
+              "quote": "plan"
+            }
+          ]
+        }
+      ],
+      "error": null
+    }
+  ],
+  "comparison": {
+    "summary": "Предварительный эксперимент: один прогон. Баллы описывают выполнение критериев, устойчивость не установлена.",
+    "comparison-eligible": false,
+    "difference": {
+      "lower": 25,
+      "upper": 25
+    }
+  },
+  "traces": [
+    {
+      "id": "rubric",
+      "stage": "brain-analyzator",
+      "person": null,
+      "label": "Критерии задачи",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "high",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "sources-0",
+      "stage": "stalker",
+      "person": 0,
+      "label": "Наблюдения и источники",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "[private preparation trace omitted from export]",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "medium",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "profile-0",
+      "stage": "person-fabric",
+      "person": 0,
+      "label": "Устойчивый профиль",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "[private preparation trace omitted from export]",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "medium",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "sources-1",
+      "stage": "stalker",
+      "person": 1,
+      "label": "Наблюдения и источники",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "[private preparation trace omitted from export]",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "medium",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "profile-1",
+      "stage": "person-fabric",
+      "person": 1,
+      "label": "Устойчивый профиль",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "[private preparation trace omitted from export]",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "medium",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "adapt-0",
+      "stage": "person-fabric",
+      "person": 0,
+      "label": "Стратегия для задачи",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "[private preparation trace omitted from export]",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "medium",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "adapt-1",
+      "stage": "person-fabric",
+      "person": 1,
+      "label": "Стратегия для задачи",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "[private preparation trace omitted from export]",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "medium",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "adapt-2",
+      "stage": "person-fabric",
+      "person": 2,
+      "label": "Стратегия для задачи",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "[private preparation trace omitted from export]",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "medium",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "solve-1-a",
+      "stage": "person",
+      "person": 0,
+      "label": "Решение · прогон 1",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "high",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "solve-1-b",
+      "stage": "person",
+      "person": 1,
+      "label": "Решение · прогон 1",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "high",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "solve-1-neutral",
+      "stage": "person",
+      "person": 2,
+      "label": "Решение · прогон 1",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "high",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "judge-1-0",
+      "stage": "brain-analyzator",
+      "person": null,
+      "label": "Слепая оценка · прогон 1 · порядок 1",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [
+          {
+            "id": "1:r1",
+            "kind": "summary",
+            "text": "Public synthetic summary."
+          }
+        ],
+        "requested-model": "",
+        "requested-effort": "high",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "judge-1-1",
+      "stage": "brain-analyzator",
+      "person": null,
+      "label": "Слепая оценка · прогон 1 · порядок 2",
+      "trace": {
+        "provider": "codex",
+        "reasoning-ms": 60000,
+        "wall-time-ms": 60000,
+        "terminal-ms": 0,
+        "summary": "Completed synthetic stage",
+        "reasoning": [],
+        "requested-model": "",
+        "requested-effort": "high",
+        "resolved-model": null,
+        "applied-effort": null,
+        "cli-version": null,
+        "active-reasoning-ms": null,
+        "reasoning-truncated": false
+      },
+      "attempts": [
+        {
+          "index": 1,
+          "status": "accepted",
+          "wall-time-ms": 60000,
+          "error": null
+        }
+      ]
+    }
+  ],
+  "finished-at": "2026-11-08T10:24:36.000Z",
+  "export-metadata": {
+    "version": 1,
+    "redacted": true,
+    "omitted-style-exemplars": 2,
+    "omitted-source-excerpts": 2,
+    "preparation-reasoning-omitted": true,
+    "answer-text-may-be-redacted": true,
+    "scores-reference-original-answers": true,
+    "limitations": [
+      "Connected-source excerpts and private sample objects with their context are omitted. Matching text of at least 20 characters is replaced elsewhere; short quotations inside generated answers and paraphrases are not detected.",
+      "Scores describe the original in-memory answers; redacted exported answers are not a lossless replay."
+    ]
+  }
+}

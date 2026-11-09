@@ -9,3 +9,5 @@ export { decodePersonaPreset, encodePersonaPreset } from './presets/persona-pres
 export type { StoredPersonaInput, StoredPersonaPreset } from './presets/persona-preset-codec';
 
 export { parsePersonaPreset, serializePersonaPreset } from './presets/persona-preset';
+export { decodeLegacyV1Result } from './history/legacy-v1';
+export type { LegacyV1Result } from './history/legacy-v1';

@@ -7,7 +7,7 @@
 Внутренний TypeScript и live IPC используют camelCase; Rust identifiers остаются snake_case. Сохранены command/event IDs, ComponentId/status values и внешние поля провайдеров. IPC не является форматом исторического хранения: frontend и Rust поставляются одной сборкой, обе стороны проверяются общей несекретной fixture. Legacy IPC converters остаются отдельными проверенными границами, без разрешения смешанных схем в live DTO.
 
 - Настройки моделей: envelope `proteus-model-settings`, version 2. Исходный localStorage ключ сохраняется, ошибка восстановления отображается явно. `.proteus` пишет version 2 с `publicUrls`, читает v1 и v2 без изменения текста.
-- Результат: `schemaVersion: 4`, `scoringVersion: 2`, protocol version 3, `promptVersion: bsc-v2.4-camel-case`. Style profile, reply и envelope `proteus-style-exemplars` имеют version 2. Импорт истории результатов пока не реализован; старые файлы не переписываются.
+- Результат: `schemaVersion: 4`, `scoringVersion: 2`, protocol version 3, `promptVersion: bsc-v2.4-camel-case`. Style profile, reply и envelope `proteus-style-exemplars` имеют version 2. Нативное чтение истории и отдельный декодер unversioned v1 реализованы; полный viewer и декодеры тела v2–v4 ещё не приняты. Старые файлы не переписываются.
 - Native secrets: `proteus-connection-secret`, version 2, kind `config | token | githubPending | vkPending`, `payload`; предел 1 МиБ. Четыре legacy-схемы читаются без записи или копирования секрета; новая запись проверяется перед заменой того же элемента OS store.
 - Корпус: `proteus-source-record`, version 2, kind `grant | import | deleted`, `payload`, отдельный путь `v2/<id>.enc`. Legacy Record v1 и unversioned imports читаются явно; старые encrypted originals сохраняются. PRT1, AAD и ключ `corpus-key-v1` неизменны. Повреждённое или неизвестное новое поколение не вызывает возврат к старому. Tombstone предотвращает восстановление отозванных данных при прерванном удалении; повтор удаления завершает обе версии.
 
@@ -16,6 +16,19 @@
 Таблицы ниже фиксируют исходные схемы и владельцев на момент inventory; текущие файлы после декомпозиции перечислены в публичных `index.ts` и архитектуре.
 
 ## Исторический inventory форматов и владельцев
+
+Граница [истории pipeline](../packages/pipeline/src/history/parse-history-envelope.ts)
+ограничивает исходный UTF-8 JSON восемью МиБ и различает точные внешние envelopes
+unversioned v1, kebab v2/v3 и camelCase v4. Определение версии не означает проверку
+тела: каждую версию обязан принять её отдельный декодер перед отображением.
+[Legacy v1](../packages/pipeline/src/history/legacy-v1.ts) возвращает отдельный
+`LegacyV1Result` с camelCase-полями. Он сохраняет старые `bsc`, `reasoningMinutes`
+и ratio как записанные значения; не добавляет protocol/control/trials/status и
+не пересчитывает их по текущему BSC. Текст и непрозрачные ключи artifacts сохраняются,
+в том числе `__proto__` как собственное поле данных. Карта не исполняется и не
+интерпретируется как пути. Смешанные поля, неверные типы/даты и неизвестные версии
+отклоняются без изменения исходного файла. Синтетические примеры и фактические
+методы их получения перечислены в [provenance](../packages/pipeline/src/testing/legacy-results/provenance.md).
 
 | Формат                        | Чтение/запись исходного inventory                                                                                          | Новая граница                                                                                                                                                                                                                                                                                          | Владелец                                               |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |

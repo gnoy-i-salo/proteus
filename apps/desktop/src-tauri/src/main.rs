@@ -108,6 +108,7 @@ fn main() {
         ))
         .invoke_handler(tauri::generate_handler![
             memory::commands::open_research_session,
+            memory::commands::research_memory_catalog,
             memory::commands::close_memory_session,
             memory::commands::recall_memory,
             memory::commands::read_memory_episode,

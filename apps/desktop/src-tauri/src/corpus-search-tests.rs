@@ -2455,6 +2455,8 @@ fn final_index_commit_guard_restores_old_rows_pointer_and_staging_after_all_writ
 // scope as a truthful zero. The fixtures reuse the shared private helpers
 // above via `super`, as the receipt/scan tests do.
 
+#[path = "corpus-search-catalog-tests.rs"]
+mod catalog_tests;
 #[path = "corpus-search-count-tests.rs"]
 mod count_tests;
 

@@ -11,4 +11,5 @@ export { parseMemoryAnalysis } from './parse-memory-analysis';
 export type { MemoryAnalysisSource, MemoryAnalysisScope } from './parse-memory-analysis';
 export { researchMemory } from './memory-research';
 export type { MemoryResearchResult, OpenResearchMemory } from './memory-research';
-export type { MemoryResearchInput, ResearchSample } from './research-plan';
+export type { MemoryResearchInput } from './research-plan';
+export type { ResearchSample } from '@proteus-int/contracts';

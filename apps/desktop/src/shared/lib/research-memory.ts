@@ -6,6 +6,7 @@ import {
   decodeModelContextRequest,
   decodeResearchContext,
   decodeResearchPublication,
+  decodeResearchCatalog,
   parseMemoryAction,
 } from '@proteus-int/contracts';
 import type {
@@ -140,6 +141,17 @@ function researchPort(
   }
   return {
     session,
+    async getResearchCatalog(limit, signal) {
+      check(signal);
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10000)
+        throw new Error('Неверный размер каталога исследования.');
+      return execute(
+        'research_memory_catalog',
+        { limit },
+        (value) => decodeResearchCatalog(value, session, limit),
+        signal,
+      );
+    },
     async recall(query, intent, signal) {
       check(signal);
       const action = parseMemoryAction({ action: 'recall', query, intent });

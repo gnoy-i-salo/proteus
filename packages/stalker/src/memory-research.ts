@@ -6,7 +6,7 @@ import type {
   ModelMemoryAction,
   MemoryItemDraft,
 } from '@proteus-int/contracts';
-import { parseMemoryAction } from '@proteus-int/contracts';
+import { decodeResearchCatalog, parseMemoryAction } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
 import { selectResearchSamples, validateResearchInput } from './research-plan';
@@ -153,7 +153,7 @@ export async function researchMemory(
   signal?: AbortSignal,
 ): Promise<MemoryResearchResult> {
   signal?.throwIfAborted();
-  const selected = validateResearchInput(input);
+  let selected = validateResearchInput(input);
   if (provider.id !== selected.request.model.provider)
     throw new Error('CLI не соответствует исследованию.');
   const controller = new AbortController();
@@ -173,6 +173,15 @@ export async function researchMemory(
     memory = await open(selected.request, controller.signal);
     controller.signal.throwIfAborted();
     const model = createResearchModel(selected.request, memory, provider);
+    if (selected.samples === undefined) {
+      const catalog = decodeResearchCatalog(
+        await memory.getResearchCatalog(10000, controller.signal),
+        memory.session,
+        10000,
+      );
+      controller.signal.throwIfAborted();
+      selected = validateResearchInput({ ...selected, samples: catalog.samples });
+    }
     const records: ResearchRecord[] = [];
     const limitations: string[] = [];
     const samples = selectResearchSamples(selected);

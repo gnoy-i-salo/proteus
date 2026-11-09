@@ -6,7 +6,7 @@ use super::{
     registry::MemorySessions,
     research_draft::ResearchPublicationDraft,
     research_workflow::{self, OpenResearchRequest, ResearchMode, ResearchSession},
-    session::{MemorySession, RecordedRetrieval},
+    session::{MemorySession, RecordedRetrieval, ResearchCatalogResponse},
 };
 use crate::{local_embedding::service::LocalModelService, sources::Sources};
 use serde::Serialize;
@@ -80,6 +80,17 @@ pub async fn recall_memory(
             session.recall_recorded(&query_text, None, now)?
         };
         Ok(RetrievalResponse(result))
+    })
+    .await
+}
+#[tauri::command]
+pub async fn research_memory_catalog(
+    session_id: String,
+    limit: usize,
+    sessions: tauri::State<'_, Arc<MemorySessions>>,
+) -> Result<ResearchCatalogResponse, String> {
+    in_session(sessions.inner().clone(), session_id, move |session| {
+        session.research_catalog(limit, now)
     })
     .await
 }

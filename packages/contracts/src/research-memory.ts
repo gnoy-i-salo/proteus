@@ -33,6 +33,21 @@ export interface ResearchSessionDescriptor {
   readonly expiresAt: string;
 }
 
+export interface ResearchSample {
+  readonly episodeId: string;
+  readonly sourceKey: string;
+  readonly periodKey: string;
+}
+export interface ResearchCatalog {
+  readonly schemaVersion: 1;
+  readonly snapshotId: string;
+  readonly indexGeneration: number;
+  readonly personaId: string;
+  readonly policyVersion: string;
+  readonly eligibleEpisodes: number;
+  readonly samples: readonly ResearchSample[];
+}
+
 // Host lifecycle and research operations only; manifests and simulation belong
 // to their separate native authority, not fabricated methods on this port.
 export interface ResearchMemoryPort extends Pick<
@@ -40,5 +55,6 @@ export interface ResearchMemoryPort extends Pick<
   'recall' | 'readEpisode' | 'publishResearch' | 'reserveModelContext'
 > {
   readonly session: ResearchSessionDescriptor;
+  getResearchCatalog(limit: number, signal?: AbortSignal): Promise<ResearchCatalog>;
   close(): Promise<void>;
 }

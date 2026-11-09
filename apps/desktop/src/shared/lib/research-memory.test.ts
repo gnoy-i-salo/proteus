@@ -104,6 +104,33 @@ const draft = {
   analyzedRefs: [],
   contextLeaseIds: ['lease:1'],
 };
+
+it('requests a bounded catalog on the open session and rejects foreign metadata', async () => {
+  const port = await openNativeResearch(request);
+  const catalog = {
+    schemaVersion: 1,
+    snapshotId: descriptor.corpusSnapshotId,
+    indexGeneration: descriptor.indexGeneration,
+    personaId: descriptor.personaId,
+    policyVersion: descriptor.policyVersion,
+    eligibleEpisodes: 1,
+    samples: [{ episodeId: 'episode:1', sourceKey: 'binding:1', periodKey: 'undated' }],
+  };
+  host.invoke.mockResolvedValueOnce(catalog);
+  expect(await port.getResearchCatalog(10)).toEqual(catalog);
+  expect(host.invoke).toHaveBeenLastCalledWith('research_memory_catalog', {
+    sessionId: descriptor.id,
+    limit: 10,
+  });
+  const calls = host.invoke.mock.calls.length;
+  await expect(port.getResearchCatalog(0)).rejects.toThrow();
+  expect(host.invoke).toHaveBeenCalledTimes(calls);
+  host.invoke.mockResolvedValueOnce({ ...catalog, personaId: 'foreign' });
+  await expect(port.getResearchCatalog(10)).rejects.toThrow();
+  expect(host.invoke).toHaveBeenLastCalledWith('close_memory_session', {
+    sessionId: descriptor.id,
+  });
+});
 function publication() {
   const publishedAt = '2026-11-09T03:00:00.000Z';
   return {

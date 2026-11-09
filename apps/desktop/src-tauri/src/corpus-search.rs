@@ -63,6 +63,8 @@
 //! versioned corpus migration (`corpus-search-schema.sql`). This module never
 //! migrates lazily and never touches `user_version`; opening an unmigrated
 //! database fails closed with an explicit error.
+#[path = "corpus-search-catalog.rs"]
+mod catalog;
 #[path = "corpus-search-count.rs"]
 mod count;
 #[path = "corpus-search-db.rs"]
@@ -84,6 +86,7 @@ mod stage;
 #[path = "corpus-search-types.rs"]
 mod types;
 
+pub use catalog::{research_catalog, ResearchCatalog, ResearchSample};
 pub use count::{count_reference_documents, SearchScopeCounts};
 pub use read::{
     active_generation, active_receipt, indexed_text, prune_generations, search, search_with_receipt,

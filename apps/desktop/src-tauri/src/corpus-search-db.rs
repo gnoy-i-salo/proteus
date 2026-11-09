@@ -2,6 +2,15 @@
 use super::*;
 use crate::corpus_database::CorpusDatabase;
 impl CorpusDatabase {
+    pub fn research_catalog(
+        &self,
+        scope: &SearchScope,
+        expected: &SearchIndexReceipt,
+        limit: usize,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<ResearchCatalog, String> {
+        research_catalog(&self.connection, scope, expected, limit, check)
+    }
     pub fn count_reference_documents(
         &self,
         scope: &SearchScope,

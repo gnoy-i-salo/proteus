@@ -2,20 +2,16 @@ import type {
   CorpusSnapshot,
   OpenResearchSessionRequest,
   PersonInput,
+  ResearchSample,
 } from '@proteus-int/contracts';
 import { decodeCorpusSnapshot, decodeOpenResearchSessionRequest } from '@proteus-int/contracts';
 
-export interface ResearchSample {
-  readonly episodeId: string;
-  readonly sourceKey: string;
-  readonly periodKey: string;
-}
 export interface MemoryResearchInput {
   readonly person: PersonInput;
   readonly request: OpenResearchSessionRequest;
   readonly snapshot: CorpusSnapshot;
   // Host-selected reference candidates. These hints never grant native access.
-  readonly samples: readonly ResearchSample[];
+  readonly samples?: readonly ResearchSample[];
   readonly limits: {
     readonly maxSeedEpisodes: number;
     readonly maxPlanningSteps: number;
@@ -43,14 +39,14 @@ export function validateResearchInput(input: MemoryResearchInput): MemoryResearc
   const snapshot = decodeCorpusSnapshot(input.snapshot);
   if (
     snapshot.id !== request.snapshotId ||
-    input.samples.length > 10000 ||
+    (input.samples?.length ?? 0) > 10000 ||
     input.person.publicUrls.length > 32 ||
     request.modelBudget.maxCalls < 2
   )
     throw new Error('Исследование не соответствует снимку или бюджету.');
   const episodes = new Set(snapshot.episodeIds);
   const selected = new Set<string>();
-  const samples = input.samples.map((sample) => {
+  const samples = input.samples?.map((sample) => {
     if (!episodes.has(sample.episodeId) || selected.has(sample.episodeId))
       throw new Error('Эпизод выборки отсутствует в снимке или повторяется.');
     selected.add(sample.episodeId);
@@ -70,7 +66,7 @@ export function validateResearchInput(input: MemoryResearchInput): MemoryResearc
   return {
     request,
     snapshot,
-    samples,
+    ...(samples === undefined ? {} : { samples }),
     person,
     limits: {
       maxSeedEpisodes: count(
@@ -98,7 +94,7 @@ function interleave<T>(groups: readonly (readonly T[])[], limit: number): T[] {
 }
 export function selectResearchSamples(input: MemoryResearchInput): readonly ResearchSample[] {
   const sources = new Map<string, Map<string, ResearchSample[]>>();
-  for (const sample of input.samples) {
+  for (const sample of input.samples ?? []) {
     let periods = sources.get(sample.sourceKey);
     if (!periods) {
       periods = new Map();

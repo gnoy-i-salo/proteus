@@ -177,9 +177,12 @@ export { decodeSourceExcerpt } from './source-excerpt-codec';
 export type {
   OpenResearchSessionRequest,
   ResearchSessionDescriptor,
+  ResearchSample,
+  ResearchCatalog,
   ResearchMemoryPort,
 } from './research-memory';
 export { decodeOpenResearchSessionRequest, decodeResearchSession } from './research-memory-codec';
+export { decodeResearchCatalog } from './research-catalog-codec';
 export { decodeRetrievalReceipt } from './memory-retrieval-codec';
 export { decodeResearchRetrieval } from './research-retrieval-codec';
 export { decodeResearchContext } from './research-context-codec';

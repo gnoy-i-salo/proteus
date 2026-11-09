@@ -12,7 +12,7 @@ import type { MemoryResearchInput } from './research-plan';
 import { memoryExcerpt } from './testing/memory-fixtures';
 
 function fixture() {
-  const input: MemoryResearchInput = {
+  const input: MemoryResearchInput & { samples: NonNullable<MemoryResearchInput['samples']> } = {
     person: { label: 'Анна', context: 'Коллега Бориса', publicUrls: [] },
     request: {
       schemaVersion: 1,
@@ -189,7 +189,9 @@ function fixture() {
     return Promise.resolve(receipt);
   });
   const close = vi.fn<ResearchMemoryPort['close']>().mockResolvedValue();
+  const getCatalog = vi.fn<ResearchMemoryPort['getResearchCatalog']>();
   const memory: ResearchMemoryPort = {
+    getResearchCatalog: getCatalog,
     session: {
       schemaVersion: 1,
       id: 'session:1',
@@ -218,6 +220,7 @@ function fixture() {
     reserve,
     publish,
     close,
+    getCatalog,
     source,
     item,
     trace,
@@ -467,4 +470,42 @@ it('closes a timed out research without invoking a model or publishing', async (
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('obtains initial candidates from the authorized native catalog when host seeds are absent', async () => {
+  const f = fixture();
+  const { samples, ...input } = f.input;
+  const catalog = {
+    schemaVersion: 1 as const,
+    snapshotId: f.memory.session.corpusSnapshotId,
+    indexGeneration: f.memory.session.indexGeneration,
+    personaId: f.memory.session.personaId,
+    policyVersion: f.memory.session.policyVersion,
+    eligibleEpisodes: samples.length,
+    samples: samples.map((sample) => ({ ...sample, periodKey: 'window30d:681' })),
+  };
+  f.getCatalog.mockResolvedValue(catalog);
+  const result = await researchMemory(input, f.provider, f.open);
+  expect(f.getCatalog).toHaveBeenCalledExactlyOnceWith(10000, expect.any(AbortSignal));
+  expect(f.read).toHaveBeenCalledWith(samples[0]!.episodeId, expect.any(AbortSignal));
+  expect(result.publication.coverage.analyzedDocuments).toBe(1);
+  expect(f.close).toHaveBeenCalledOnce();
+});
+
+it('rejects a foreign catalog before reading sources or invoking a model and closes the session', async () => {
+  const f = fixture();
+  const { samples, ...input } = f.input;
+  f.getCatalog.mockResolvedValue({
+    schemaVersion: 1,
+    snapshotId: 'foreign',
+    indexGeneration: 1,
+    personaId: f.memory.session.personaId,
+    policyVersion: f.memory.session.policyVersion,
+    eligibleEpisodes: samples.length,
+    samples,
+  });
+  await expect(researchMemory(input, f.provider, f.open)).rejects.toThrow();
+  expect(f.read).not.toHaveBeenCalled();
+  expect(f.run).not.toHaveBeenCalled();
+  expect(f.close).toHaveBeenCalledOnce();
 });

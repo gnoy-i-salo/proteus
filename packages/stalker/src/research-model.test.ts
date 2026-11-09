@@ -49,6 +49,7 @@ const reserve = vi.fn<ResearchMemoryPort['reserveModelContext']>();
 const onValidation = vi.fn<NonNullable<IntelligenceProvider['onValidation']>>();
 const provider: IntelligenceProvider = { id: 'codex', run, onValidation };
 const memory: ResearchMemoryPort = {
+  getResearchCatalog: vi.fn(),
   session: {
     schemaVersion: 1,
     id: 'session:1',

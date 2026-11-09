@@ -1,5 +1,8 @@
 //! Host-bound retrieval state. Scope and limits are chosen once by native
 //! orchestration; model actions can only select a query or an episode ID.
+#[path = "memory-catalog-session.rs"]
+mod catalog_session;
+pub use catalog_session::ResearchCatalogResponse;
 #[path = "memory-model-session.rs"]
 mod model_session;
 #[path = "memory-publication-session.rs"]

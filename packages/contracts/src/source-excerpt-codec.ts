@@ -14,7 +14,7 @@ import {
 const providers = ['telegram', 'vk', 'instagram', 'github', 'web', 'savedPage'] as const;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-function span(value: unknown): SourceSpan {
+export function decodeSourceSpan(value: unknown): SourceSpan {
   const input = fields(value, ['documentId', 'revisionId', 'unit', 'start', 'end']);
   const start = integer(input.start);
   const end = integer(input.end);
@@ -43,7 +43,7 @@ function relation(value: unknown): DocumentRelation {
       id: nullableText(author.id),
       label: nullableText(author.label),
     },
-    span: input.span === null ? null : span(input.span),
+    span: input.span === null ? null : decodeSourceSpan(input.span),
   };
 }
 function metadata(value: unknown): SourceExcerptMetadata {
@@ -92,7 +92,7 @@ export function decodeSourceExcerpt(value: unknown): SourceExcerpt {
   const bytes = encoder.encode(sourceText);
   if (bytes.length > 64 * 1024 * 1024 || decoder.decode(bytes) !== sourceText)
     throw new Error('Неверный UTF-8 текст выдержки.');
-  const sourceSpan = span(input.span);
+  const sourceSpan = decodeSourceSpan(input.span);
   const document = decodeSourceDocumentMetadata(input.document, providers);
   if (
     document.id !== sourceSpan.documentId ||

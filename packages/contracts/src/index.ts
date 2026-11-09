@@ -183,3 +183,4 @@ export { decodeOpenResearchSessionRequest, decodeResearchSession } from './resea
 export { decodeRetrievalReceipt } from './memory-retrieval-codec';
 export { decodeResearchRetrieval } from './research-retrieval-codec';
 export { decodeResearchContext } from './research-context-codec';
+export { decodeResearchPublication } from './research-publication-codec';

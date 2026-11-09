@@ -22,6 +22,13 @@ export function memoryIds(value: unknown): string[] {
   return result;
 }
 
+export function memoryTimestamp(value: unknown, message = 'Неверная дата памяти.'): string {
+  const result = memoryText(value, 64);
+  const time = Date.parse(result);
+  if (!Number.isFinite(time) || new Date(time).toISOString() !== result) throw new Error(message);
+  return result;
+}
+
 export function memoryFields(value: unknown, expected: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Invalid memory receipt object.');

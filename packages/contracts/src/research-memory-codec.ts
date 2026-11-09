@@ -1,7 +1,7 @@
 import type { OpenResearchSessionRequest, ResearchSessionDescriptor } from './research-memory';
 import type { ModelCallBudget, RecallBudget } from './memory';
 import { choice, fields, flag, integer } from './corpus-wire-validation';
-import { memoryId, memoryText } from './memory-wire-validation';
+import { memoryId, memoryText, memoryTimestamp } from './memory-wire-validation';
 
 function bounded(value: unknown, maximum: number): number {
   const result = integer(value, 1);
@@ -102,10 +102,7 @@ export function decodeResearchSession(
     input.mode !== expected.mode
   )
     throw new Error('Сессия не соответствует запросу исследования.');
-  const expiresAt = memoryText(input.expiresAt, 64);
-  const time = Date.parse(expiresAt);
-  if (!Number.isFinite(time) || new Date(time).toISOString() !== expiresAt)
-    throw new Error('Неверный срок исследовательской сессии.');
+  const expiresAt = memoryTimestamp(input.expiresAt, 'Неверный срок исследовательской сессии.');
   return {
     schemaVersion: 1,
     id: memoryId(input.id, 128),

@@ -15,6 +15,7 @@ export function ExperimentWorkspace(props: {
   readonly onDetail: (detail: string) => void;
   readonly onNewRun: () => void;
   readonly onShowSettings: () => void;
+  readonly onShowHistory: () => void;
 }) {
   return (
     <div class={styles['experiment__workspace']}>
@@ -57,6 +58,9 @@ export function ExperimentWorkspace(props: {
           </For>
         </Show>
         <div class={styles['experiment__sidebarBottom']}>
+          <button disabled={props.run.running()} onClick={() => props.onShowHistory()}>
+            История запусков
+          </button>
           <small>
             ONE TASK.
             <br />

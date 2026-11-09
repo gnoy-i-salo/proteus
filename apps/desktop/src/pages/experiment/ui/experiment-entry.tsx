@@ -12,6 +12,7 @@ export function ExperimentEntry(props: {
   readonly onStart: () => void;
   readonly onOpenPreset: () => void;
   readonly onSavePreset: () => void;
+  readonly onShowHistory: () => void;
   readonly onShowSettings: () => void;
   readonly onShowSources: (person: number) => void;
 }) {
@@ -26,6 +27,9 @@ export function ExperimentEntry(props: {
       <header class={styles['experiment__hero']}>
         <div class={styles['experiment__topline']}>
           <div class={styles['experiment__presetActions']}>
+            <button type="button" onClick={() => props.onShowHistory()}>
+              История запусков
+            </button>
             <button type="button" onClick={() => void props.onOpenPreset()}>
               Импорт .proteus
             </button>

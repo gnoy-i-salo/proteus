@@ -838,3 +838,9 @@
     padding-block: 8px;
   }
 }
+
+@media (height <= 720px) {
+  .experiment__sidebarBottom > small {
+    display: none;
+  }
+}

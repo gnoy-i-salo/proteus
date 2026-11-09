@@ -13,3 +13,7 @@ export { decodeLegacyV1Result } from './history/legacy-v1';
 export type { LegacyV1Result } from './history/legacy-v1';
 export { decodeV4Result } from './history/result-v4';
 export type { StoredV4Result, StoredExportMetadata } from './history/result-v4';
+export { readStoredResult } from './history/read-stored-result';
+export type { StoredResult } from './history/read-stored-result';
+export { prepareStoredResult } from './history/prepare-stored-result';
+export type { PreparedStoredResult } from './history/prepare-stored-result';

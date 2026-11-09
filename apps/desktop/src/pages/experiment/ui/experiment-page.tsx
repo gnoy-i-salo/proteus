@@ -6,9 +6,11 @@ import { createExperimentSources } from '../model/experiment-sources';
 import { createExperimentSettings } from '../model/experiment-settings';
 import { createExperimentPresets } from '../model/experiment-presets';
 import { createExperimentRun } from '../model/experiment-run';
+import { createSavedExperimentHistory, reuseHistoryConditions } from '../model/experiment-history';
 import { createTraceNavigation } from '../model/trace-navigation';
 import { ExperimentEntry } from './experiment-entry';
 import { ExperimentWorkspace } from './experiment-workspace';
+import { ExperimentHistory } from './experiment-history';
 import styles from './experiment-page.module.scss';
 
 export function ExperimentPage() {
@@ -18,6 +20,18 @@ export function ExperimentPage() {
   const [sourcePerson, setSourcePerson] = createSignal<number>();
   const [error, setError] = createSignal('');
   const [detail, setDetail] = createSignal('analysis');
+  const [historyOpen, setHistoryOpen] = createSignal(false);
+  const history = createSavedExperimentHistory();
+  const showHistory = () => {
+    setHistoryOpen(true);
+    void history
+      .refresh()
+      .catch(() => setError('Не удалось прочитать историю. Повторите попытку.'));
+  };
+  const hideHistory = () => {
+    history.cancel();
+    setHistoryOpen(false);
+  };
   const {
     sourceGrants,
     sourceImports,
@@ -66,46 +80,79 @@ export function ExperimentPage() {
   return (
     <main class={styles['experiment']} data-palette={selected() === 0 ? 'turquoise' : 'violet'}>
       <Show
-        when={run.screen() === 'start'}
+        when={!historyOpen()}
         fallback={
-          <ExperimentWorkspace
-            run={run}
-            traces={traces}
-            names={input.names()}
-            selected={selected()}
-            detail={detail()}
-            onSelect={setSelected}
-            onDetail={setDetail}
-            onNewRun={() => {
-              run.setScreen('start');
-              setError('');
+          <ExperimentHistory
+            history={history}
+            onError={setError}
+            onClose={hideHistory}
+            onReuse={(value) => {
+              reuseHistoryConditions(
+                value.result.input,
+                value.sourceVersion === 4 ? value.result.protocol.repetitions : 1,
+                {
+                  running: run.running,
+                  clearSourceGrants,
+                  applyInput: input.applyInput,
+                  setRepetitions: input.setRepetitions,
+                  onApplied: () => {
+                    run.setScreen('start');
+                    hideHistory();
+                  },
+                },
+              );
             }}
-            onShowSettings={() => setSettingsOpen(true)}
           />
         }
       >
-        <ExperimentEntry
-          input={input}
-          available={run.available()}
-          sourceCounts={sourceGrants().map((grants) => grants.length)}
-          onStart={() =>
-            void run
-              .start()
-              .catch(() =>
-                setError('Не удалось начать эксперимент. Проверьте настройки и повторите попытку.'),
+        <Show
+          when={run.screen() === 'start'}
+          fallback={
+            <ExperimentWorkspace
+              run={run}
+              traces={traces}
+              names={input.names()}
+              selected={selected()}
+              detail={detail()}
+              onSelect={setSelected}
+              onDetail={setDetail}
+              onNewRun={() => {
+                run.setScreen('start');
+                setError('');
+              }}
+              onShowSettings={() => setSettingsOpen(true)}
+              onShowHistory={showHistory}
+            />
+          }
+        >
+          <ExperimentEntry
+            input={input}
+            available={run.available()}
+            sourceCounts={sourceGrants().map((grants) => grants.length)}
+            onStart={() =>
+              void run
+                .start()
+                .catch(() =>
+                  setError(
+                    'Не удалось начать эксперимент. Проверьте настройки и повторите попытку.',
+                  ),
+                )
+            }
+            onOpenPreset={() =>
+              void openPreset().catch(() =>
+                setError('Не удалось открыть пресет. Повторите попытку.'),
               )
-          }
-          onOpenPreset={() =>
-            void openPreset().catch(() => setError('Не удалось открыть пресет. Повторите попытку.'))
-          }
-          onSavePreset={() =>
-            void savePreset().catch(() =>
-              setError('Не удалось сохранить пресет. Повторите попытку.'),
-            )
-          }
-          onShowSettings={() => setSettingsOpen(true)}
-          onShowSources={setSourcePerson}
-        />
+            }
+            onSavePreset={() =>
+              void savePreset().catch(() =>
+                setError('Не удалось сохранить пресет. Повторите попытку.'),
+              )
+            }
+            onShowSettings={() => setSettingsOpen(true)}
+            onShowHistory={showHistory}
+            onShowSources={setSourcePerson}
+          />
+        </Show>
       </Show>
       <input
         ref={(element) => {

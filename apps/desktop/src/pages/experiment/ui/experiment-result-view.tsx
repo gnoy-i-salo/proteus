@@ -11,7 +11,9 @@ import { ReplyReader } from './reply-reader';
 import styles from './experiment-page.module.scss';
 
 export function ExperimentResultView(props: {
-  readonly run: Pick<ExperimentRunModel, 'result' | 'savedPath' | 'download' | 'failureReason'>;
+  readonly run: Pick<ExperimentRunModel, 'result' | 'failureReason'> &
+    Partial<Pick<ExperimentRunModel, 'savedPath' | 'download'>>;
+  readonly readOnly?: boolean;
   readonly traces: TraceNavigation;
   readonly selected: number;
   readonly detail: string;
@@ -56,9 +58,11 @@ export function ExperimentResultView(props: {
     <>
       <header class={styles['experiment__resultBanner']}>
         <span>
-          {props.run.result()?.status === 'complete'
-            ? 'EXPERIMENT COMPLETE'
-            : 'EXPERIMENT INCOMPLETE'}
+          {props.readOnly
+            ? 'СОХРАНЁННЫЙ РЕЗУЛЬТАТ'
+            : props.run.result()?.status === 'complete'
+              ? 'EXPERIMENT COMPLETE'
+              : 'EXPERIMENT INCOMPLETE'}
         </span>
         <h2>
           {props.selected === 3
@@ -77,7 +81,11 @@ export function ExperimentResultView(props: {
           <FailureReason
             label="Причина неполной серии"
             reason={props.run.failureReason()}
-            retained="Сохранённые ответы и этапы доступны. Можно сохранить JSON или начать новый запуск."
+            retained={
+              props.readOnly
+                ? 'Сохранённые ответы и этапы доступны для чтения.'
+                : 'Сохранённые ответы и этапы доступны. Можно сохранить JSON или начать новый запуск.'
+            }
           />
         </Show>
       </header>
@@ -173,10 +181,16 @@ export function ExperimentResultView(props: {
         </Show>
       </div>
       <footer class={styles['experiment__footer']}>
-        <span title={props.run.savedPath()}>
-          {props.run.savedPath() ? '✓ Сохранено локально' : 'Результат готов'}
+        <span title={props.run.savedPath?.()}>
+          {props.readOnly
+            ? 'Просмотр истории · исходный файл не изменён'
+            : props.run.savedPath?.()
+              ? '✓ Сохранено локально'
+              : 'Результат готов'}
         </span>
-        <button onClick={() => props.run.download()}>↓ JSON</button>
+        <Show when={!props.readOnly && props.run.download}>
+          <button onClick={() => props.run.download?.()}>↓ JSON</button>
+        </Show>
       </footer>
     </>
   );

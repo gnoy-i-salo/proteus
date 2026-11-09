@@ -6,8 +6,59 @@ import type {
   SavedExperimentText,
 } from '../../../shared/lib/experiment-history';
 import { createExperimentHistory } from './experiment-history';
+import { reuseHistoryConditions } from './experiment-history';
 import type { ExperimentHistoryPort } from './experiment-history';
 vi.mock('solid-js', () => vi.importActual<typeof SolidClient>('solid-js/dist/solid.js'));
+
+it('explicit reuse clears existing source permissions before applying exact conditions and never starts a run', () => {
+  const input = {
+    task: ' exact\r\n🙂 ',
+    people: [
+      { label: 'A', context: ' own text ', publicUrls: [] },
+      { label: 'B', context: 'other', publicUrls: [] },
+    ],
+  } as const;
+  let granted = true;
+  const repetitions = vi.fn();
+  const applied = vi.fn();
+  const port = {
+    running: () => false,
+    clearSourceGrants: () => {
+      granted = false;
+    },
+    applyInput: vi.fn((value) => {
+      expect(granted).toBe(false);
+      expect(value).toEqual(input);
+    }),
+    setRepetitions: repetitions,
+    onApplied: applied,
+  };
+  expect(reuseHistoryConditions(input, 3, port)).toBe(true);
+  expect(port.applyInput).toHaveBeenCalledExactlyOnceWith(input);
+  expect(repetitions).toHaveBeenCalledExactlyOnceWith(3);
+  expect(applied).toHaveBeenCalledTimes(1);
+  expect(input.task).toBe(' exact\r\n🙂 ');
+});
+it('refuses reuse while an experiment runs without clearing its permissions', () => {
+  const changed = vi.fn();
+  const input = {
+    task: 'task',
+    people: [
+      { label: 'A', context: 'a', publicUrls: [] },
+      { label: 'B', context: 'b', publicUrls: [] },
+    ],
+  } as const;
+  expect(
+    reuseHistoryConditions(input, 1, {
+      running: () => true,
+      clearSourceGrants: changed,
+      applyInput: changed,
+      setRepetitions: changed,
+      onApplied: changed,
+    }),
+  ).toBe(false);
+  expect(changed).not.toHaveBeenCalled();
+});
 
 function page(ids = ['a', 'b'], nextOffset: number | null = null): SavedExperimentPage {
   return {

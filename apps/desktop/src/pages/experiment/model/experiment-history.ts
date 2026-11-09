@@ -1,4 +1,6 @@
 import { batch, createSignal, onCleanup } from 'solid-js';
+import type { ExperimentInput } from '@proteus-int/contracts';
+import { prepareStoredResult, readStoredResult } from '@proteus-int/pipeline';
 import { listSavedExperiments, readSavedExperiment } from '../../../shared/lib/experiment-history';
 import type { SavedExperimentPage } from '../../../shared/lib/experiment-history';
 
@@ -125,4 +127,31 @@ export function createExperimentHistory<T>(
       setOpenError('');
     },
   };
+}
+export type ExperimentHistoryModel<T> = ReturnType<typeof createExperimentHistory<T>>;
+
+export function createSavedExperimentHistory() {
+  return createExperimentHistory((text) => prepareStoredResult(readStoredResult(text)));
+}
+
+export interface HistoryReusePort {
+  readonly running: () => boolean;
+  readonly clearSourceGrants: () => void;
+  readonly applyInput: (value: ExperimentInput) => void;
+  readonly setRepetitions: (value: 1 | 3) => void;
+  readonly onApplied: () => void;
+}
+export function reuseHistoryConditions(
+  input: ExperimentInput,
+  repetitions: 1 | 3,
+  port: HistoryReusePort,
+): boolean {
+  if (port.running()) return false;
+  batch(() => {
+    port.clearSourceGrants();
+    port.applyInput(input);
+    port.setRepetitions(repetitions);
+    port.onApplied();
+  });
+  return true;
 }

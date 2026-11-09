@@ -1,27 +1,6 @@
 import type { ModelContextRequest } from './memory';
-import { fields, list } from './corpus-wire-validation';
-
-const encoder = new TextEncoder();
-const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-function text(value: unknown, maximumBytes: number): string {
-  if (typeof value !== 'string') throw new Error('Неверный текст входа модели.');
-  const bytes = encoder.encode(value);
-  if (bytes.length > maximumBytes) throw new Error('Превышен размер входа модели.');
-  if (decoder.decode(bytes) !== value) throw new Error('Вход модели содержит неверный Unicode.');
-  return value;
-}
-function id(value: unknown): string {
-  const result = text(value, 256);
-  if (!result.trim() || /\p{Cc}/u.test(result)) throw new Error('Неверный идентификатор памяти.');
-  return result;
-}
-function ids(value: unknown): string[] {
-  const values = list(value);
-  if (values.length > 1000) throw new Error('Слишком много ссылок контекста.');
-  const result = values.map(id);
-  if (new Set(result).size !== result.length) throw new Error('Повторяющиеся ссылки контекста.');
-  return result;
-}
+import { fields } from './corpus-wire-validation';
+import { memoryText as text, memoryId as id, memoryIds as ids } from './memory-wire-validation';
 
 /** V2 supplies base input; native assembles sources and computes dispatch identity. */
 export function decodeModelContextRequest(value: unknown): ModelContextRequest {

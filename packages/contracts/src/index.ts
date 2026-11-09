@@ -174,3 +174,9 @@ export {
 
 export { decodeModelContextRequest } from './memory-context-codec';
 export { decodeSourceExcerpt } from './source-excerpt-codec';
+export type {
+  OpenResearchSessionRequest,
+  ResearchSessionDescriptor,
+  ResearchMemoryPort,
+} from './research-memory';
+export { decodeOpenResearchSessionRequest, decodeResearchSession } from './research-memory-codec';

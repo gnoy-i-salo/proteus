@@ -148,6 +148,7 @@ export interface PersonaManifest {
 
 export interface RecallResult {
   readonly items: readonly MemoryItem[];
+  readonly sources: readonly SourceExcerpt[];
   readonly receipt: RetrievalReceipt;
   readonly limitations: readonly string[];
 }

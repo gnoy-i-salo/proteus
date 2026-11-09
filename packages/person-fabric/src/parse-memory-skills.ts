@@ -9,8 +9,8 @@ export interface MemorySkillScope {
 }
 
 // Two cap groups bound one extraction. Scope-input caps guard the host scope
-// before large allocation: at most 1000 memory items, 64 source spans per
-// item, 256 UTF8 bytes per id and 1 MiB of scope reference bytes in total.
+// before large allocation: at most 1000 memory items, 64 source spans and
+// contradiction refs per item, 256 UTF8 bytes per id and 1 MiB of scope reference bytes in total.
 // Output caps bound accepted skill drafts: at most maxSkills (1..10) drafts,
 // 16 memory item refs and 16 spans per skill, 4 KiB of UTF8 for trigger and
 // outcomeCheck, 2 KiB per inputs/steps/limitations entry, 16-entry lists and
@@ -18,6 +18,7 @@ export interface MemorySkillScope {
 // rejects the whole call; nothing is silently sliced.
 const maxScopeItems = 1000;
 const maxHostSpansPerItem = 64;
+const maxHostContradictionRefs = 64;
 const maxIdBytes = 256;
 const maxScopeRefBytes = 1048576;
 const maxRefsPerSkill = 16;
@@ -137,8 +138,8 @@ function bindItem(raw: unknown): BoundItem {
   const kind = choice(record.kind, kinds, 'item kind');
   const support = choice(record.support, itemSupports, 'item support');
   if (!Array.isArray(record.contradictionIds)) fail('item contradictionIds must be an array.');
-  if (record.contradictionIds.length > maxListEntries)
-    fail(`item contradictionIds exceed the ${maxListEntries} entry bound.`);
+  if (record.contradictionIds.length > maxHostContradictionRefs)
+    fail(`item contradictionIds exceed the ${maxHostContradictionRefs} entry bound.`);
   const contradictionIds = record.contradictionIds.map((entry: unknown) =>
     boundedId(entry, 'contradiction id'),
   );

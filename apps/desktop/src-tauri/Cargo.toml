@@ -85,3 +85,9 @@ debug = false
 
 [profile.release.package.candle-transformers]
 opt-level = 3
+
+# Cold model loading verifies 470 MB of weights before inference. Unoptimized
+# software SHA256 can exhaust the operation budget on CPU runners by itself.
+[profile.dev.package.sha2]
+opt-level = 3
+debug = false

@@ -169,7 +169,14 @@ test('ingestion picker and job adapters stay behind UI scenario models', () => {
 });
 
 test('research, search and cancellable native adapters stay behind UI scenario models', () => {
-  for (const adapter of ['research-memory', 'native-operation', 'local-model', 'corpus-search']) {
+  for (const adapter of [
+    'research-memory',
+    'fabric-memory',
+    'native-memory-session',
+    'native-operation',
+    'local-model',
+    'corpus-search',
+  ]) {
     const source = `import { action } from '../../../shared/lib/${adapter}';`;
     assert.ok(uiBoundaryErrors(source, ui).length, adapter);
     assert.deepEqual(

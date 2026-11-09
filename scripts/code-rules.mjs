@@ -13,6 +13,8 @@ const adapters = new Set([
   'ingestion-input',
   'ingestion',
   'research-memory',
+  'fabric-memory',
+  'native-memory-session',
   'native-operation',
   'local-model',
   'corpus-search',

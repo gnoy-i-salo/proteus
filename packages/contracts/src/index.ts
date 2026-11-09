@@ -187,3 +187,17 @@ export { decodeRetrievalReceipt } from './memory-retrieval-codec';
 export { decodeResearchRetrieval } from './research-retrieval-codec';
 export { decodeResearchContext } from './research-context-codec';
 export { decodeResearchPublication } from './research-publication-codec';
+export type {
+  OpenFabricSessionRequest,
+  FabricSessionDescriptor,
+  FabricContextRequest,
+  FabricContextLease,
+  FabricMemoryPort,
+} from './fabric-memory';
+export { decodeMemoryItem } from './memory-item-codec';
+export {
+  decodeOpenFabricSessionRequest,
+  decodeFabricSession,
+  decodeFabricContextRequest,
+} from './fabric-memory-codec';
+export { decodeFabricContext } from './fabric-context-codec';

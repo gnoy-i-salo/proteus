@@ -7,7 +7,7 @@
 Внутренний TypeScript и live IPC используют camelCase; Rust identifiers остаются snake_case. Сохранены command/event IDs, ComponentId/status values и внешние поля провайдеров. IPC не является форматом исторического хранения: frontend и Rust поставляются одной сборкой, обе стороны проверяются общей несекретной fixture. Legacy IPC converters остаются отдельными проверенными границами, без разрешения смешанных схем в live DTO.
 
 - Настройки моделей: envelope `proteus-model-settings`, version 2. Исходный localStorage ключ сохраняется, ошибка восстановления отображается явно. `.proteus` пишет version 2 с `publicUrls`, читает v1 и v2 без изменения текста.
-- Результат: `schemaVersion: 4`, `scoringVersion: 2`, protocol version 3, `promptVersion: bsc-v2.4-camel-case`. Style profile, reply и envelope `proteus-style-exemplars` имеют version 2. Нативное чтение истории и отдельные декодеры unversioned v1 и v4 реализованы; полный viewer и декодеры тела v2/v3 ещё не приняты. Старые файлы не переписываются.
+- Результат: `schemaVersion: 4`, `scoringVersion: 2`, protocol version 3, `promptVersion: bsc-v2.4-camel-case`. Style profile, reply и envelope `proteus-style-exemplars` имеют version 2. Нативное чтение истории и отдельные декодеры unversioned v1, kebab v2/v3 и camelCase v4 подключены к просмотру; итоговая приёмка x1y.16 остаётся отдельным условием. Старые файлы не переписываются.
 - Native secrets: `proteus-connection-secret`, version 2, kind `config | token | githubPending | vkPending`, `payload`; предел 1 МиБ. Четыре legacy-схемы читаются без записи или копирования секрета; новая запись проверяется перед заменой того же элемента OS store.
 - Корпус: `proteus-source-record`, version 2, kind `grant | import | deleted`, `payload`, отдельный путь `v2/<id>.enc`. Legacy Record v1 и unversioned imports читаются явно; старые encrypted originals сохраняются. PRT1, AAD и ключ `corpus-key-v1` неизменны. Повреждённое или неизвестное новое поколение не вызывает возврат к старому. Tombstone предотвращает восстановление отозванных данных при прерванном удалении; повтор удаления завершает обе версии.
 
@@ -41,7 +41,7 @@ unversioned v1, kebab v2/v3 и camelCase v4. Определение версии
 cancelled, затем проверяют raw и фактический export. Они не вызывают внешние CLI.
 Чтение не подтверждает актуальные разрешения источников.
 
-История подключает v1/v4 через `readStoredResult`; v2/v3 пока явно отклоняются.
+История подключает v1–v4 через `readStoredResult`. Декодер `legacy-series` возвращает собственный camelCase тип v2/v3 с исходными protocol version 2, style/reply version 1; не превращает его в текущий ExperimentResult. Проверяются структуры, связи, полные копии trials/attempts при любом статусе и даты; записанные оценки, разницы и сводки не пересчитываются. Отсутствующие optional поля остаются отсутствующими. Для просмотра отдельная проекция применяет общую `source-export-policy`, сохраняя исходный decoded snapshot и JSON. Старая версия протокола показана явно, artifact-текст не регенерируется современным renderer.
 `prepareStoredResult` отделяет сохранённый результат от проекции просмотра:
 для v4 применяется существующий `exportExperiment`, включая исключение закрытых
 примеров/цитат и preparation traces. Эта проекция может пересоздать производные

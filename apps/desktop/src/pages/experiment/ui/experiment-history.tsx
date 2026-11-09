@@ -1,3 +1,4 @@
+import { HistoryLegacySeries } from './history-legacy-series';
 import { For, Show } from 'solid-js';
 import type { PreparedStoredResult, StoredResult } from '@proteus-int/pipeline';
 import type { ExperimentHistoryModel, OpenedExperiment } from '../model/experiment-history';
@@ -14,13 +15,17 @@ function OpenedHistory(props: {
     const value = view();
     return value.sourceVersion === 4 ? value.result : undefined;
   };
+  const legacy = () => {
+    const value = view();
+    return value.sourceVersion === 2 || value.sourceVersion === 3 ? value.result : undefined;
+  };
   const original = () => {
     const value = view();
     return value.sourceVersion === 1 ? value.result : undefined;
   };
   const originalExport = () => {
     const value = stored();
-    return value.sourceVersion === 4 ? value.result.exportMetadata : undefined;
+    return value.sourceVersion !== 1 ? value.result.exportMetadata : undefined;
   };
   const status = () => {
     const value = stored();
@@ -71,6 +76,7 @@ function OpenedHistory(props: {
         </p>
       </header>
       <Show when={modern()}>{(result) => <HistorySeries result={result()} />}</Show>
+      <Show when={legacy()}>{(result) => <HistoryLegacySeries result={result()} />}</Show>
       <Show when={original()}>{(result) => <HistoryOriginal result={result()} />}</Show>
     </div>
   );

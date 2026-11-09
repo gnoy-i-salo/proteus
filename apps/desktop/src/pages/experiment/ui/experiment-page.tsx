@@ -89,7 +89,7 @@ export function ExperimentPage() {
             onReuse={(value) => {
               reuseHistoryConditions(
                 value.result.input,
-                value.sourceVersion === 4 ? value.result.protocol.repetitions : 1,
+                value.sourceVersion === 1 ? 1 : value.result.protocol.repetitions,
                 {
                   running: run.running,
                   clearSourceGrants,

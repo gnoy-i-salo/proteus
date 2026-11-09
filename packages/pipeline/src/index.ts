@@ -17,3 +17,5 @@ export { readStoredResult } from './history/read-stored-result';
 export type { StoredResult } from './history/read-stored-result';
 export { prepareStoredResult } from './history/prepare-stored-result';
 export type { PreparedStoredResult } from './history/prepare-stored-result';
+
+export type { LegacySeriesResult } from './history/legacy-series-types';

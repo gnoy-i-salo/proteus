@@ -221,3 +221,38 @@ for (const status of ['incomplete', 'cancelled'] as const)
     await noProviderCalls(reopened);
     await reopened.close();
   });
+
+for (const [version, file, label] of [
+  [2, 'v2-kebab-result.json', 'Ada Sample'],
+  [3, 'v3-kebab-export.json', 'Ada Sample'],
+] as const)
+  test(`opens legacy series v${version} with recorded protocol, answer and traces`, async ({
+    page,
+  }, testInfo) => {
+    const text = fixture(file);
+    await historyFixture(page, { legacy: text });
+    if (version === 3) await page.setViewportSize({ width: 640, height: 700 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'История запусков', exact: true }).click();
+    await page.getByRole('button', { name: 'Открыть legacy', exact: true }).click();
+    await expect(page.getByText(`Версия файла: ${version}`, { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'BSC v2 · 100', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Протокол', exact: true }).click();
+    await expect(page.getByText('Исторический протокол v2', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Ответ', exact: true }).click();
+    const raw = JSON.parse(text) as { people: { attempt: { answer: string } }[] };
+    expect(await page.getByLabel('Текст', { exact: true }).locator('p').textContent()).toBe(
+      raw.people[0]!.attempt.answer,
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({ path: testInfo.outputPath(`history-v${version}.png`) });
+    await page.getByRole('button', { name: 'Intelligence traces', exact: true }).click();
+    await expect(
+      page.getByRole('region', { name: 'Текст Intelligence traces', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Новый запуск из этих условий', exact: true }).click();
+    await expect(page.getByLabel('Имя персоны A')).toHaveValue(label);
+    await noProviderCalls(page);
+  });

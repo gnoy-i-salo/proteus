@@ -39,17 +39,8 @@ import {
   optionalField,
 } from './result-v4-validation';
 
-/** Export-side metadata appended by exportExperiment; absent on raw saved results. */
-export interface StoredExportMetadata {
-  readonly version: 1;
-  readonly redacted: boolean;
-  readonly omittedStyleExemplars: number;
-  readonly omittedSourceExcerpts: number;
-  readonly preparationReasoningOmitted: boolean;
-  readonly answerTextMayBeRedacted: boolean;
-  readonly scoresReferenceOriginalAnswers: true;
-  readonly limitations: readonly string[];
-}
+import type { StoredExportMetadata } from '../export/source-export-policy';
+export type { StoredExportMetadata } from '../export/source-export-policy';
 
 /** Decoded schemaVersion 4 saved result: the raw writer shape plus optional export metadata. */
 export type StoredV4Result = ExperimentResult & {

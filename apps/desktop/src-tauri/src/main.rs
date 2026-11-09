@@ -107,6 +107,12 @@ fn main() {
             memory::registry::MemorySessions::default(),
         ))
         .invoke_handler(tauri::generate_handler![
+            memory::commands::open_research_session,
+            memory::commands::close_memory_session,
+            memory::commands::recall_memory,
+            memory::commands::read_memory_episode,
+            memory::commands::reserve_memory_context,
+            memory::commands::publish_memory_research,
             local_embedding::commands::local_model_state,
             local_embedding::commands::inspect_local_model,
             local_embedding::commands::download_local_model,

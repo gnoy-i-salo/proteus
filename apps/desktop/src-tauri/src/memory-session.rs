@@ -54,6 +54,42 @@ struct MemoryScope {
     )>,
 }
 impl MemorySession {
+    pub(super) fn uses_hybrid(&self) -> bool {
+        self.scope.hybrid.is_some()
+    }
+    pub(super) fn research_deadline(&self) -> Result<i64, String> {
+        Ok(self.scope.deadline.min(
+            self.models
+                .as_ref()
+                .ok_or("Модельная сессия памяти не настроена.")?
+                .deadline_ms(),
+        ))
+    }
+    pub(super) fn research_descriptor(
+        &mut self,
+        now: impl Fn() -> i64,
+    ) -> Result<super::research_workflow::ResearchSession, String> {
+        self.verify_current(&now)?;
+        let deadline = self.research_deadline()?;
+        let value = super::research_workflow::ResearchSession {
+            schema_version: 1,
+            id: String::new(),
+            persona_id: self.scope.persona_id.clone(),
+            corpus_snapshot_id: self.scope.source.snapshot_id.clone(),
+            policy_version: self.scope.policy_version()?.into(),
+            mode: if self.scope.hybrid.is_some() {
+                "hybrid"
+            } else {
+                "lexical"
+            },
+            index_generation: self.scope.source.index_generation,
+            expires_at: chrono::DateTime::<chrono::Utc>::from_timestamp_millis(deadline)
+                .ok_or("Неверный срок сессии.")?
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        };
+        self.verify_current(now)?;
+        Ok(value)
+    }
     pub(crate) fn cancel(&self) {
         self.cancellation_handle()
             .store(true, std::sync::atomic::Ordering::SeqCst);

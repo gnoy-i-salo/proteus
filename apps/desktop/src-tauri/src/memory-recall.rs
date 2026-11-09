@@ -39,7 +39,21 @@ impl MemorySession {
     ) -> Result<Self, String> {
         budget.validate().map_err(model_error)?;
         let mut session = Self::bind(sources, operation, input, &now_ms)?;
-        let scope = &mut session.scope;
+        session.enable_hybrid(model, budget, now_ms)?;
+        Ok(session)
+    }
+    pub(in crate::memory) fn enable_hybrid(
+        &mut self,
+        model: &dyn EmbeddingModel,
+        budget: EmbeddingBudget,
+        now_ms: impl Fn() -> i64,
+    ) -> Result<(), String> {
+        budget.validate().map_err(model_error)?;
+        self.verify_current(&now_ms)?;
+        if self.scope.hybrid.is_some() {
+            return Err("Гибридный индекс сессии уже закреплён.".into());
+        }
+        let scope = &mut self.scope;
         let vectors = scope
             .sources
             .with_ingestion_database(&scope.operation, |db| {
@@ -65,7 +79,7 @@ impl MemorySession {
             })?;
         scope.hybrid = Some((vectors, budget));
         scope.guard(&now_ms)?;
-        Ok(session)
+        self.verify_current(now_ms)
     }
     pub fn recall(
         &mut self,

@@ -13,6 +13,8 @@ mod receipt_tests;
 mod registry_tests;
 #[path = "memory-research-support-tests.rs"]
 mod research_support_tests;
+#[path = "memory-research-workflow-tests.rs"]
+mod research_workflow_tests;
 use crate::memory::{
     budget::RecallLimits,
     session::{MemorySession, SessionInput},

@@ -19,10 +19,7 @@ impl MemorySession {
         if request.purpose != "research" {
             return Err("Контекст Person требует закреплённого manifest.".into());
         }
-        let deadline = self
-            .scope
-            .deadline
-            .min(self.models.as_ref().ok_or(UNCONFIGURED)?.deadline_ms());
+        let deadline = self.research_deadline()?;
         let expires_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(deadline)
             .ok_or("Неверный срок контекста.")?
             .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);

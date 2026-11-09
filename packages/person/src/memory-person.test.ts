@@ -128,6 +128,12 @@ it('executes a bounded recall then re-reserves native evidence for the answer', 
   });
   const result = await solveMemory(input, provider, open);
   expect(recall).toHaveBeenCalledWith('  Борис\r\n', 'context', expect.any(AbortSignal));
+  expect(result.retrievals).toEqual([
+    {
+      action: { action: 'recall', query: '  Борис\r\n', intent: 'context' },
+      receipt: retrieval().receipt,
+    },
+  ]);
   expect(reserve.mock.calls.map(([draft]) => draft.receiptIds)).toEqual([[], ['receipt:1']]);
   expect(result.contextLeaseIds).toEqual(['lease:1', 'lease:2']);
   expect(result.traces).toHaveLength(2);
@@ -363,6 +369,14 @@ it('reads only an observed episode and preserves original words, author and rela
   });
   const result = await solveMemory(input, provider, open);
   expect(readEpisode).toHaveBeenCalledExactlyOnceWith('episode:1', expect.any(AbortSignal));
+  expect(result.retrievals).toEqual([
+    { action: { action: 'recall', query: 'Борис', intent: 'context' }, receipt: found.receipt },
+    { action: { action: 'readEpisode', episodeId: 'episode:1' }, receipt: episode.receipt },
+  ]);
+  const observed = JSON.stringify(result.retrievals);
+  expect(observed).not.toContain(found.sources[0]!.text);
+  Object.assign(found.receipt, { id: 'mutated-after-return' });
+  expect(JSON.stringify(result.retrievals)).toBe(observed);
   expect(result.context.sources).toEqual([...found.sources, ...episode.sources]);
   expect(run.mock.calls[2]![0].task).toContain(JSON.stringify(found.sources[0]!.text));
   expect(result.context.items).toEqual([]);

@@ -21,6 +21,7 @@ import {
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
 import { createPersonaModel } from './persona-model';
+import type { MemoryRetrievalTrace } from './persona-model';
 import { personTask } from './person-prompt';
 import { parseReply } from './parse-reply';
 export interface MemoryPersonInput {
@@ -37,6 +38,7 @@ export type OpenPersonaMemory = (
 ) => Promise<PersonaMemoryPort>;
 export interface MemoryPersonResult extends IntelligenceResult {
   readonly traces: readonly IntelligenceTrace[];
+  readonly retrievals: readonly MemoryRetrievalTrace[];
   readonly contextLeaseIds: readonly string[];
   readonly context: PersonaContextLease;
   readonly simulation: SimulationMemoryEntry;
@@ -221,6 +223,7 @@ export async function solveMemory(
           },
           trace: { ...trace, summary: data.reply.summary },
           traces: model.traces,
+          retrievals: model.retrievals,
           contextLeaseIds: model.completedLeaseIds,
           context: model.context!,
         };

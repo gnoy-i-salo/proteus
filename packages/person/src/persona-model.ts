@@ -18,7 +18,10 @@ import {
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 
-type Record = Pick<RecallResult, 'receipt' | 'sources'>;
+export type MemoryRetrievalTrace = Pick<RecallResult, 'receipt'> & {
+  readonly action: ModelMemoryAction;
+};
+type Record = MemoryRetrievalTrace & Pick<RecallResult, 'sources'>;
 function promptData(task: string, formatAttempt: 1 | 2, feedback: string | undefined): string {
   const data: unknown = JSON.parse(task);
   if (!data || typeof data !== 'object' || Array.isArray(data))
@@ -74,6 +77,9 @@ export function createPersonaModel(
     get traces() {
       return structuredClone(traces);
     },
+    get retrievals(): readonly MemoryRetrievalTrace[] {
+      return records.map(({ action, receipt }) => structuredClone({ action, receipt }));
+    },
     get canRetrieve() {
       return !fixed && retrieved.size < session.manifest.recallBudget.maxCalls;
     },
@@ -126,7 +132,7 @@ export function createPersonaModel(
             : { operation: 'readEpisode', episodeId: action.episodeId },
         );
         if (retrieved.has(record.receipt.id)) throw new Error('Повторная квитанция Person.');
-        records.push(structuredClone(record));
+        records.push(structuredClone({ ...record, action }));
         retrieved.add(record.receipt.id);
         for (const hit of record.receipt.hits) knownEpisodes.add(hit.episodeId);
       } finally {
@@ -168,7 +174,12 @@ export function createPersonaModel(
         try {
           const raw = await memory.reserveModelContext(draft, signal);
           signal?.throwIfAborted();
-          const lease = decodePersonaContext(raw, session, draft, records);
+          const lease = decodePersonaContext(
+            raw,
+            session,
+            draft,
+            records.map(({ receipt, sources }) => ({ receipt, sources })),
+          );
           if (
             reserved.has(lease.id) ||
             lease.usage.modelCalls < attempts ||

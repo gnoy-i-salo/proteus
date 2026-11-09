@@ -91,19 +91,19 @@ export interface LegacyV1Result {
 // estimated-bsc), intelligence text()/texts() (24000 characters, 30 items), scorePerson
 // (non-negative finite durations). The 8 MiB envelope, opaque URL text and the artifact
 // map size are reader-side envelope guards for this boundary.
-const MAX_RESULT_BYTES = 8 * 1024 * 1024;
-const TASK_MAX = 4000;
-const LABEL_MAX = 80;
-const CONTEXT_MAX = 4000;
-const URL_LIST_MAX = 5;
-const MODEL_TEXT_MAX = 24000;
-const LIST_MAX = 30;
+const maxResultBytes = 8 * 1024 * 1024;
+const taskMax = 4000;
+const labelMax = 80;
+const contextMax = 4000;
+const urlListMax = 5;
+const modelTextMax = 24000;
+const listMax = 30;
 // The era writer bounded URL count, but not URL length. The result envelope
 // bounds total memory; a new URL-specific limit would reject old valid files.
-const URL_TEXT_MAX = MAX_RESULT_BYTES;
-const ARTIFACT_COUNT_MAX = 256;
-const ARTIFACT_KEY_MAX = 512;
-const ARTIFACT_VALUE_MAX = 1024 * 1024;
+const urlTextMax = maxResultBytes;
+const artifactCountMax = 256;
+const artifactKeyMax = 512;
+const artifactValueMax = 1024 * 1024;
 
 function invalid(detail: string): never {
   throw new Error(`Invalid legacy v1 result: ${detail}`);
@@ -154,15 +154,15 @@ function choiceOf<T extends string>(value: unknown, allowed: readonly T[], conte
 }
 
 function textList(value: unknown, context: string): readonly string[] {
-  if (!Array.isArray(value) || value.length > LIST_MAX)
-    invalid(`${context} must be a list of at most ${LIST_MAX} strings`);
+  if (!Array.isArray(value) || value.length > listMax)
+    invalid(`${context} must be a list of at most ${listMax} strings`);
   return value.map((item: unknown, index: number) =>
-    nonBlankText(item, MODEL_TEXT_MAX, `${context}[${index}]`),
+    nonBlankText(item, modelTextMax, `${context}[${index}]`),
   );
 }
 
 function timestampOf(value: unknown): string {
-  const result = textOf(value, MODEL_TEXT_MAX, "result 'finished-at'");
+  const result = textOf(value, modelTextMax, "result 'finished-at'");
   if (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(result) ||
     !Number.isFinite(Date.parse(result)) ||
@@ -185,10 +185,10 @@ function pair<T>(
 function decodeEvidence(value: unknown, context: string): LegacyV1Evidence {
   const source = recordFields(value, ['id', 'source-url', 'kind', 'summary'], context);
   return {
-    id: nonBlankText(source['id'], MODEL_TEXT_MAX, `${context}.id`),
-    sourceUrl: textOf(source['source-url'], URL_TEXT_MAX, `${context}.source-url`),
+    id: nonBlankText(source['id'], modelTextMax, `${context}.id`),
+    sourceUrl: textOf(source['source-url'], urlTextMax, `${context}.source-url`),
     kind: choiceOf(source['kind'], ['fact', 'hypothesis'] as const, `${context}.kind`),
-    summary: nonBlankText(source['summary'], MODEL_TEXT_MAX, `${context}.summary`),
+    summary: nonBlankText(source['summary'], modelTextMax, `${context}.summary`),
   };
 }
 
@@ -206,24 +206,24 @@ function decodeReport(value: unknown, context: string): LegacyV1StalkerReport {
     ],
     context,
   );
-  if (!Array.isArray(source['evidence']) || source['evidence'].length > LIST_MAX)
-    invalid(`${context}.evidence must be a list of at most ${LIST_MAX} items`);
+  if (!Array.isArray(source['evidence']) || source['evidence'].length > listMax)
+    invalid(`${context}.evidence must be a list of at most ${listMax} items`);
   return {
     evidence: source['evidence'].map((item: unknown, index: number) =>
       decodeEvidence(item, `${context}.evidence[${index}]`),
     ),
     estimatedBsc: positiveNumber(source['estimated-bsc'], `${context}.estimated-bsc`),
     effort: choiceOf(source['effort'], ['low', 'medium', 'high'] as const, `${context}.effort`),
-    character: nonBlankText(source['character'], MODEL_TEXT_MAX, `${context}.character`),
+    character: nonBlankText(source['character'], modelTextMax, `${context}.character`),
     thinkingStyle: nonBlankText(
       source['thinking-style'],
-      MODEL_TEXT_MAX,
+      modelTextMax,
       `${context}.thinking-style`,
     ),
-    activity: nonBlankText(source['activity'], MODEL_TEXT_MAX, `${context}.activity`),
+    activity: nonBlankText(source['activity'], modelTextMax, `${context}.activity`),
     behaviorSummary: nonBlankText(
       source['behavior-summary'],
-      MODEL_TEXT_MAX,
+      modelTextMax,
       `${context}.behavior-summary`,
     ),
   };
@@ -234,10 +234,10 @@ function decodeProfile(value: unknown, context: string): LegacyV1PersonProfile {
   const skills = textList(source['skills'], `${context}.skills`);
   if (skills.length < 1) invalid(`${context}.skills must contain at least one skill`);
   return {
-    id: nonBlankText(source['id'], MODEL_TEXT_MAX, `${context}.id`),
-    label: nonBlankText(source['label'], LABEL_MAX, `${context}.label`),
+    id: nonBlankText(source['id'], modelTextMax, `${context}.id`),
+    label: nonBlankText(source['label'], labelMax, `${context}.label`),
     palette: choiceOf(source['palette'], ['turquoise', 'violet'] as const, `${context}.palette`),
-    archetype: nonBlankText(source['archetype'], MODEL_TEXT_MAX, `${context}.archetype`),
+    archetype: nonBlankText(source['archetype'], modelTextMax, `${context}.archetype`),
     skills,
   };
 }
@@ -252,14 +252,14 @@ function decodeTrace(value: unknown, context: string): LegacyV1IntelligenceTrace
     provider: choiceOf(source['provider'], ['codex', 'kimi'] as const, `${context}.provider`),
     reasoningMs: numberAtLeast(source['reasoning-ms'], 0, `${context}.reasoning-ms`),
     terminalMs: numberAtLeast(source['terminal-ms'], 0, `${context}.terminal-ms`),
-    summary: nonBlankText(source['summary'], MODEL_TEXT_MAX, `${context}.summary`),
+    summary: nonBlankText(source['summary'], modelTextMax, `${context}.summary`),
   };
 }
 
 function decodeAttempt(value: unknown, context: string): LegacyV1Attempt {
   const source = recordFields(value, ['answer', 'trace'], context);
   return {
-    answer: nonBlankText(source['answer'], MODEL_TEXT_MAX, `${context}.answer`),
+    answer: nonBlankText(source['answer'], modelTextMax, `${context}.answer`),
     trace: decodeTrace(source['trace'], `${context}.trace`),
   };
 }
@@ -267,7 +267,7 @@ function decodeAttempt(value: unknown, context: string): LegacyV1Attempt {
 function decodeScore(value: unknown, context: string): LegacyV1PersonScore {
   const source = recordFields(value, ['person-id', 'reasoning-minutes', 'bsc'], context);
   return {
-    personId: nonBlankText(source['person-id'], MODEL_TEXT_MAX, `${context}.person-id`),
+    personId: nonBlankText(source['person-id'], modelTextMax, `${context}.person-id`),
     reasoningMinutes: numberAtLeast(source['reasoning-minutes'], 0, `${context}.reasoning-minutes`),
     bsc: numberAtLeast(source['bsc'], 0, `${context}.bsc`),
   };
@@ -278,13 +278,13 @@ function decodeArtifacts(value: unknown, context: string): Readonly<Record<strin
     invalid(`${context} must be an object keyed by artifact names`);
   const source = value as Record<string, unknown>;
   const entries = Object.entries(source);
-  if (entries.length > ARTIFACT_COUNT_MAX)
-    invalid(`${context} has more than ${ARTIFACT_COUNT_MAX} artifacts`);
+  if (entries.length > artifactCountMax)
+    invalid(`${context} has more than ${artifactCountMax} artifacts`);
   return Object.fromEntries(
     entries.map(([name, content]) => {
-      if (name.length === 0 || name.length > ARTIFACT_KEY_MAX)
-        invalid(`${context} has artifact names of 1 to ${ARTIFACT_KEY_MAX} characters`);
-      return [name, textOf(content, ARTIFACT_VALUE_MAX, `${context}[${JSON.stringify(name)}]`)];
+      if (name.length === 0 || name.length > artifactKeyMax)
+        invalid(`${context} has artifact names of 1 to ${artifactKeyMax} characters`);
+      return [name, textOf(content, artifactValueMax, `${context}[${JSON.stringify(name)}]`)];
     }),
   );
 }
@@ -306,13 +306,13 @@ function decodePerson(value: unknown, context: string): LegacyV1ExperimentPerson
 
 function decodePersonInput(value: unknown, context: string): LegacyV1PersonInput {
   const source = recordFields(value, ['label', 'context', 'public-urls'], context);
-  if (!Array.isArray(source['public-urls']) || source['public-urls'].length > URL_LIST_MAX)
-    invalid(`${context}.public-urls must be a list of at most ${URL_LIST_MAX} strings`);
+  if (!Array.isArray(source['public-urls']) || source['public-urls'].length > urlListMax)
+    invalid(`${context}.public-urls must be a list of at most ${urlListMax} strings`);
   return {
-    label: nonBlankText(source['label'], LABEL_MAX, `${context}.label`),
-    context: textOf(source['context'], CONTEXT_MAX, `${context}.context`),
+    label: nonBlankText(source['label'], labelMax, `${context}.label`),
+    context: textOf(source['context'], contextMax, `${context}.context`),
     publicUrls: source['public-urls'].map((item: unknown, index: number) =>
-      textOf(item, URL_TEXT_MAX, `${context}.public-urls[${index}]`),
+      textOf(item, urlTextMax, `${context}.public-urls[${index}]`),
     ),
   };
 }
@@ -320,7 +320,7 @@ function decodePersonInput(value: unknown, context: string): LegacyV1PersonInput
 function decodeInput(value: unknown): LegacyV1ExperimentInput {
   const source = recordFields(value, ['task', 'people'], 'result.input');
   return {
-    task: nonBlankText(source['task'], TASK_MAX, 'result.input.task'),
+    task: nonBlankText(source['task'], taskMax, 'result.input.task'),
     people: pair(source['people'], decodePersonInput, 'result.input.people'),
   };
 }
@@ -342,7 +342,7 @@ function decodeComparison(value: unknown): LegacyV1Comparison {
     context,
   );
   return {
-    summary: nonBlankText(source['summary'], MODEL_TEXT_MAX, `${context}.summary`),
+    summary: nonBlankText(source['summary'], modelTextMax, `${context}.summary`),
     scores: pair(source['scores'], decodeScore, `${context}.scores`),
     keyDifferences: textList(source['key-differences'], `${context}.key-differences`),
     people: pair(source['people'], decodeObservation, `${context}.people`),
@@ -357,7 +357,7 @@ function checkEnvelope(value: unknown): void {
   } catch {
     invalid('input is not JSON-serializable');
   }
-  if (bytes > MAX_RESULT_BYTES) invalid('result exceeds the 8 MiB file envelope');
+  if (bytes > maxResultBytes) invalid('result exceeds the 8 MiB file envelope');
 }
 
 export function decodeLegacyV1Result(value: unknown): LegacyV1Result {

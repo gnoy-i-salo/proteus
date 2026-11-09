@@ -6,8 +6,8 @@ import v4EarlyFixture from '../testing/legacy-results/v4-camel-no-execution.json
 import v1Fixture from '../testing/legacy-results/v1-unversioned-result.json';
 import { decodeLegacyV1Result } from './legacy-v1';
 
-const AGENTS_MD = 'AGENTS.md';
-const PERSONA_SKILL_MD = '.agents/skills/persona-1/SKILL.md';
+const agentsMd = 'AGENTS.md';
+const personaSkillMd = '.agents/skills/persona-1/SKILL.md';
 
 const expectedFixtureResult = {
   input: {
@@ -61,9 +61,9 @@ const expectedFixtureResult = {
       },
       score: { personId: 'a', reasoningMinutes: 1.5, bsc: 0.1 },
       artifacts: {
-        [AGENTS_MD]:
+        [agentsMd]:
           '# Simulated persona\n\nCareful planner (synthetic)\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person.\n',
-        [PERSONA_SKILL_MD]:
+        [personaSkillMd]:
           "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPlan in milestones\n",
       },
     },
@@ -102,9 +102,9 @@ const expectedFixtureResult = {
       },
       score: { personId: 'b', reasoningMinutes: 1, bsc: 0.08333333333333333 },
       artifacts: {
-        [AGENTS_MD]:
+        [agentsMd]:
           '# Simulated persona\n\nRapid improviser (synthetic)\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person.\n',
-        [PERSONA_SKILL_MD]:
+        [personaSkillMd]:
           "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPrototype early\n",
       },
     },
@@ -157,7 +157,7 @@ describe('legacy v1 saved-result decoder', () => {
     expect(decoded.comparison.ratio).toBe(1.2000000000000002);
     expect(decoded.people[1]?.report.evidence[0]?.sourceUrl).toBe('');
     expect(decoded.people[0]?.attempt.trace.reasoningMs).toBe(90000);
-    expect(Object.keys(decoded.people[0]?.artifacts ?? {})).toEqual([AGENTS_MD, PERSONA_SKILL_MD]);
+    expect(Object.keys(decoded.people[0]?.artifacts ?? {})).toEqual([agentsMd, personaSkillMd]);
   });
 
   it('preserves Cyrillic, decomposed Unicode, CRLF and BOM inside strings exactly', () => {
@@ -173,13 +173,13 @@ describe('legacy v1 saved-result decoder', () => {
     const personA = personOf(value, 0);
     node(personA, 'attempt')['answer'] = answer;
     at(node(personA, 'report')['evidence'], 0)['summary'] = summary;
-    node(personA, 'artifacts')[AGENTS_MD] = artifact;
+    node(personA, 'artifacts')[agentsMd] = artifact;
     const decoded = decodeLegacyV1Result(value);
     expect(decoded.input.task).toBe(task);
     expect(decoded.input.people[0]?.context).toBe(context);
     expect(decoded.people[0]?.attempt.answer).toBe(answer);
     expect(decoded.people[0]?.report.evidence[0]?.summary).toBe(summary);
-    expect(decoded.people[0]?.artifacts[AGENTS_MD]).toBe(artifact);
+    expect(decoded.people[0]?.artifacts[agentsMd]).toBe(artifact);
   });
 
   it('returns detached data and never mutates the parsed input', () => {
@@ -387,11 +387,11 @@ describe('legacy v1 saved-result decoder', () => {
     ],
     [
       'artifacts as array',
-      (v: Record<string, unknown>): void => void (personOf(v, 0)['artifacts'] = [AGENTS_MD]),
+      (v: Record<string, unknown>): void => void (personOf(v, 0)['artifacts'] = [agentsMd]),
     ],
     [
       'artifact content as number',
-      (v: Record<string, unknown>): void => void (node(personOf(v, 0), 'artifacts')[AGENTS_MD] = 5),
+      (v: Record<string, unknown>): void => void (node(personOf(v, 0), 'artifacts')[agentsMd] = 5),
     ],
     [
       'comparison with single score',
@@ -629,7 +629,7 @@ describe('legacy v1 saved-result decoder', () => {
     const decoded = decodeLegacyV1Result(safe);
     expect(decoded.people[0]?.artifacts['CONSTRUCTOR.md']).toBe('opaque key stays');
     expect(decoded.people[0]?.artifacts['artifact key with spaces.md']).toBe('spaces stay');
-    expect(decoded.people[0]?.artifacts[AGENTS_MD]).toContain('Simulated persona');
+    expect(decoded.people[0]?.artifacts[agentsMd]).toContain('Simulated persona');
     expect(decoded.people[0]?.artifacts).toEqual(safeArtifacts);
     expect(Object.hasOwn(decoded.people[0].artifacts, '__proto__')).toBe(true);
     expect(Object.getPrototypeOf(decoded.people[0].artifacts)).toBe(Object.prototype);
@@ -650,7 +650,7 @@ describe('legacy v1 saved-result decoder', () => {
 
   it('rejects a result over the 8 MiB file envelope', () => {
     const value = mutableFixture();
-    node(personOf(value, 0), 'artifacts')[AGENTS_MD] = 'x'.repeat(9 * 1024 * 1024);
+    node(personOf(value, 0), 'artifacts')[agentsMd] = 'x'.repeat(9 * 1024 * 1024);
     expect(() => decodeLegacyV1Result(value)).toThrow(/8 MiB/u);
   });
 });

@@ -1,0 +1,84 @@
+{
+  "query": {
+    "jobId": "job",
+    "snapshotId": "snapshot",
+    "personaId": "persona-a",
+    "episodeId": "episode",
+    "period": {
+      "to": null,
+      "includeUndated": true,
+      "from": null
+    },
+    "expectedIndexGeneration": 1,
+    "maxDurationMs": 30000
+  },
+  "result": {
+    "schemaVersion": 1,
+    "snapshotId": "snapshot",
+    "indexGeneration": 1,
+    "personaId": "persona-a",
+    "episodeId": "episode",
+    "sourceBytes": 88,
+    "contextTokens": 20,
+    "chunks": [
+      {
+        "chunkId": "chunk-1",
+        "excerpt": {
+          "document": {
+            "id": "message-1",
+            "provider": "telegram",
+            "resourceId": "private-chat-42",
+            "authorId": "author-a",
+            "authorLabel": "Анна",
+            "authorship": "owner",
+            "kind": "message",
+            "mode": "dialogue",
+            "sourceUrl": "https://example.org/Exact-ID",
+            "createdAt": "2026-05-10T12:00:00Z",
+            "retrievedAt": "2026-06-01T00:00:00Z",
+            "contentHash": "synthetic-content-hash",
+            "replyTo": "message-0",
+            "isForwarded": false,
+            "truncated": false,
+            "partition": "reference"
+          },
+          "span": {
+            "documentId": "message-1",
+            "revisionId": "revision-1",
+            "unit": "utf8Bytes",
+            "start": 0,
+            "end": 88
+          },
+          "text": "  Анна → Борис\r\n«Ёлка» 👩🏽‍🔬\nhttps://example.org/Exact-ID  ",
+          "role": "own",
+          "speakerRelation": "target",
+          "canSupportOwnWords": true,
+          "relations": [
+            {
+              "kind": "reply",
+              "original": {
+                "documentId": "message-0",
+                "revisionId": "revision-0"
+              },
+              "originalAuthor": {
+                "provider": "telegram",
+                "id": "author-b",
+                "label": "Борис"
+              },
+              "span": null
+            }
+          ],
+          "sourceMetadata": {
+            "schemaVersion": 1,
+            "sourceFormat": "synthetic-message",
+            "resourceLabel": "Synthetic chat",
+            "title": null,
+            "authorLabels": ["Анна"],
+            "originalObjectId": "object-1",
+            "limitations": []
+          }
+        }
+      }
+    ]
+  }
+}

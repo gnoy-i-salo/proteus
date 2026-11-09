@@ -226,3 +226,10 @@ export type { PersonaProfileSnapshot } from './persona-profile-snapshot';
 export { decodePersonaProfileSnapshot } from './persona-profile-snapshot';
 
 export { personaMemoryPrompt } from './persona-memory-prompt';
+
+export type {
+  CorpusEpisodeQuery,
+  CorpusEpisodeResult,
+  CorpusInspectionPort,
+} from './corpus-inspection';
+export { decodeCorpusEpisodeQuery, decodeCorpusEpisodeResult } from './corpus-inspection-codec';

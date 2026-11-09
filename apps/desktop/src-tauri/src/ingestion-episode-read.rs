@@ -32,7 +32,7 @@ pub struct EpisodeReadResult {
     pub context_tokens: usize,
 }
 impl EpisodeReadInput<'_> {
-    fn validate(&self) -> Result<(), String> {
+    pub(super) fn validate(&self) -> Result<(), String> {
         if [
             self.job_id,
             self.snapshot_id,
@@ -70,6 +70,16 @@ pub fn read(
     input: &EpisodeReadInput<'_>,
     now_ms: impl Fn() -> i64,
 ) -> Result<EpisodeReadResult, String> {
+    read_with_purpose(sources, operation, input, GrantUse::Model, now_ms)
+}
+
+fn read_with_purpose(
+    sources: &Sources,
+    operation: &Operation,
+    input: &EpisodeReadInput<'_>,
+    purpose: GrantUse,
+    now_ms: impl Fn() -> i64,
+) -> Result<EpisodeReadResult, String> {
     input.validate()?;
     let started = now_ms();
     let end = started
@@ -92,7 +102,7 @@ pub fn read(
             Some(input.persona_id),
             budget()?,
         )?;
-        authority.current(db, budget()?, GrantUse::Model)?;
+        authority.current(db, budget()?, purpose)?;
         let check = || {
             if budget()? >= authority.deadline {
                 return Err("Разрешение источника истекло.".into());
@@ -160,7 +170,7 @@ pub fn read(
                 return Err("Превышен бюджет чтения эпизода.".into());
             }
         }
-        authority.current(db, budget()?, GrantUse::Model)?;
+        authority.current(db, budget()?, purpose)?;
         if db.active_search_receipt(input.snapshot_id)?.as_ref() != Some(&pin.receipt) {
             return Err("Источник или индекс изменился.".into());
         }
@@ -174,4 +184,14 @@ pub fn read(
             context_tokens,
         })
     })
+}
+
+/// Read-only source inspection never grants model-processing or export rights.
+pub fn read_for_display(
+    sources: &Sources,
+    operation: &Operation,
+    input: &EpisodeReadInput<'_>,
+    now_ms: impl Fn() -> i64,
+) -> Result<EpisodeReadResult, String> {
+    read_with_purpose(sources, operation, input, GrantUse::Corpus, now_ms)
 }

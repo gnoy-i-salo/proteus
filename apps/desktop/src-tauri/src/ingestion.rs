@@ -12,6 +12,8 @@ pub mod hybrid_query;
 pub(crate) mod index_authority;
 #[path = "ingestion-input.rs"]
 mod input;
+#[path = "ingestion-inspection.rs"]
+pub mod inspection;
 #[path = "ingestion-job-commands.rs"]
 pub mod job_commands;
 #[path = "ingestion-job-workflow.rs"]

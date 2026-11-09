@@ -37,3 +37,21 @@ pub async fn search_ingestion_corpus(
     .await
     .map_err(|_| "Не удалось выполнить локальный поиск.".to_string())?
 }
+
+#[tauri::command]
+pub async fn inspect_ingestion_episode(
+    request: super::inspection::EpisodeInspectRequest,
+    sources: tauri::State<'_, Sources>,
+) -> Result<super::inspection::EpisodeInspectResult, String> {
+    request.validate()?;
+    let sources = sources.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let provider = job_workflow::job_provider(&sources, &request.job_id)?;
+        let operation = sources.begin_ingestion_operation(&request.operation_id, provider)?;
+        super::inspection::inspect(&sources, &operation, &request, || {
+            chrono::Utc::now().timestamp_millis()
+        })
+    })
+    .await
+    .map_err(|_| "Не удалось открыть фрагменты источника.".to_string())?
+}

@@ -207,3 +207,186 @@ fn invalid_episode_budgets_and_scope_fail_before_clock_or_storage() {
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn source_inspection_uses_corpus_permission_without_granting_model_permission() {
+    let (sources, dir) = local();
+    let (op, snapshot, index) = indexed(&sources, &dir, 0);
+    let ids = episode_ids(&sources, &snapshot.id);
+    let input = episode_input(&snapshot, &ids[0]);
+    assert!(read(&sources, &op, &input, || 70002).is_err());
+    let view =
+        crate::ingestion::episode_read::read_for_display(&sources, &op, &input, || 70002).unwrap();
+    assert_eq!(view.source, index);
+    assert_eq!(view.episode.id, ids[0]);
+    assert!(!view.excerpts.is_empty());
+    for (excerpt, entry) in view.excerpts.iter().zip(&view.entries) {
+        assert_eq!(excerpt.text, entry.chunk.text);
+        assert_eq!(excerpt.span, entry.chunk.spans[0]);
+        assert_eq!(excerpt.document.id, entry.original.reference.document_id);
+    }
+    assert!(read(&sources, &op, &input, || 70002).is_err());
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn inspection_wire_uses_exact_pinned_scope_and_only_verified_source_excerpts() {
+    use crate::ingestion::inspection::{inspect, EpisodeInspectRequest};
+    let (sources, dir) = local();
+    let (op, snapshot, index) = indexed(&sources, &dir, 0);
+    let ids = episode_ids(&sources, &snapshot.id);
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/contracts/src/fixtures/corpus-inspection-wire.json"
+    ))
+    .unwrap();
+    let mut wire = fixture["query"].clone();
+    wire["schemaVersion"] = 1.into();
+    wire["operationId"] = op.id().into();
+    wire["snapshotId"] = snapshot.id.clone().into();
+    wire["personaId"] = "personA".into();
+    wire["episodeId"] = ids[0].clone().into();
+    wire["expectedIndexGeneration"] = index.index_generation.into();
+    let request: EpisodeInspectRequest = serde_json::from_value(wire.clone()).unwrap();
+    request.validate().unwrap();
+    let result = inspect(&sources, &op, &request, || 70002).unwrap();
+    assert_eq!(result.episode_id, ids[0]);
+    assert_eq!(result.index_generation, index.index_generation);
+    let json = serde_json::to_value(&result).unwrap();
+    let keys = |value: &serde_json::Value| {
+        value
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(keys(&json), keys(&fixture["result"]));
+    assert_eq!(
+        keys(&json["chunks"][0]),
+        keys(&fixture["result"]["chunks"][0])
+    );
+    assert_eq!(
+        keys(&json["chunks"][0]["excerpt"]),
+        keys(&fixture["result"]["chunks"][0]["excerpt"])
+    );
+    assert!(!json.to_string().contains("documentJson"));
+    for field in ["grantId", "allowModelProcessing", "operation_id"] {
+        let mut invalid = wire.clone();
+        invalid[field] = "foreign".into();
+        assert!(serde_json::from_value::<EpisodeInspectRequest>(invalid).is_err());
+    }
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn display_inspection_does_not_bypass_holdout_persona_period_or_index_pins() {
+    use crate::ingestion::episode_read::read_for_display;
+    for holdout in [0, 10000] {
+        let (sources, dir) = local();
+        let (op, snapshot, index) = indexed(&sources, &dir, holdout);
+        let ids = episode_ids(&sources, &snapshot.id);
+        let mut selected = episode_input(&snapshot, &ids[0]);
+        if holdout != 0 {
+            assert!(read_for_display(&sources, &op, &selected, || 70002).is_err());
+        } else {
+            assert!(read_for_display(&sources, &op, &selected, || 70002).is_ok());
+            selected.persona_id = "personB";
+            assert!(read_for_display(&sources, &op, &selected, || 70002).is_err());
+            selected.persona_id = "personA";
+            selected.expected_index_generation = Some(index.index_generation + 1);
+            assert!(read_for_display(&sources, &op, &selected, || 70002).is_err());
+            selected.expected_index_generation = Some(index.index_generation);
+            selected.period.from = Some(1704067200001);
+            assert!(read_for_display(&sources, &op, &selected, || 70002).is_err());
+            selected.period.from = None;
+            selected.max_source_bytes = 1;
+            assert!(read_for_display(&sources, &op, &selected, || 70002).is_err());
+        }
+        drop(op);
+        drop(sources);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[test]
+fn display_inspection_rechecks_revocation_expiry_and_final_cancellation() {
+    use crate::ingestion::episode_read::read_for_display;
+    let (sources, dir) = local();
+    let (op, snapshot, _) = indexed(&sources, &dir, 0);
+    let ids = episode_ids(&sources, &snapshot.id);
+    let selected = episode_input(&snapshot, &ids[0]);
+    assert!(read_for_display(&sources, &op, &selected, || 100000000).is_err());
+    let calls = Cell::new(0);
+    read_for_display(&sources, &op, &selected, || {
+        calls.set(calls.get() + 1);
+        70002
+    })
+    .unwrap();
+    let final_call = calls.get();
+    calls.set(0);
+    assert!(read_for_display(&sources, &op, &selected, || {
+        calls.set(calls.get() + 1);
+        if calls.get() == final_call {
+            sources.cancel_ingestion_operation("job").unwrap();
+        }
+        70002
+    })
+    .is_err());
+    drop(op);
+    let op = sources
+        .begin_ingestion_operation("display", crate::corpus_database::JobProvider::Telegram)
+        .unwrap();
+    sources
+        .with_ingestion_database(&op, |db| {
+            let id = db.job("job")?.unwrap().state.selection.bindings[0]
+                .grant_id
+                .clone();
+            db.remove(&id)
+        })
+        .unwrap();
+    assert!(read_for_display(&sources, &op, &selected, || 70002).is_err());
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn inspection_scope_wire_rejects_invalid_budgets_and_operations_before_clock() {
+    use crate::ingestion::inspection::{inspect, EpisodeInspectRequest};
+    let (sources, dir) = local();
+    let (op, snapshot, index) = indexed(&sources, &dir, 0);
+    let ids = episode_ids(&sources, &snapshot.id);
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/contracts/src/fixtures/corpus-inspection-wire.json"
+    ))
+    .unwrap();
+    let mut wire = fixture["query"].clone();
+    wire["schemaVersion"] = 1.into();
+    wire["operationId"] = op.id().into();
+    wire["snapshotId"] = snapshot.id.clone().into();
+    wire["personaId"] = "personA".into();
+    wire["episodeId"] = ids[0].clone().into();
+    wire["expectedIndexGeneration"] = index.index_generation.into();
+    for (key, bad) in [
+        ("schemaVersion", serde_json::json!(99)),
+        ("operationId", serde_json::json!("foreign")),
+        ("expectedIndexGeneration", serde_json::json!(0)),
+        ("maxDurationMs", serde_json::json!(60001)),
+        ("personaId", serde_json::json!("person\n")),
+    ] {
+        let mut invalid = wire.clone();
+        invalid[key] = bad;
+        let request: EpisodeInspectRequest = serde_json::from_value(invalid).unwrap();
+        assert!(inspect(&sources, &op, &request, || panic!(
+            "invalid request reached clock"
+        ))
+        .is_err());
+    }
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}

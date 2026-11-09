@@ -158,6 +158,7 @@ fn main() {
             ingestion::job_commands::prepare_ingestion_job,
             ingestion::search_commands::rebuild_ingestion_index,
             ingestion::search_commands::search_ingestion_corpus,
+            ingestion::search_commands::inspect_ingestion_episode,
             ingestion::job_commands::pause_ingestion_job,
             ingestion::job_commands::cancel_ingestion_job,
             ingestion::job_commands::resume_ingestion_job,

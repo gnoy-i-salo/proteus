@@ -103,7 +103,7 @@
         "label": "Ada Sample",
         "palette": "turquoise",
         "archetype": "Careful planner (synthetic)",
-        "skills": ["Plan in milestones"],
+        "skills": [],
         "rules": [
           {
             "id": "r1",
@@ -113,15 +113,7 @@
             "limitations": ["Synthetic rule"]
           }
         ],
-        "taskSkills": [
-          {
-            "id": "s1",
-            "instruction": "Use a phased plan",
-            "evidenceIds": ["e1"],
-            "status": "hypothesis",
-            "limitations": ["Synthetic rule"]
-          }
-        ],
+        "taskSkills": [],
         "sourceStatus": "synthetic",
         "styleProfile": {
           "version": 2,
@@ -266,6 +258,13 @@
           "cliVersion": null,
           "activeReasoningMs": null,
           "reasoningTruncated": false
+        },
+        "reply": {
+          "version": 2,
+          "messages": [
+            "Irrigation schedule: drip lines twice a week, rain sensor overrides.\r\nЗимой — раз в месяц."
+          ],
+          "styleConflicts": []
         }
       },
       "score": {
@@ -309,6 +308,13 @@
               "cliVersion": null,
               "activeReasoningMs": null,
               "reasoningTruncated": false
+            },
+            "reply": {
+              "version": 2,
+              "messages": [
+                "Irrigation schedule: drip lines twice a week, rain sensor overrides.\r\nЗимой — раз в месяц."
+              ],
+              "styleConflicts": []
             }
           },
           "score": {
@@ -444,7 +450,7 @@
         "label": "Boris Fixture",
         "palette": "violet",
         "archetype": "Rapid improviser (synthetic)",
-        "skills": ["Prototype early"],
+        "skills": [],
         "rules": [
           {
             "id": "r1",
@@ -454,15 +460,7 @@
             "limitations": ["Synthetic rule"]
           }
         ],
-        "taskSkills": [
-          {
-            "id": "s1",
-            "instruction": "Iterate with visitors",
-            "evidenceIds": ["e1"],
-            "status": "hypothesis",
-            "limitations": ["Synthetic rule"]
-          }
-        ],
+        "taskSkills": [],
         "sourceStatus": "synthetic"
       },
       "profile": {
@@ -507,6 +505,11 @@
           "cliVersion": null,
           "activeReasoningMs": null,
           "reasoningTruncated": false
+        },
+        "reply": {
+          "version": 2,
+          "messages": ["Manual watering on demand with a shared calendar."],
+          "styleConflicts": []
         }
       },
       "score": {
@@ -550,6 +553,11 @@
               "cliVersion": null,
               "activeReasoningMs": null,
               "reasoningTruncated": false
+            },
+            "reply": {
+              "version": 2,
+              "messages": ["Manual watering on demand with a shared calendar."],
+              "styleConflicts": []
             }
           },
           "score": {
@@ -676,9 +684,19 @@
       "label": "Нейтральный контроль",
       "palette": "turquoise",
       "archetype": "Решайте общую задачу без приписанных персональных черт, привычек или способностей.",
-      "skills": [],
+      "skills": [
+        "Plan in phases: outline the requirements, draft the layout, then fix the schedule and lighting."
+      ],
       "rules": [],
-      "taskSkills": [],
+      "taskSkills": [
+        {
+          "id": "s1",
+          "instruction": "Plan in phases: outline the requirements, draft the layout, then fix the schedule and lighting.",
+          "evidenceIds": [],
+          "status": "hypothesis",
+          "limitations": []
+        }
+      ],
       "sourceStatus": "neutral"
     },
     "attempt": {
@@ -697,6 +715,11 @@
         "cliVersion": null,
         "activeReasoningMs": null,
         "reasoningTruncated": false
+      },
+      "reply": {
+        "version": 2,
+        "messages": ["Water when the topsoil dries."],
+        "styleConflicts": []
       }
     },
     "score": {
@@ -740,6 +763,11 @@
             "cliVersion": null,
             "activeReasoningMs": null,
             "reasoningTruncated": false
+          },
+          "reply": {
+            "version": 2,
+            "messages": ["Water when the topsoil dries."],
+            "styleConflicts": []
           }
         },
         "score": {
@@ -838,7 +866,8 @@
       }
     ],
     "artifacts": {
-      "AGENTS.md": "# Simulated persona\n\nSource status: neutral\n\nNeutral participant: do not adopt a personal identity.\n\nРешайте общую задачу без приписанных персональных черт, привычек или способностей.\n\n## Evidence and limitations\n\nInsufficient personal evidence; no characteristic traits asserted.\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person. Source support is model-reported, not independent verification.\n"
+      "AGENTS.md": "# Simulated persona\n\nSource status: neutral\n\nNeutral participant: do not adopt a personal identity.\n\nРешайте общую задачу без приписанных персональных черт, привычек или способностей.\n\n## Evidence and limitations\n\nInsufficient personal evidence; no characteristic traits asserted.\n\nUse the attached skills to approach the task. This is a behavioral simulation, not the real person. Source support is model-reported, not independent verification.\n",
+      ".agents/skills/persona-1/SKILL.md": "---\nname: persona-1\ndescription: Behavioral strategy for this persona's task\n---\n\nPlan in phases: outline the requirements, draft the layout, then fix the schedule and lighting.\n\n- s1: Plan in phases: outline the requirements, draft the layout, then fix the schedule and lighting.\n  Status: hypothesis; evidence: none (task strategy)\n  Limitations: No additional limitations reported; not independently verified.\n"
     },
     "baselineDifference": null,
     "preparationWallTimeMs": 60000,
@@ -866,6 +895,13 @@
           "cliVersion": null,
           "activeReasoningMs": null,
           "reasoningTruncated": false
+        },
+        "reply": {
+          "version": 2,
+          "messages": [
+            "Irrigation schedule: drip lines twice a week, rain sensor overrides.\r\nЗимой — раз в месяц."
+          ],
+          "styleConflicts": []
         }
       },
       "score": {
@@ -983,6 +1019,11 @@
           "cliVersion": null,
           "activeReasoningMs": null,
           "reasoningTruncated": false
+        },
+        "reply": {
+          "version": 2,
+          "messages": ["Manual watering on demand with a shared calendar."],
+          "styleConflicts": []
         }
       },
       "score": {
@@ -1100,6 +1141,11 @@
           "cliVersion": null,
           "activeReasoningMs": null,
           "reasoningTruncated": false
+        },
+        "reply": {
+          "version": 2,
+          "messages": ["Water when the topsoil dries."],
+          "styleConflicts": []
         }
       },
       "score": {

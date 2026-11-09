@@ -54,8 +54,8 @@ jobs:
         # Use the Intel pool; release.yml retains both macOS release targets.
         os: [macos-26-intel, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    # Cold TDLib + CPU model builds exceeded 90 minutes on the Intel runner.
-    timeout-minutes: 180
+    # Run 42620554231 passed Intel Rust tests but timed out during native packaging at 180 min.
+    timeout-minutes: 360
     env:
       CARGO_BUILD_JOBS: 2
     steps:

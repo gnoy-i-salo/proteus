@@ -70,8 +70,8 @@ jobs:
             bundles: deb
             extension: deb
     runs-on: ${{ matrix.os }}
-    # Keep the full native gate and packaging within one cold-build job.
-    timeout-minutes: 180
+    # Cold Intel verification plus TDLib packaging exceeded 180 min in run 42620554231.
+    timeout-minutes: 360
     env:
       CARGO_BUILD_JOBS: 2
       SOURCE_SHA: ${{ needs.quality.outputs.sourceSha }}

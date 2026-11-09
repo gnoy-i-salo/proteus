@@ -70,7 +70,11 @@ function verifyCacheStep(job, { targetKey }) {
 }
 
 function verifyNativeGates(job) {
-  assert.match(job, /^ {4}timeout-minutes: 180$/m, 'native timeout budget must not be weakened');
+  assert.match(
+    job,
+    /^ {4}timeout-minutes: 360$/m,
+    'cold native verification and packaging need a six-hour budget',
+  );
   assert.match(job, /^ {8}run: pnpm prepare:tdlib$/m);
   assert.match(job, /^ {8}run: pnpm prepare:models$/m);
   assert.match(job, /^ {8}run: pnpm prepare:embedding-model$/m);
@@ -188,4 +192,13 @@ test('cache hits cannot skip verification in either native matrix', () => {
     assert.notEqual(changed, workflow, 'fixture must change a real Rust gate');
     assert.throws(() => verify(changed), /must not be skipped/);
   }
+});
+
+test('native budgets reject the observed three-hour cutoff and retain every gate', () => {
+  assert.throws(() =>
+    verifyCiNative(ciWorkflow.replace('timeout-minutes: 360', 'timeout-minutes: 180')),
+  );
+  assert.throws(() =>
+    verifyReleaseBuild(releaseWorkflow.replace('timeout-minutes: 360', 'timeout-minutes: 180')),
+  );
 });

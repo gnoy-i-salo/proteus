@@ -16,6 +16,9 @@
 //!   authorized index read (FTS hits and chunk scans);
 //! - `scan`: bounded, query-independent reference-chunk enumeration with
 //!   receipt-pinned keyset pages for semantic candidate generation;
+//! - `count`: metadata-only scoped counting (distinct documents, distinct
+//!   document/revision pairs and chunks) of the pinned generation, never
+//!   reading indexed text;
 //! - `query`: deterministic query parsing and quoted FTS5 rendering;
 //! - `recovery`: bounded staging discovery and transactional cleanup, with
 //!   abandonment decisions owned by the native startup lifecycle.
@@ -60,6 +63,8 @@
 //! versioned corpus migration (`corpus-search-schema.sql`). This module never
 //! migrates lazily and never touches `user_version`; opening an unmigrated
 //! database fails closed with an explicit error.
+#[path = "corpus-search-count.rs"]
+mod count;
 #[path = "corpus-search-db.rs"]
 mod database;
 #[path = "corpus-search-query.rs"]
@@ -79,6 +84,7 @@ mod stage;
 #[path = "corpus-search-types.rs"]
 mod types;
 
+pub use count::{count_reference_documents, SearchScopeCounts};
 pub use read::{
     active_generation, active_receipt, indexed_text, prune_generations, search, search_with_receipt,
 };

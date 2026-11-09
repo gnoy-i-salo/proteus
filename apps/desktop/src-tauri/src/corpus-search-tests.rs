@@ -2447,6 +2447,17 @@ fn final_index_commit_guard_restores_old_rows_pointer_and_staging_after_all_writ
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+// ==== Metadata-only scope counting (proteus-tip.9) ====
+// `count_reference_documents` reports distinct documents, distinct
+// (document, revision) pairs and chunks of the pinned generation inside the
+// caller-authorized scope. Counts never read indexed text, pin the expected
+// publication identity like scan does, and treat an authorized-but-empty
+// scope as a truthful zero. The fixtures reuse the shared private helpers
+// above via `super`, as the receipt/scan tests do.
+
+#[path = "corpus-search-count-tests.rs"]
+mod count_tests;
+
 // ==== Abandoned staging recovery (proteus-tip.9) ====
 // `staging_ids`/`discard_staging` are low-level storage APIs, not an
 // authorization or abandonment authority: the trusted caller identifies

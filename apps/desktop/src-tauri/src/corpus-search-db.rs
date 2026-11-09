@@ -2,6 +2,14 @@
 use super::*;
 use crate::corpus_database::CorpusDatabase;
 impl CorpusDatabase {
+    pub fn count_reference_documents(
+        &self,
+        scope: &SearchScope,
+        expected: &SearchIndexReceipt,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<SearchScopeCounts, String> {
+        count_reference_documents(&self.connection, scope, expected, check)
+    }
     pub fn read_reference_chunks(
         &self,
         scope: &SearchScope,

@@ -2,8 +2,9 @@
 
 `local_embedding::runtime::E5Runtime` выполняет inference на CPU через Candle
 0.11.1 (F32). Native-слой включает проверяемый кеш модели и версионированное
-хранилище векторов. Подключение к MemoryPort, пользовательскому управлению моделью
-и итоговый RU benchmark ещё нужны.
+хранилище векторов, research MemoryPort через native IPC и desktop-адаптер, а также
+управление пакетом модели в настройках. Прикладной research controller, полный
+пользовательский сценарий и итоговая приёмка RU benchmark ещё нужны.
 Сценарий, вызывающий адаптер, обязан отдельно проверить разрешение на обработку
 текста моделью. Загрузка файла сама по себе такого разрешения не даёт.
 
@@ -96,7 +97,7 @@ EmbeddingPort или пользовательским экраном устан�
 Входные кандидаты уже должны быть ограничены текущими grants, persona, reference
 и периодом в native host. Численный алгоритм не является разрешением на чтение;
 после поиска host обязан повторно проверить доступ. Хранилище и чтение векторных
-кандидатов описаны ниже; подключение к MemoryPort ещё не реализовано.
+кандидатов и их подключение к research MemoryPort описаны ниже.
 
 Воспроизводимый синтетический probe находится в
 `apps/desktop/src-tauri/src/e5-retrieval-observations.rs`: 16 реплик, восемь запросов,
@@ -138,8 +139,8 @@ probe и не доказывают улучшение относительно F
 сохраняет честный lexical-only режим. Параметр `k=60` — фиксированный baseline,
 а не результат подбора на этом синтетическом probe. Функция не проверяет grants
 и не расширяет эпизоды: оба списка уже должны быть разрешены host, который повторно
-проверяет доступ перед выдачей исходного текста. Внешнее расширение эпизодов,
-retrieval receipts и интеграция MemoryPort ещё нужны.
+проверяет доступ перед выдачей исходного текста. Расширение эпизодов и retrieval
+receipts реализованы в описанной ниже native-сессии MemoryPort.
 
 ## Durable vector generation storage
 
@@ -158,8 +159,8 @@ Encrypted reopen tests cover interrupted staging and exact receipt replay.
 
 These storage primitives do not authorize model processing or provide retrieval.
 The native caller must check current grants before embedding and through the
-checkpoint callback. Host authorization, bounded abandoned-stage cleanup, model management and
-worker/MemoryPort integration remain required release work.
+checkpoint callback. The orchestration and research MemoryPort below own authorization
+and model use; bounded abandoned vector-stage cleanup remains required release work.
 
 ## Scoped native reads
 
@@ -179,8 +180,8 @@ storage, profile, cancellation or candidate-budget error discards all partial
 hits. At most 100000 candidate IDs and 1000 result references are retained.
 
 These database primitives do not issue grants. The native orchestration below
-supplies scope and live permission checks; production MemoryPort sessions, bounded
-episode expansion and retrieval receipts still need integration and acceptance.
+supplies scope and live permission checks. The research session below adds cumulative
+budgets, bounded episode expansion and retrieval receipts; final release acceptance remains pending.
 
 ## Индексирование разрешённого корпуса
 
@@ -223,9 +224,9 @@ callback и после вычисления. Отзыв разрешения, п
 Интеграционный тест проходит путь выбранного архива через подготовку, FTS,
 настоящую закреплённую E5 и гибридную выдачу. Проверки дополнительно покрывают
 semantic-only результат, holdout, период, stale generation, отзыв разрешения во
-время inference и последнюю границу отмены. Это получение кандидатов, ещё не
-`MemoryPort`: cumulative budgets сессии, расширение эпизодов, проверяемые citations
-и окончательный latency benchmark остаются обязательной работой tip.11.
+время inference и последнюю границу отмены. Получение кандидатов используется
+описанной ниже сессией MemoryPort с совокупными бюджетами и citations.
+Окончательный latency benchmark остаётся обязательной работой tip.11.
 
 `ingestion::episode_read::read` расширяет отдельный reference-эпизод в пределах
 той же native-задачи. Произвольный ID не заменяет проверок persona, binding,
@@ -241,7 +242,7 @@ model-processing grant, подготовленного снимка и теку�
 одной страницы и время. `context_tokens` здесь — сумма сохранённых token counts
 закреплённого E5-токенизатора; это не измерение токенов Codex/Kimi. Возвращаемые
 оригиналы остаются внутренними Rust-объектами. Разрешённые excerpts проецируются
-отдельно; IPC ещё не подключён.
+отдельно и выдаются через описанный ниже research IPC.
 
 `memory::session::MemorySession` закрепляет завершённую задачу, persona, период,
 полный source receipt и разрешение model-processing при создании. Модель может
@@ -265,8 +266,8 @@ ledger; выдача содержит реальные эпизоды, исхо�
 остаток бюджета может уменьшить выдачу. Сканирование векторов отдельно ограничено
 100000 строк на запрос; счётчик candidates учитывает выданные reference-чанки.
 Повторные выдачи повторно расходуют лимиты. Это внутренний native-сценарий:
-он не создаёт вымышленные MemoryItems из найденного текста. IPC,
-выдача citations через IPC и публикация памяти остаются частями интеграции MemoryPort.
+он не создаёт вымышленные MemoryItems из найденного текста. Выдача citations
+через IPC и атомарная публикация памяти описаны ниже.
 
 `recall_recorded` и `read_episode_recorded` создают native-квитанции версии 2
 из результата той же сессии. ID создаётся хостом; policyVersion берётся из
@@ -285,7 +286,7 @@ ledger; выдача содержит реальные эпизоды, исхо�
 Закрытие немедленно отзывает handle и отменяет операцию без ожидания занятой сессии;
 её ресурсы продолжают занимать место в лимите до завершения worker. Shutdown
 отменяет все сессии и запрещает новые. Реестр зарегистрирован в приложении и
-используется CLI; команды открытия и действий MemoryPort ещё не подключены.
+используется CLI и командами открытия и действий research MemoryPort.
 
 Сессия сохраняет не более 1000 выданных квитанций и 16 MiB их сериализованного
 JSON, включая метаданные и экранирование. Возвращаемый результат и сохранённая
@@ -358,8 +359,17 @@ Model actions по-прежнему не могут открыть или пер
 ошибка последней проверки admission удаляет её и освобождает операцию источника.
 Закрытие отменяет занятую сессию без ожидания её рабочего mutex.
 
-TS-адаптер MemoryPort, контроллер исследования и frozen manifest для Person ещё
-нужно подключить; native research-сессия явно отвергает запрос контекста Person.
+Desktop-адаптер `shared/lib/research-memory.ts` открывает research-сессию и
+передаёт recall/readEpisode, reservation и публикацию через проверяемые контракты.
+Он сохраняет отдельные копии квитанций/выдержек от изменений вызывающего кода;
+для reservation хранит только выданные lease ID, без копий prompt. Одновременно
+допускается одна операция. Отмена при открытии повторяется до окончания worker;
+поздний handle закрывается. Отмена действия закрывает сессию и ожидает worker,
+поздние ответы не выдаются. Неуспешное закрытие допускает повтор. Ошибка транспорта
+публикации не подменяется успехом и допускает native replay. Общая логика отмены
+переиспользуется адаптером локальной модели. UI обращается к ним через модели сценариев.
+Прикладной контроллер исследования и frozen manifest для Person ещё нужно
+подключить; native research-сессия явно отвергает запрос контекста Person.
 `decodeSourceExcerpt` проверяет формат native-выдержек: только известные поля,
 точный UTF-8 размер span, совпадение document ID, reference partition и согласованность
 признака собственных слов с авторством, ролью и цитированием. Метаданные документа
@@ -443,7 +453,8 @@ native dispatch. Потерянный ответ предыдущей reservatio
 фиксирует состояния задачи и разрешений, а callbacks проверяют отмену и сроки
 без повторного захвата этого gate. Финальная проверка перед выдачей может
 запретить возврат уже сохранённого результата; его идентичность сохраняется.
-IPC и прикладной research controller ещё не подключены.
+Публикация доступна через research IPC и desktop-адаптер; прикладной research
+controller ещё не подключён.
 
 `ingestion::source_excerpt` — общий владелец проекции для recall и чтения эпизода.
 Он повторно сверяет исходный документ с адаптером и выбранной областью, проверяет
@@ -500,8 +511,9 @@ HTTP-запрос — 30 секундами; инспекция — 60 секу�
 
 Отмена и публикация кешированного runtime согласованы одним mutex: подтверждённая
 отмена не превращается в успешный результат. Уже начавшийся Candle forward
-завершается до следующей проверки. Прикладные IPC-сценарии индекса/MemoryPort
-ещё должны подключить сервис; наличие команды загрузки само по себе их не завершает.
+завершается до следующей проверки. Research IPC использует этот сервис для
+открытия гибридной сессии и recall; пользовательский сценарий построения индекса
+требует отдельного подключения.
 
 Настройки → Модели → Локальный поиск управляют проверкой/загрузкой пакета и
 освобождением RAM. Открытие читает только метаданные; файлы проверяются отдельно,

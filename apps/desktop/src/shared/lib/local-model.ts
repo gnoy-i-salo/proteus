@@ -7,15 +7,13 @@ import {
 } from './local-model-wire';
 import type { LocalModelProgress } from './local-model-wire';
 import { isDesktop } from './window-controls';
+import { runNativeOperation } from './native-operation';
 
 function available(signal?: AbortSignal): void {
   if (!isDesktop()) throw new Error('Локальная модель доступна в настольном приложении PROTEUS.');
   signal?.throwIfAborted();
 }
 
-// Native admission happens inside spawn_blocking. Retry a cancellation that
-// arrives before admission, with at most one request in flight. Await the worker
-// itself before reporting completion: an acknowledgment is not a stopped worker.
 async function operation<T>(
   command: string,
   operationId: string,
@@ -23,36 +21,12 @@ async function operation<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   available(signal);
-  let pending = true;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let cancellation: Promise<void> | undefined;
-  const cancel = () => {
-    if (!pending) return;
-    cancellation = (async () => {
-      let acknowledged = false;
-      try {
-        acknowledged =
-          (await invoke<unknown>('cancel_local_model_operation', { operationId })) === true;
-      } catch {
-        // Retry transport failure too; a completed worker ends retries below.
-      }
-      if (pending && !acknowledged) timer = setTimeout(cancel, 100);
-    })();
-  };
-  signal?.addEventListener('abort', cancel, { once: true });
-  try {
-    const value = await invoke<unknown>(command, { operationId });
-    signal?.throwIfAborted();
-    return decode(value);
-  } catch (error) {
-    signal?.throwIfAborted();
-    throw error;
-  } finally {
-    pending = false;
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', cancel);
-    await cancellation;
-  }
+  return runNativeOperation(
+    () => invoke<unknown>(command, { operationId }),
+    decode,
+    async () => (await invoke<unknown>('cancel_local_model_operation', { operationId })) === true,
+    signal,
+  );
 }
 
 export const nativeLocalModel = {

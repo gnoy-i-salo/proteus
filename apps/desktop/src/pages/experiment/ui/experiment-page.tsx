@@ -1,6 +1,7 @@
 import { createSignal, Show } from 'solid-js';
 import { SettingsDialog } from '../../../widgets/settings-dialog';
 import { SourceSelection } from '../../../features/source-selection';
+import { SourcePreparation } from '../../../features/source-preparation';
 import { createExperimentInput } from '../model/experiment-input';
 import { createExperimentSources } from '../model/experiment-sources';
 import { createExperimentSettings } from '../model/experiment-settings';
@@ -18,6 +19,8 @@ export function ExperimentPage() {
   const [selected, setSelected] = createSignal(0);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [sourcePerson, setSourcePerson] = createSignal<number>();
+  const [preparationPerson, setPreparationPerson] = createSignal<number>();
+  const preparationIds = [crypto.randomUUID(), crypto.randomUUID()];
   const [error, setError] = createSignal('');
   const [detail, setDetail] = createSignal('analysis');
   const [historyOpen, setHistoryOpen] = createSignal(false);
@@ -233,10 +236,28 @@ export function ExperimentPage() {
             onImported={rememberImport}
             onChange={(grants) => changeGrants(sourcePerson() === 0 ? 0 : 1, grants)}
             onClose={() => setSourcePerson(undefined)}
+            onPrepare={() => {
+              setPreparationPerson(sourcePerson());
+              setSourcePerson(undefined);
+            }}
             onShowSettings={() => {
               setSourcePerson(undefined);
               setSettingsOpen(true);
             }}
+          />
+        </div>
+      </Show>
+      <Show when={preparationPerson() !== undefined}>
+        <div class={styles.experiment__modal}>
+          <SourcePreparation
+            letter={preparationPerson() === 0 ? 'A' : 'B'}
+            personaId={preparationIds[preparationPerson() === 0 ? 0 : 1]!}
+            onClose={() => setPreparationPerson(undefined)}
+            onCleanupError={() =>
+              setError(
+                'Не удалось подтвердить остановку или освобождение источника. Проверьте состояние импорта.',
+              )
+            }
           />
         </div>
       </Show>

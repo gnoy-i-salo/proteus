@@ -31,6 +31,7 @@ export function SourceSelection(props: {
   onImported: (provider: SourceProvider, source: ImportedSource) => void;
   onChange: (grants: readonly SourceGrant[]) => void;
   onClose: () => void;
+  onPrepare: () => void;
   onShowSettings: () => void;
 }) {
   const {
@@ -100,6 +101,14 @@ export function SourceSelection(props: {
           ×
         </button>
       </header>
+      <button
+        type="button"
+        disabled={busy()}
+        aria-label={`Подготовить корпус персоны ${props.letter}`}
+        onClick={() => props.onPrepare()}
+      >
+        Архивы и подготовка корпуса
+      </button>
       <Show
         when={isDesktop()}
         fallback={<p>Выбор подключённых источников доступен в настольном приложении PROTEUS.</p>}

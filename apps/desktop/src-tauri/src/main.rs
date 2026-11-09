@@ -17,6 +17,8 @@ mod cli_policy;
 #[path = "cli-protocol.rs"]
 mod cli_protocol;
 mod connections;
+#[path = "experiment-history.rs"]
+pub mod experiment_history;
 #[path = "experiment-storage.rs"]
 mod experiment_storage;
 mod presets;
@@ -128,6 +130,8 @@ fn main() {
             cli::run_cli,
             cli::cancel_cli,
             experiment_storage::save_experiment,
+            experiment_history::commands::list_saved_experiments,
+            experiment_history::commands::read_saved_experiment,
             connections::configure_connection,
             connections::connection_statuses,
             connections::begin_connection,

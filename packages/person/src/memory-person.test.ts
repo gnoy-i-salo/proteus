@@ -31,6 +31,43 @@ const append = vi.fn<PersonaMemoryPort['appendSimulation']>();
 const provider: IntelligenceProvider = { id: 'codex', run };
 let memory: PersonaMemoryPort;
 const open = vi.fn<() => Promise<PersonaMemoryPort>>();
+it('passes separate task guidance without changing the frozen profile or evidence selection', async () => {
+  const adaptation = {
+    schemaVersion: 1 as const,
+    manifestId: request.manifestId,
+    task: input.task,
+    strategies: [
+      {
+        id: 's1',
+        instruction: '  Уточни условия\r\n',
+        evidenceIds: [],
+        status: 'hypothesis' as const,
+        limitations: ['Предполагаемая стратегия, не установленная черта.'],
+      },
+    ],
+  };
+  const chosen = { ...input, adaptation };
+  await solveMemory(chosen, provider, open);
+  const sent: unknown = JSON.parse(reserve.mock.calls[0]![0].task);
+  expect(sent).toMatchObject({ taskAdaptation: adaptation, taskSkills: [], skills: [] });
+  expect(reserve.mock.calls[0]![0].memoryItemIds).toEqual([]);
+  expect(profile.taskSkills).toEqual([]);
+  expect(run.mock.calls[0]![0].systemPrompt).toContain('taskAdaptation');
+});
+it('rejects stale task guidance before opening memory or calling a provider', async () => {
+  const chosen = {
+    ...input,
+    adaptation: {
+      schemaVersion: 1 as const,
+      manifestId: request.manifestId,
+      task: 'other task',
+      strategies: [],
+    },
+  };
+  await expect(solveMemory(chosen, provider, open)).rejects.toThrow();
+  expect(open).not.toHaveBeenCalled();
+  expect(run).not.toHaveBeenCalled();
+});
 beforeEach(() => {
   vi.resetAllMocks();
   memory = {

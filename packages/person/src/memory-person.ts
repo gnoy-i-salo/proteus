@@ -8,6 +8,7 @@ import type {
   ModelMemoryAction,
   PersonaSimulationScope,
   SimulationMemoryEntry,
+  PersonaTaskAdaptation,
 } from '@proteus-int/contracts';
 import {
   decodeOpenPersonaSessionRequest,
@@ -15,6 +16,7 @@ import {
   decodePersonaProfileSnapshot,
   parseMemoryAction,
   decodePersonaSimulationScope,
+  decodePersonaTaskAdaptation,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
@@ -27,6 +29,7 @@ export interface MemoryPersonInput {
   readonly request: OpenPersonaSessionRequest;
   readonly maxRetrievalSteps: number;
   readonly simulation: PersonaSimulationScope;
+  readonly adaptation?: PersonaTaskAdaptation;
 }
 export type OpenPersonaMemory = (
   request: OpenPersonaSessionRequest,
@@ -84,7 +87,19 @@ function validate(input: MemoryPersonInput) {
       ...(profile.styleExemplars?.map((sample) => sample.id) ?? []),
     ]),
   ];
-  const data = { ...personTask(profile, input.task), proceduralSkills: skills };
+  const adaptation =
+    input.adaptation === undefined
+      ? undefined
+      : decodePersonaTaskAdaptation(input.adaptation, {
+          manifestId: request.manifestId,
+          task: input.task,
+          profile: snapshot,
+        });
+  const data = {
+    ...personTask(profile, input.task),
+    proceduralSkills: skills,
+    ...(adaptation ? { taskAdaptation: adaptation } : {}),
+  };
   exactText(JSON.stringify(data), 150000);
   return {
     request,

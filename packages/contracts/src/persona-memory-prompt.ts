@@ -5,12 +5,14 @@ import type { PersonaProfileSnapshot } from './persona-profile-snapshot';
 export function personaMemoryPrompt(
   sourceStatus: PersonaProfileSnapshot['sourceStatus'],
   formatAttempt: 1 | 2,
+  taskAdaptation = false,
 ): string {
   if (spec.schemaVersion !== 1) throw new Error('Неизвестная версия инструкций Person.');
   return (
     'PERSON memory\n' +
     (sourceStatus === 'neutral' ? spec.neutralPerspective : spec.personaPerspective) +
     spec.body +
-    (formatAttempt === 2 ? spec.repair : '')
+    (formatAttempt === 2 ? spec.repair : '') +
+    (taskAdaptation ? spec.taskGuidance : '')
   );
 }

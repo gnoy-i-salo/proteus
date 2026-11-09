@@ -148,13 +148,16 @@ export function createPersonaModel(
         if (attempts >= session.manifest.modelCallBudget.maxCalls)
           throw new Error('Исчерпан бюджет модельных попыток Person.');
         const formatAttempt = input.formatAttempt ?? 1;
+        const task = promptData(input.task, formatAttempt, formatFeedback);
+        const data = JSON.parse(task) as { taskAdaptation?: unknown };
         const draft = decodeModelContextRequest({
           ...selection,
           systemPrompt: personaMemoryPrompt(
             session.manifest.profileSnapshot.sourceStatus,
             formatAttempt,
+            data.taskAdaptation !== undefined,
           ),
-          task: promptData(input.task, formatAttempt, formatFeedback),
+          task,
           receiptIds: records.map((r) => r.receipt.id),
           formatAttempt: input.formatAttempt ?? 1,
         });

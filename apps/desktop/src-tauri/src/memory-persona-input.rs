@@ -1,10 +1,10 @@
 //! Bind every profile-derived prompt field to the immutable native bundle.
 use super::{
     context_wire::ModelContextRequest,
-    profile_snapshot::{ProfileRule, SourceStatus, StyleExemplar, StyleProfile},
+    profile_snapshot::{ProfileRule, RuleStatus, SourceStatus, StyleExemplar, StyleProfile},
     types::{PersonaManifest, RecallMode, SkillDefinition},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 #[derive(Deserialize)]
@@ -22,8 +22,80 @@ struct PersonaInput {
     style_exemplars: Vec<StyleExemplar>,
     procedural_skills: Vec<SkillDefinition>,
     retrieval_allowed: bool,
+    #[serde(default, deserialize_with = "optional_adaptation")]
+    task_adaptation: Option<TaskAdaptation>,
     #[serde(default, deserialize_with = "optional_text")]
     format_feedback: Option<String>,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TaskAdaptation {
+    schema_version: u8,
+    manifest_id: String,
+    task: String,
+    strategies: Vec<ProfileRule>,
+}
+fn optional_adaptation<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<TaskAdaptation>, D::Error> {
+    TaskAdaptation::deserialize(deserializer).map(Some)
+}
+impl TaskAdaptation {
+    fn validate(&self, manifest: &PersonaManifest, task: &str) -> Result<(), String> {
+        let profile = manifest.profile_snapshot.as_ref().ok_or(INVALID)?;
+        if self.schema_version != 1
+            || self.manifest_id != manifest.id
+            || self.task != task
+            || !(1..=5).contains(&self.strategies.len())
+            || serde_json::to_vec(self).map_err(|_| INVALID)?.len() > 150000
+        {
+            return Err(INVALID.into());
+        }
+        let mut ids = HashSet::new();
+        for strategy in &self.strategies {
+            let suffix = strategy.id.strip_prefix('s').ok_or(INVALID)?;
+            if suffix.is_empty()
+                || !suffix.bytes().all(|byte| byte.is_ascii_digit())
+                || strategy.id.len() > 256
+                || !ids.insert(&strategy.id)
+                || strategy.instruction.trim().is_empty()
+                || strategy.instruction.len() > 96000
+                || strategy.status != RuleStatus::Hypothesis
+                || strategy.evidence_ids.len() > 1000
+                || strategy.limitations.len() > 1000
+                || strategy.limitations.iter().any(|text| text.len() > 150000)
+                || (profile.source_status == SourceStatus::Neutral
+                    && !strategy.evidence_ids.is_empty())
+            {
+                return Err(INVALID.into());
+            }
+            let mut evidence_ids = HashSet::new();
+            for id in &strategy.evidence_ids {
+                if id.trim().is_empty()
+                    || id.len() > 256
+                    || id.chars().any(char::is_control)
+                    || !evidence_ids.insert(id)
+                {
+                    return Err(INVALID.into());
+                }
+                let rules: Vec<_> = profile
+                    .rules
+                    .iter()
+                    .filter(|rule| rule.evidence_ids.contains(id))
+                    .collect();
+                if rules.is_empty()
+                    || rules.iter().any(|rule| {
+                        rule.limitations
+                            .iter()
+                            .any(|text| !strategy.limitations.contains(text))
+                    })
+                {
+                    return Err(INVALID.into());
+                }
+            }
+        }
+        Ok(())
+    }
 }
 fn optional_text<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
@@ -38,8 +110,13 @@ struct PromptSpec {
     neutral_perspective: String,
     body: String,
     repair: String,
+    task_guidance: String,
 }
+#[cfg(test)]
 pub(crate) fn system_prompt(status: SourceStatus, attempt: u8) -> Result<String, String> {
+    render_prompt(status, attempt, false)
+}
+fn render_prompt(status: SourceStatus, attempt: u8, adaptation: bool) -> Result<String, String> {
     let spec: PromptSpec = serde_json::from_str(include_str!(
         "../../../../packages/contracts/src/persona-memory-prompt.json"
     ))
@@ -53,9 +130,10 @@ pub(crate) fn system_prompt(status: SourceStatus, attempt: u8) -> Result<String,
         &spec.persona_perspective
     };
     Ok(format!(
-        "PERSON memory\n{perspective}{}{}",
+        "PERSON memory\n{perspective}{}{}{}",
         spec.body,
-        if attempt == 2 { &spec.repair } else { "" }
+        if attempt == 2 { &spec.repair } else { "" },
+        if adaptation { &spec.task_guidance } else { "" }
     ))
 }
 const INVALID: &str = "Вход Person изменяет закреплённое содержимое профиля.";
@@ -65,10 +143,19 @@ pub(super) fn validate(
     request: &ModelContextRequest,
 ) -> Result<(), String> {
     let profile = manifest.profile_snapshot.as_ref().ok_or(INVALID)?;
-    if request.system_prompt != system_prompt(profile.source_status, request.format_attempt)? {
+    let input: PersonaInput = serde_json::from_str(&request.task).map_err(|_| INVALID)?;
+    if request.system_prompt
+        != render_prompt(
+            profile.source_status,
+            request.format_attempt,
+            input.task_adaptation.is_some(),
+        )?
+    {
         return Err(INVALID.into());
     }
-    let input: PersonaInput = serde_json::from_str(&request.task).map_err(|_| INVALID)?;
+    if let Some(adaptation) = &input.task_adaptation {
+        adaptation.validate(manifest, &input.task)?;
+    }
     let label = if profile.source_status == SourceStatus::Neutral {
         None
     } else {

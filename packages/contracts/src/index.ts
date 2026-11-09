@@ -31,6 +31,8 @@ export type {
   PersonScore,
 } from './evaluation';
 export type { ExperimentProtocol, InvocationAttempt, ExperimentInput } from './experiment';
+export type { PersonaTaskAdaptation } from './persona-task-adaptation';
+export { decodePersonaTaskAdaptation } from './persona-task-adaptation';
 export type { AuthCallbackResult } from './auth-callback';
 export { AUTH_CALLBACK_VERSION, parseVkAuthCallback } from './auth-callback';
 export type {

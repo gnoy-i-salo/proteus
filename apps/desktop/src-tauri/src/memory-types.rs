@@ -230,7 +230,7 @@ pub struct PersonaManifest {
     pub created_at: String,
 }
 
-fn required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+pub(super) fn required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: Deserialize<'de>,
@@ -248,7 +248,7 @@ fn is_blank(value: &str) -> bool {
 /// Host id/version policy, mirroring the bounded host ids of the STALKER and
 /// Fabric parsers: nonblank, no control characters, at most 256 UTF8 bytes.
 /// Surrounding whitespace is preserved, never trimmed or normalized.
-fn validate_host_id(value: &str, label: &str) -> Result<(), String> {
+pub(super) fn validate_host_id(value: &str, label: &str) -> Result<(), String> {
     if is_blank(value) {
         return Err(format!("{label} не может быть пустым."));
     }
@@ -261,7 +261,7 @@ fn validate_host_id(value: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_timestamp(value: &str, label: &str) -> Result<(), String> {
+pub(super) fn validate_timestamp(value: &str, label: &str) -> Result<(), String> {
     if value.len() > MAX_TIMESTAMP_BYTES {
         return Err(format!("{label} превышает {MAX_TIMESTAMP_BYTES} байт."));
     }
@@ -271,7 +271,7 @@ fn validate_timestamp(value: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_text(value: &str, label: &str) -> Result<(), String> {
+pub(super) fn validate_text(value: &str, label: &str) -> Result<(), String> {
     if value.is_empty() || value.len() > MAX_TEXT_BYTES {
         return Err(format!(
             "{label} должен занимать 1..={MAX_TEXT_BYTES} байт UTF8."
@@ -290,7 +290,7 @@ fn validate_nonblank_entry(value: &str, label: &str, max_bytes: usize) -> Result
     Ok(())
 }
 
-fn validate_unique_host_ids(
+pub(super) fn validate_unique_host_ids(
     values: &[String],
     label: &str,
     max_entries: usize,
@@ -330,7 +330,7 @@ fn validate_span(span: &ChunkSpan, label: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_spans(spans: &[ChunkSpan], label: &str) -> Result<(), String> {
+pub(super) fn validate_spans(spans: &[ChunkSpan], label: &str) -> Result<(), String> {
     if spans.is_empty() || spans.len() > MAX_SPANS {
         return Err(format!(
             "{label}: интервалов источника должно быть 1..={MAX_SPANS}."
@@ -352,7 +352,7 @@ fn validate_spans(spans: &[ChunkSpan], label: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_limitations(values: &[String], label: &str) -> Result<(), String> {
+pub(super) fn validate_limitations(values: &[String], label: &str) -> Result<(), String> {
     if values.len() > MAX_LIMITATIONS {
         return Err(format!(
             "{label}: превышен лимит в {MAX_LIMITATIONS} записей."

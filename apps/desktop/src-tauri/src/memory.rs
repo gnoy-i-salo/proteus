@@ -14,6 +14,8 @@ pub mod model_input;
 mod receipt_history;
 #[path = "memory-session-registry.rs"]
 pub mod registry;
+#[path = "memory-research-draft.rs"]
+pub mod research_draft;
 #[path = "memory-research-support.rs"]
 pub(crate) mod research_support;
 #[path = "memory-session.rs"]

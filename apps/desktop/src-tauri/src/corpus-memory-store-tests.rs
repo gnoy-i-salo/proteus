@@ -947,3 +947,6 @@ mod encrypted_tests;
 
 #[path = "corpus-research-publication-tests.rs"]
 mod publication_tests;
+
+#[path = "corpus-persona-manifest-tests.rs"]
+mod manifest_tests;

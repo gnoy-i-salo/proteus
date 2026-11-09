@@ -31,6 +31,10 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::Serialize;
 use std::collections::HashSet;
 
+#[path = "corpus-persona-manifest.rs"]
+mod manifest;
+pub use manifest::ManifestBundle;
+
 #[path = "corpus-research-publication.rs"]
 mod publication;
 pub use publication::StoredResearchPublication;

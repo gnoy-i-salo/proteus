@@ -1,5 +1,5 @@
 use super::*;
-use crate::memory::types::{PersonaManifest, SkillDefinition};
+use crate::memory::types::{PersonaManifest, SkillDefinition, SkillSupport};
 use serde_json::json;
 
 #[test]
@@ -383,4 +383,195 @@ fn manifest_rejects_tampered_counters_payload_limits_and_extra_members() {
         drop(db);
         std::fs::remove_dir_all(dir).unwrap();
     }
+}
+
+fn bound_manifest(mut manifest: PersonaManifest) -> PersonaManifest {
+    let mut profile: crate::memory::profile_snapshot::PersonaProfileSnapshot =
+        serde_json::from_str(include_str!(
+            "../../../../packages/contracts/src/testing/persona-profile-snapshot.json"
+        ))
+        .unwrap();
+    profile.rules.clear();
+    profile.source_status = crate::memory::profile_snapshot::SourceStatus::Synthetic;
+    profile.style_exemplars.clear();
+    profile.style_profile.voice_rules.clear();
+    profile.style_profile.style_exemplar_ids.clear();
+    for mode in &mut profile.style_profile.context_modes {
+        mode.status = crate::memory::profile_snapshot::ModeStatus::Insufficient;
+    }
+    manifest.schema_version = 2;
+    manifest.profile_snapshot = Some(profile);
+    manifest
+}
+#[test]
+fn manifest_v2_body_is_immutable_and_pinned_in_existing_atomic_bundle() {
+    let (mut db, dir) = setup();
+    let (old, skills) = fixture(&mut db);
+    let manifest = bound_manifest(old);
+    let stored = db
+        .freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+        .unwrap();
+    let pin = db
+        .pin_manifest_checked(&manifest.id, PERSONA, &|| Ok(()))
+        .unwrap();
+    let mut changed = manifest.clone();
+    changed
+        .profile_snapshot
+        .as_mut()
+        .unwrap()
+        .archetype
+        .push_str(" changed");
+    assert!(db
+        .freeze_manifest_checked(&changed, &skills, &|| Ok(()))
+        .is_err());
+    assert_eq!(
+        db.read_manifest_checked(&manifest.id, PERSONA, &|| Ok(()))
+            .unwrap(),
+        stored
+    );
+    drop(db);
+    let db = CorpusDatabase::open(&dir.join("corpus.db"), &[31; 32]).unwrap();
+    assert_eq!(
+        db.read_manifest_checked(&manifest.id, PERSONA, &|| Ok(()))
+            .unwrap(),
+        stored
+    );
+    db.verify_manifest_pin(&pin, &|| Ok(())).unwrap();
+    let changed_json = serde_json::to_string(&changed).unwrap();
+    db.connection
+        .execute_batch("DROP TRIGGER memory_manifests_immutable")
+        .unwrap();
+    db.connection
+        .execute(
+            "UPDATE memory_manifests SET data_json=?1,payload_bytes=?2,canonical_sha256=?3",
+            params![
+                changed_json,
+                changed_json.len() as i64,
+                digest(changed_json.as_bytes())
+            ],
+        )
+        .unwrap();
+    assert!(db.verify_manifest_pin(&pin, &|| Ok(())).is_err());
+    assert_eq!(pin.bundle(), &stored);
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn manifest_v2_rejects_profile_claims_without_published_memory_support() {
+    use crate::memory::profile_snapshot::{ProfileRule, RuleStatus, SourceStatus};
+    let (mut db, dir) = setup();
+    let (old, skills) = fixture(&mut db);
+    let mut manifest = bound_manifest(old);
+    let profile = manifest.profile_snapshot.as_mut().unwrap();
+    profile.source_status = SourceStatus::EvidenceInformed;
+    profile.rules.push(ProfileRule {
+        id: "r1".into(),
+        instruction: "exact words".into(),
+        evidence_ids: vec!["foreign:item".into()],
+        status: RuleStatus::Supported,
+        limitations: vec![],
+    });
+    assert!(db
+        .freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+        .is_err());
+    assert_eq!(memory_row_count(&db.connection, "memory_manifests"), 0);
+    manifest.profile_snapshot.as_mut().unwrap().rules[0].evidence_ids =
+        skills[0].memory_item_ids.clone();
+    db.freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+        .unwrap();
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn manifest_v2_preserves_exact_examples_and_rejects_substitutions() {
+    use crate::memory::profile_snapshot::ModeStatus;
+    let (mut db, dir) = setup();
+    let (old, mut skills) = fixture_with_support(
+        &mut db,
+        MemoryItemKind::StyleExample,
+        MemoryItemSupport::Observed,
+    );
+    skills[0].support = SkillSupport::Proposed;
+    let memory = db
+        .read_memory_snapshot_checked(&old.memory_snapshot_id, PERSONA, &|| Ok(()))
+        .unwrap();
+    let item = &memory.items[0];
+    let mut manifest = bound_manifest(old);
+    let mut source: crate::memory::profile_snapshot::PersonaProfileSnapshot = serde_json::from_str(
+        include_str!("../../../../packages/contracts/src/testing/persona-profile-snapshot.json"),
+    )
+    .unwrap();
+    let mut sample = source.style_exemplars.remove(0);
+    sample.id = item.id.clone();
+    sample.document_id = item.source_spans[0].document_id.clone();
+    sample.text = item.text.clone();
+    let profile = manifest.profile_snapshot.as_mut().unwrap();
+    profile.style_profile.context_modes[0].status = ModeStatus::Observed;
+    profile.style_profile.style_exemplar_ids = vec![sample.id.clone()];
+    manifest.exemplar_ids = vec![sample.id.clone()];
+    profile.style_exemplars = vec![sample];
+    for variant in 0..3 {
+        let mut bad = manifest.clone();
+        let sample = &mut bad.profile_snapshot.as_mut().unwrap().style_exemplars[0];
+        match variant {
+            0 => sample.text.push_str(" substituted"),
+            1 => sample.document_id = "foreign:doc".into(),
+            _ => {
+                sample.id = "foreign:item".into();
+                bad.exemplar_ids = vec![sample.id.clone()];
+                bad.profile_snapshot
+                    .as_mut()
+                    .unwrap()
+                    .style_profile
+                    .style_exemplar_ids = bad.exemplar_ids.clone();
+            }
+        }
+        assert!(
+            db.freeze_manifest_checked(&bad, &skills, &|| Ok(()))
+                .is_err(),
+            "{variant}"
+        );
+        assert_eq!(memory_row_count(&db.connection, "memory_manifests"), 0);
+    }
+    let stored = db
+        .freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+        .unwrap();
+    assert_eq!(
+        stored.manifest.profile_snapshot.unwrap().style_exemplars[0].text,
+        item.text
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn manifest_v2_reported_memory_cannot_become_a_supported_rule() {
+    use crate::memory::profile_snapshot::{ProfileRule, RuleStatus, SourceStatus};
+    let (mut db, dir) = setup();
+    let (old, mut skills) = fixture_with_support(
+        &mut db,
+        MemoryItemKind::Procedure,
+        MemoryItemSupport::Reported,
+    );
+    skills[0].support = SkillSupport::Proposed;
+    let mut manifest = bound_manifest(old);
+    let profile = manifest.profile_snapshot.as_mut().unwrap();
+    profile.source_status = SourceStatus::EvidenceInformed;
+    profile.rules.push(ProfileRule {
+        id: "r1".into(),
+        instruction: "Reported habit".into(),
+        evidence_ids: skills[0].memory_item_ids.clone(),
+        status: RuleStatus::Supported,
+        limitations: vec!["Only reported".into()],
+    });
+    assert!(db
+        .freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+        .is_err());
+    let profile = manifest.profile_snapshot.as_mut().unwrap();
+    profile.source_status = SourceStatus::Synthetic;
+    profile.rules[0].status = RuleStatus::Hypothesis;
+    db.freeze_manifest_checked(&manifest, &skills, &|| Ok(()))
+        .unwrap();
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
 }

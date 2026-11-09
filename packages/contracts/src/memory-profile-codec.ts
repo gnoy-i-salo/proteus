@@ -1,3 +1,4 @@
+import { decodePersonaProfileSnapshot } from './persona-profile-snapshot';
 import type {
   EmbeddingFingerprint,
   PersonaManifest,
@@ -125,9 +126,15 @@ export function decodeManifestReferences(value: unknown): PersonaManifest['sourc
     throw new Error('Повторный источник манифеста.');
   return references;
 }
-/** Persisted V1 reader; reading a manifest never grants access to its sources. */
+/** Exact persisted V1/V2 reader; reading never grants access to sources. */
 export function decodePersonaManifest(value: unknown): PersonaManifest {
+  const bound =
+    value !== null &&
+    typeof value === 'object' &&
+    'schemaVersion' in value &&
+    value.schemaVersion === 2;
   const input = fields(value, [
+    ...(bound ? ['profileSnapshot'] : []),
     'schemaVersion',
     'id',
     'personaId',
@@ -148,14 +155,29 @@ export function decodePersonaManifest(value: unknown): PersonaManifest {
     'modelSettings',
     'createdAt',
   ]);
-  if (input.schemaVersion !== 1) throw new Error('Неизвестная версия манифеста.');
+  if (input.schemaVersion !== 1 && input.schemaVersion !== 2)
+    throw new Error('Неизвестная версия манифеста.');
+  const version =
+    input.schemaVersion === 1
+      ? { schemaVersion: 1 as const }
+      : {
+          schemaVersion: 2 as const,
+          profileSnapshot: decodePersonaProfileSnapshot(input.profileSnapshot),
+        };
+  const exemplarIds = memoryIds(memoryList(input.exemplarIds, 100));
+  if (
+    version.schemaVersion === 2 &&
+    JSON.stringify(exemplarIds) !==
+      JSON.stringify(version.profileSnapshot.styleExemplars.map((sample) => sample.id))
+  )
+    throw new Error('Манифест не соответствует телу профиля.');
   return {
-    schemaVersion: 1,
+    ...version,
     id: memoryId(input.id),
     personaId: memoryId(input.personaId),
     profileVersion: memoryId(input.profileVersion),
     skillIds: memoryIds(memoryList(input.skillIds, 64)),
-    exemplarIds: memoryIds(memoryList(input.exemplarIds, 100)),
+    exemplarIds,
     corpusSnapshotId: memoryId(input.corpusSnapshotId),
     memorySnapshotId: memoryId(input.memorySnapshotId),
     sourceRefs: decodeManifestReferences(input.sourceRefs),

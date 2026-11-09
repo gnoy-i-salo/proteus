@@ -1,5 +1,5 @@
-//! Immutable persona manifests and their exact skill bundle. Storage validation
-//! is independent of live grant, profile exemplar and model-lease authority.
+//! Immutable persona manifests, versioned profile bodies and exact skills.
+//! Stored memory support is checked; live source and model authority stay in sessions.
 use super::*;
 use crate::memory::types::{
     decode_persona_manifest, decode_skill_definition, MemoryItemKind, MemoryItemSupport,
@@ -142,6 +142,49 @@ fn validate_bindings(
         return Err(INVALID.into());
     }
     let by_id: HashMap<_, _> = memory.items.iter().map(|item| (&item.id, item)).collect();
+    if let Some(profile) = &manifest.profile_snapshot {
+        use crate::memory::profile_snapshot::RuleStatus;
+        for rule in &profile.rules {
+            check()?;
+            for id in &rule.evidence_ids {
+                let item = by_id.get(id).ok_or(INVALID)?;
+                if !item.contradiction_ids.is_empty()
+                    || matches!(
+                        item.support,
+                        MemoryItemSupport::Unknown | MemoryItemSupport::Conflicting
+                    )
+                    || (rule.status == RuleStatus::Supported
+                        && item.support != MemoryItemSupport::Observed)
+                    || item.source_spans.is_empty()
+                    || item
+                        .source_spans
+                        .iter()
+                        .any(|span| !pinned_pairs.contains(&(&span.document_id, &span.revision_id)))
+                {
+                    return Err(INVALID.into());
+                }
+            }
+        }
+        for sample in &profile.style_exemplars {
+            check()?;
+            let item = by_id.get(&sample.id).ok_or(INVALID)?;
+            if item.kind != MemoryItemKind::StyleExample
+                || item.support != MemoryItemSupport::Observed
+                || !item.contradiction_ids.is_empty()
+                || item.text != sample.text
+                || !item
+                    .source_spans
+                    .iter()
+                    .any(|span| span.document_id == sample.document_id)
+                || item
+                    .source_spans
+                    .iter()
+                    .any(|span| !pinned_pairs.contains(&(&span.document_id, &span.revision_id)))
+            {
+                return Err(INVALID.into());
+            }
+        }
+    }
     for skill in skills {
         check()?;
         let referenced: Vec<_> = skill

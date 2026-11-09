@@ -125,3 +125,10 @@ pipeline. Последний возвращает тип своей эпохи �
 Фактические результаты прогонов и ещё не выполненные release checks записываются
 в Beads, а не выводятся из наличия этих файлов. External/live provider calls,
 доступ к архивам и установка приложения для этих упражнений не требуются.
+
+`contracts/persona-profile-snapshot` и native `memory::profile_snapshot` владеют
+строгой новой task-free формой профиля; общий JSON fixture фиксирует точные строки.
+`memory-profile-codec`/`memory::types` различают манифесты V1 без body и V2 с body.
+`corpus-persona-manifest` хранит body в существующей атомарной записи и проверяет
+его ссылки на опубликованную память. Исторические experiment profiles сохраняют
+свои era-декодеры; новый strict body не используется для пересмотра старых данных.

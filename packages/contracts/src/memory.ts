@@ -1,3 +1,4 @@
+import type { PersonaProfileSnapshot } from './persona-profile-snapshot';
 import type { CorpusCoverage, RevisionReference, SourceExcerpt, SourceSpan } from './corpus';
 
 export interface EmbeddingFingerprint {
@@ -119,8 +120,12 @@ export interface MemorySnapshot {
   readonly createdAt: string;
 }
 
-export interface PersonaManifest {
-  readonly schemaVersion: 1;
+export type PersonaManifest = PersonaManifestBody &
+  (
+    | { readonly schemaVersion: 1 }
+    | { readonly schemaVersion: 2; readonly profileSnapshot: PersonaProfileSnapshot }
+  );
+interface PersonaManifestBody {
   readonly id: string;
   readonly personaId: string;
   readonly profileVersion: string;

@@ -219,3 +219,6 @@ export {
   decodePersonaSimulation,
   decodePersonaSimulationScope,
 } from './persona-simulation-codec';
+
+export type { PersonaProfileSnapshot } from './persona-profile-snapshot';
+export { decodePersonaProfileSnapshot } from './persona-profile-snapshot';

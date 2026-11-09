@@ -209,6 +209,12 @@ pub struct MemorySnapshot {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PersonaManifest {
     pub schema_version: u8,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "profile_snapshot"
+    )]
+    pub profile_snapshot: Option<super::profile_snapshot::PersonaProfileSnapshot>,
     pub id: String,
     pub persona_id: String,
     pub profile_version: String,
@@ -548,12 +554,31 @@ impl MemorySnapshot {
     }
 }
 
+fn profile_snapshot<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<super::profile_snapshot::PersonaProfileSnapshot>, D::Error> {
+    // Omitted is legacy; explicit null is never a bound or legacy profile body.
+    super::profile_snapshot::PersonaProfileSnapshot::deserialize(deserializer).map(Some)
+}
 impl PersonaManifest {
     /// A null `embeddingFingerprint` is structurally valid for any mode; this
     /// boundary never equates `fixedContext`/`agenticRecall` with
     /// lexical/hybrid modes, and pinned-profile equality stays root-owned.
     pub fn validate(&self) -> Result<(), String> {
-        validate_version(self.schema_version)?;
+        match (self.schema_version, &self.profile_snapshot) {
+            (1, None) => (),
+            (2, Some(profile)) => {
+                profile.validate()?;
+                if !self
+                    .exemplar_ids
+                    .iter()
+                    .eq(profile.style_exemplars.iter().map(|sample| &sample.id))
+                {
+                    return Err("Манифест не соответствует телу профиля.".into());
+                }
+            }
+            _ => return Err("Неверная версия тела манифеста.".into()),
+        }
         validate_host_id(&self.id, "идентификатор манифеста")?;
         validate_host_id(&self.persona_id, "идентификатор персоны")?;
         for (value, label) in [

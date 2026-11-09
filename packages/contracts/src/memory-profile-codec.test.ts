@@ -1,3 +1,4 @@
+import profileSnapshot from './testing/persona-profile-snapshot.json';
 import { describe, expect, it } from 'vitest';
 import { decodePersonaManifest, decodeSkillDefinition } from './memory-profile-codec';
 import { frozenManifest } from './testing/manifest-fixtures';
@@ -143,5 +144,30 @@ describe('persisted manifest and skill readers', () => {
       expect(() =>
         decodePersonaManifest({ ...value, embeddingFingerprint: { ...fingerprint, ...patch } }),
       ).toThrow();
+  });
+});
+
+describe('versioned profile content in stored manifests', () => {
+  it('reads V2 with the exact task-free body without upgrading V1', () => {
+    const manifest = {
+      ...frozenManifest().manifest,
+      schemaVersion: 2,
+      exemplarIds: ['sample:1'],
+      profileSnapshot,
+    };
+    expect(decodePersonaManifest(manifest)).toEqual(manifest);
+    expect(decodePersonaManifest(frozenManifest().manifest)).not.toHaveProperty('profileSnapshot');
+  });
+  it('rejects missing bodies, aliases and profile/version conflicts', () => {
+    const original = frozenManifest().manifest;
+    for (const value of [
+      { ...original, schemaVersion: 2 },
+      { ...original, profileSnapshot },
+      { ...original, profileSnapshot: null },
+      { ...original, schemaVersion: 2, profileSnapshot: null },
+      { ...original, schemaVersion: 2, profileSnapshot },
+      { ...original, schemaVersion: 3, profileSnapshot },
+    ])
+      expect(() => decodePersonaManifest(value)).toThrow();
   });
 });

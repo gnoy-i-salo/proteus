@@ -18,6 +18,8 @@ mod model_contexts;
 pub mod model_input;
 #[path = "memory-persona-workflow.rs"]
 pub mod persona_workflow;
+#[path = "memory-profile-snapshot.rs"]
+pub mod profile_snapshot;
 #[path = "memory-publication.rs"]
 pub mod publication;
 #[path = "memory-receipt-history.rs"]

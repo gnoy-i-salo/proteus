@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "label": "Маша",
+  "palette": "turquoise",
+  "archetype": "﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  ",
+  "rules": [
+    {
+      "id": "r1",
+      "instruction": "﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  ",
+      "evidenceIds": ["item:1"],
+      "status": "supported",
+      "limitations": ["﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  "]
+    }
+  ],
+  "sourceStatus": "evidence-informed",
+  "styleProfile": {
+    "version": 2,
+    "reasoningPatterns": [],
+    "voiceRules": [
+      {
+        "id": "voice-1",
+        "instruction": "﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  ",
+        "exemplarIds": ["sample:1"],
+        "status": "observed",
+        "limitations": ["﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  "]
+      }
+    ],
+    "formatRules": [],
+    "contextModes": [
+      {
+        "mode": "dialogue",
+        "status": "observed",
+        "limitations": []
+      },
+      {
+        "mode": "comment",
+        "status": "insufficient",
+        "limitations": ["﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  "]
+      },
+      {
+        "mode": "formal",
+        "status": "insufficient",
+        "limitations": []
+      }
+    ],
+    "styleExemplarIds": ["sample:1"],
+    "limitations": ["﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  "]
+  },
+  "styleExemplars": [
+    {
+      "id": "sample:1",
+      "documentId": "doc:1",
+      "mode": "dialogue",
+      "text": "﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  ",
+      "context": "﻿  Маша é 👩🏽‍🔬\r\n\u0000дословно  ",
+      "redactions": [],
+      "exportAllowed": false
+    }
+  ]
+}

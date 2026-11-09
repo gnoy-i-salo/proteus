@@ -147,6 +147,7 @@ fn snapshot() -> MemorySnapshot {
 fn manifest() -> PersonaManifest {
     PersonaManifest {
         schema_version: 1,
+        profile_snapshot: None,
         id: "manifest-1".into(),
         persona_id: "persona-1".into(),
         profile_version: "profile-v1".into(),
@@ -1304,3 +1305,31 @@ serialized_limit_case!(
     decode_model_call_budget,
     4096
 );
+
+#[test]
+fn manifest_v2_preserves_bound_profile_and_rejects_version_conflicts() {
+    let mut value = serde_json::to_value(manifest()).unwrap();
+    let profile: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/contracts/src/testing/persona-profile-snapshot.json"
+    ))
+    .unwrap();
+    value["schemaVersion"] = serde_json::json!(2);
+    value["exemplarIds"] = serde_json::json!(["sample:1"]);
+    value["profileSnapshot"] = profile;
+    let bound = decode_persona_manifest(&value.to_string()).expect("V2 exact profile");
+    assert_eq!(serde_json::to_value(bound).unwrap(), value);
+    for (key, replacement) in [
+        ("schemaVersion", serde_json::json!(1)),
+        ("profileSnapshot", serde_json::Value::Null),
+        ("exemplarIds", serde_json::json!([])),
+    ] {
+        let mut bad = value.clone();
+        bad[key] = replacement;
+        assert!(decode_persona_manifest(&bad.to_string()).is_err(), "{key}");
+    }
+    value.as_object_mut().unwrap().remove("profileSnapshot");
+    assert!(decode_persona_manifest(&value.to_string()).is_err());
+    let mut old = serde_json::to_value(manifest()).unwrap();
+    old["profileSnapshot"] = serde_json::Value::Null;
+    assert!(decode_persona_manifest(&old.to_string()).is_err());
+}

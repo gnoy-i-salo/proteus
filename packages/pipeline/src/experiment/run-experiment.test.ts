@@ -10,6 +10,7 @@ import { decodeExecutionSnapshot } from '@proteus-int/contracts';
 import { createModelSettings } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { exportExperiment, runExperiment, validateExperiment } from '../index';
+import { decodeV4Result } from '../history/result-v4';
 
 const input = {
   task: 'Design a public reading room',
@@ -647,3 +648,38 @@ it('exports versioned lifecycle observations and rejects corrupted metadata', as
   Object.assign(corrupted.execution!, { schemaVersion: 99 });
   expect(() => exportExperiment(corrupted)).toThrow(/execution metadata/u);
 });
+
+it.each(['complete', 'incomplete', 'cancelled'] as const)(
+  'reads actual %s series and redacted exports without changing scores or observations',
+  async (status) => {
+    const { adapters, calls } = providers();
+    const controller = new AbortController();
+    const original = adapters.codex.run.bind(adapters.codex);
+    let solutions = 0;
+    adapters.codex.run = async (request, signal) => {
+      if (
+        status === 'incomplete' &&
+        request.systemPrompt.startsWith('PERSON\n') &&
+        ++solutions === 2
+      )
+        throw new Error('Fixture provider unavailable');
+      return original(request, signal);
+    };
+    const result = await runExperiment(input, createModelSettings(), adapters, {
+      repetitions: 3,
+      signal: controller.signal,
+      onProgress: (event) => {
+        if (status === 'cancelled' && event.id === 'solve-1-a' && event.message.endsWith('готово'))
+          controller.abort();
+      },
+    });
+    expect(result.status).toBe(status);
+    const before = JSON.stringify(result);
+    const callCount = calls.length;
+    expect(decodeV4Result(JSON.parse(before))).toEqual(JSON.parse(before));
+    const exported = JSON.parse(exportExperiment(result)) as unknown;
+    expect(decodeV4Result(exported)).toEqual(exported);
+    expect(JSON.stringify(result)).toBe(before);
+    expect(calls).toHaveLength(callCount);
+  },
+);

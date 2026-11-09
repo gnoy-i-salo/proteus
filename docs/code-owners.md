@@ -91,8 +91,11 @@ wrappers; [connection-session.rs](../apps/desktop/src-tauri/src/connection-sessi
 Это транспорт исходного файла. Проверка внешнего формата и отдельный
 [декодер unversioned v1](../packages/pipeline/src/history/legacy-v1.ts) принадлежат
 pipeline. Последний возвращает тип своей эпохи без пересчёта BSC; не выдаёт его
-за современный ExperimentResult. Полные декодеры v2–v4, отображение версий,
-redaction и экран истории ещё требуют своей приёмки.
+за современный ExperimentResult. [Декодер v4](../packages/pipeline/src/history/result-v4.ts)
+владеет формой current raw/export результата; profiles/trials проверяют вложенные
+схемы, integrity — связи и копии наблюдений, без пересчёта BSC. Lifecycle
+проверяется общим decoder contracts, без второй реализации его правил.
+Декодеры v2/v3, отображение версий, redaction и экран истории ещё требуют своей приёмки.
 [Модель открытия](../apps/desktop/src/pages/experiment/model/experiment-history.ts)
 владеет отменой, страницей списка и выбранным прочитанным результатом. Декодер
 передаётся владельцем экрана; ошибка чтения/декодирования сохраняет предыдущий

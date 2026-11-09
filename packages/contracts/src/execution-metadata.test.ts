@@ -47,6 +47,17 @@ describe('versioned observed execution metadata', () => {
     ['duplicate call', { ...snapshot, stages: [{ ...stage, calls: [call, call] }] }],
     ['bad time', { ...snapshot, stages: [{ ...stage, startedAt: 'yesterday' }] }],
     [
+      'impossible calendar day',
+      { ...snapshot, stages: [{ ...stage, startedAt: '2026-02-30T00:00:00.000Z' }] },
+    ],
+    [
+      'impossible call date',
+      {
+        ...snapshot,
+        stages: [{ ...stage, calls: [{ ...call, returnedAt: '2026-02-29T00:00:00.000Z' }] }],
+      },
+    ],
+    [
       'negative duration',
       {
         ...snapshot,

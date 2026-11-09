@@ -11,3 +11,5 @@ export type { StoredPersonaInput, StoredPersonaPreset } from './presets/persona-
 export { parsePersonaPreset, serializePersonaPreset } from './presets/persona-preset';
 export { decodeLegacyV1Result } from './history/legacy-v1';
 export type { LegacyV1Result } from './history/legacy-v1';
+export { decodeV4Result } from './history/result-v4';
+export type { StoredV4Result, StoredExportMetadata } from './history/result-v4';

@@ -29,7 +29,8 @@ function timestamp(value: unknown): string | null {
   const result = text(value);
   if (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(result) ||
-    !Number.isFinite(Date.parse(result))
+    !Number.isFinite(Date.parse(result)) ||
+    new Date(result).toISOString() !== result
   )
     return invalid();
   return result;

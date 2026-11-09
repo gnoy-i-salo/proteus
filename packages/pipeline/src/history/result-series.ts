@@ -142,7 +142,7 @@ function decodeModelSetting(value: unknown, path: string) {
   };
 }
 
-function decodeProtocol(value: unknown, path: string): ExperimentProtocol {
+export function decodeProtocol(value: unknown, path: string): ExperimentProtocol {
   const record = asRecord(value, path);
   exactKeys(
     record,

@@ -4,6 +4,8 @@ import type { ModelSettings } from '@proteus-int/intelligence';
 import { freeze } from './input-snapshot';
 import type { RunOptions } from './run-options';
 
+export const protocolPromptVersion = 'bsc-v2.4-camel-case';
+
 export function buildTrialOrder(repetitions: 1 | 3): readonly (readonly string[])[] {
   if (repetitions !== 1 && repetitions !== 3) throw new Error('Нужен 1 или 3 прогона.');
   const ids = ['a', 'b', 'neutral'];
@@ -53,7 +55,7 @@ export function createProtocol(
     ),
     formatAttempts: 2,
     stageTimeoutMs: 600000,
-    promptVersion: 'bsc-v2.4-camel-case',
+    promptVersion: protocolPromptVersion,
     createdAt: new Date().toISOString(),
     sourceSnapshots: [
       sourceGrants[0].map((grant) => grant.snapshotId),

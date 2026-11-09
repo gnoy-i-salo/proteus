@@ -97,27 +97,31 @@ export function buildExperimentResult(
     };
   });
   const control = participants[2]!;
+  const comparableKnowledge = protocol.memory?.neutralKnowledgeCondition !== 'unmatched';
   const people = participants.slice(0, 2).map((person) => ({
     ...person,
     baselineDifference:
-      person.score.interval && control.score.interval
+      comparableKnowledge && person.score.interval && control.score.interval
         ? difference(person.score.interval, control.score.interval)
         : null,
   }));
   const a = people[0]!.score;
   const b = people[1]!.score;
   const eligible =
+    comparableKnowledge &&
     status === 'complete' &&
     repetitions === 3 &&
     participants.every((person) => person.score.comparisonEligible);
   const summary =
     status !== 'complete'
       ? 'Серия не завершена. Баллы относятся только к оценённым ответам; итоговое сравнение недоступно.'
-      : repetitions === 1
-        ? 'Предварительный эксперимент: один прогон. Баллы описывают выполнение критериев, устойчивость не установлена.'
-        : eligible
-          ? 'Описательное сравнение трёх прогонов в одинаковых условиях. Это не доказательство статистического превосходства.'
-          : 'Сравнение ограничено: есть непроверенные критерии, расхождение оценок или невыполненные обязательные требования.';
+      : !comparableKnowledge
+        ? 'Сравнение с контролем недоступно: сопоставимый доступ к знаниям не подтверждён. Баллы описывают только выполнение критериев задачи.'
+        : repetitions === 1
+          ? 'Предварительный эксперимент: один прогон. Баллы описывают выполнение критериев, устойчивость не установлена.'
+          : eligible
+            ? 'Описательное сравнение трёх прогонов в одинаковых условиях. Это не доказательство статистического превосходства.'
+            : 'Сравнение ограничено: есть непроверенные критерии, расхождение оценок или невыполненные обязательные требования.';
   const result: ExperimentResult = {
     schemaVersion: 5,
     scoringVersion: 2,

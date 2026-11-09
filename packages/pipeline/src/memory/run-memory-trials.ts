@@ -12,13 +12,16 @@ import {
   decodeSkillDefinition,
 } from '@proteus-int/contracts';
 import { solveMemory } from '@proteus-int/person';
+import { validateRubric } from '@proteus-int/brain-scoring';
+import { componentIds } from '@proteus-int/intelligence';
 import type { MemoryPersonResult, OpenPersonaMemory } from '@proteus-int/person';
 import type { PreparedPerson } from '../experiment/prepare-people';
 import type { ExperimentResult, TrialResult } from '../experiment/result';
 import type { createStageRunner } from '../execution/run-stage';
 import { freeze } from '../experiment/input-snapshot';
-import { buildTrialOrder } from '../experiment/protocol';
+import { buildTrialOrder, protocolPromptVersion } from '../experiment/protocol';
 import { runTrials } from '../experiment/run-trials';
+import { decodeProtocol } from '../history/result-series';
 
 export interface MemoryTrialParticipant extends PreparedPerson {
   readonly manifest: Extract<PersonaManifest, { readonly schemaVersion: 2 }>;
@@ -107,11 +110,15 @@ function validateParticipant(person: MemoryTrialParticipant, protocol: Experimen
     });
   return { ...person, manifest, request };
 }
-function select(input: MemoryTrialsInput) {
+export function selectMemoryTrials(source: MemoryTrialsInput) {
+  const input = { ...source, protocol: decodeProtocol(source.protocol, 'protocol') };
+  validateRubric(input.protocol.rubric);
   const roles = ['a', 'b', 'neutral'];
   const memory = input.protocol.memory;
   if (
     input.task !== input.protocol.task ||
+    input.protocol.promptVersion !== protocolPromptVersion ||
+    Object.keys(input.protocol.modelSettings).length !== componentIds.length ||
     !memory ||
     memory.schemaVersion !== 1 ||
     input.participants.length !== 3 ||
@@ -143,7 +150,7 @@ export async function runMemoryTrials(
   signal?: AbortSignal,
 ): Promise<MemoryTrialsResult> {
   signal?.throwIfAborted();
-  const selected = select(input);
+  const selected = selectMemoryTrials(input);
   const memoryRuns: MemoryTrialRun[] = [];
   const outcome = await runTrials(
     selected.task,

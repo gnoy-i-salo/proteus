@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
+import type { ExperimentProtocol } from '@proteus-int/contracts';
 import { createModelSettings } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { solveMemory } from '@proteus-int/person';
@@ -7,6 +8,8 @@ import type { MemoryPersonResult, OpenPersonaMemory } from '@proteus-int/person'
 import { decodeV4Result } from '../history/result-v4';
 import { createStageRunner } from '../execution/run-stage';
 import { runMemoryTrials } from './run-memory-trials';
+import { runMemoryExperiment } from './run-memory-experiment';
+import { readStoredResult } from '../history/read-stored-result';
 import type { MemoryTrialsInput } from './run-memory-trials';
 import fixture from '../testing/legacy-results/v4-current-with-execution.json';
 
@@ -352,3 +355,206 @@ it.each([
   expect(solve).not.toHaveBeenCalled();
   expect(open).not.toHaveBeenCalled();
 });
+
+it('reviews the detached protocol before calls and routes actual requests through its pinned models', async () => {
+  const { input } = setup();
+  const experiment = decodeV4Result(fixture).input;
+  const calls: string[] = [];
+  const run = vi.fn<IntelligenceProvider['run']>((request) => {
+    calls.push(request.model ?? 'no-model');
+    return Promise.reject(new Error('Synthetic provider unavailable'));
+  });
+  const providers = { codex: { id: 'codex' as const, run }, kimi: { id: 'kimi' as const, run } };
+  const original = solve.getMockImplementation()!;
+  solve.mockImplementation(async (selected, provider, ...rest) => {
+    try {
+      await provider.run({
+        systemPrompt: 'test',
+        task: selected.task,
+        effort: 'high',
+        model: 'not-pinned',
+      });
+    } catch {
+      /* The synthetic model call records settings; solving remains a mock. */
+    }
+    return original(selected, provider, ...rest);
+  });
+  const onProtocol = vi.fn(async (protocol: ExperimentProtocol) => {
+    expect(solve).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(Object.isFrozen(protocol)).toBe(true);
+    expect(Object.isFrozen(protocol.modelSettings.person)).toBe(true);
+    Object.assign(input.participants[1]!.profile, { id: 'changed-after-review' });
+    await Promise.resolve();
+  });
+  const onPerson = vi.fn();
+  const onProgress = vi.fn();
+  const completed = await runMemoryExperiment({ ...input, experiment }, providers, open, {
+    onProtocol,
+    onPerson,
+    onProgress,
+  });
+  expect(onProtocol).toHaveBeenCalledOnce();
+  expect(solve).toHaveBeenCalledTimes(3);
+  expect(calls).toEqual(Array(4).fill('pinned-model'));
+  expect(completed.result.status).toBe('incomplete');
+  expect(completed.result.people[1]!.profile.id).toBe('shared-identity');
+  expect(completed.memoryRuns).toHaveLength(3);
+  expect(completed.result.execution?.stages).toHaveLength(5);
+  expect(onPerson).toHaveBeenCalledTimes(2);
+  expect(onProgress).toHaveBeenLastCalledWith(
+    expect.objectContaining({ id: 'complete', total: 5 }),
+  );
+  expect(JSON.stringify(completed.result)).not.toContain('private native prompt');
+  expect(readStoredResult(JSON.stringify(completed.result))).toEqual({
+    sourceVersion: 5,
+    result: completed.result,
+  });
+});
+
+it.each(['denied', 'cancelled'])(
+  'does not open memory or call models when protocol review is %s',
+  async (condition) => {
+    const { input } = setup();
+    const controller = new AbortController();
+    const run = vi.fn<IntelligenceProvider['run']>();
+    const providers = { codex: { id: 'codex' as const, run }, kimi: { id: 'kimi' as const, run } };
+    const failure = new Error('Protocol not approved');
+    const onProtocol = vi.fn(() => {
+      if (condition === 'denied') return Promise.reject(failure);
+      controller.abort(failure);
+      return Promise.resolve();
+    });
+    await expect(
+      runMemoryExperiment(
+        { ...input, experiment: decodeV4Result(fixture).input },
+        providers,
+        open,
+        { onProtocol, signal: controller.signal },
+      ),
+    ).rejects.toBe(failure);
+    expect(onProtocol).toHaveBeenCalledOnce();
+    expect(solve).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['version', 'formatAttempts', 'promptVersion', 'rubric', 'memoryCondition'])(
+  'rejects an invalid recorded protocol before solving: %s',
+  async (field) => {
+    const { input, execution } = setup();
+    const value = structuredClone(input);
+    if (field === 'version') Object.assign(value.protocol, { version: 99 });
+    if (field === 'formatAttempts') Object.assign(value.protocol, { formatAttempts: 1 });
+    if (field === 'promptVersion') Object.assign(value.protocol, { promptVersion: 'unknown' });
+    if (field === 'rubric') Object.assign(value.protocol.rubric, { criteria: [] });
+    if (field === 'memoryCondition')
+      Object.assign(value.protocol.memory!, { neutralKnowledgeCondition: 'invented' });
+    await expect(runMemoryTrials(value, execution, open)).rejects.toThrow();
+    expect(solve).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  },
+);
+
+it('keeps BSC scores but withholds a controlled comparison when neutral knowledge is unmatched', async () => {
+  const { input } = setup();
+  const protocol = {
+    ...input.protocol,
+    repetitions: 3 as const,
+    participantOrder: [
+      ['a', 'b', 'neutral'],
+      ['b', 'neutral', 'a'],
+      ['neutral', 'a', 'b'],
+    ],
+  };
+  const run = vi.fn<IntelligenceProvider['run']>((request) => {
+    const payload = JSON.parse(request.task) as {
+      answers: { label: string; answer: string }[];
+      rubric: { criteria: { id: string }[] };
+    };
+    return Promise.resolve({
+      trace,
+      answer: JSON.stringify({
+        evaluations: payload.answers.map((answer) => ({
+          label: answer.label,
+          criteria: payload.rubric.criteria.map((criterion) => ({
+            criterionId: criterion.id,
+            status: 'met',
+            reason: 'Synthetic evaluation',
+            quote: answer.answer,
+          })),
+        })),
+      }),
+    });
+  });
+  const providers = { codex: { id: 'codex' as const, run }, kimi: { id: 'kimi' as const, run } };
+  const { result } = await runMemoryExperiment(
+    { ...input, protocol, experiment: decodeV4Result(fixture).input },
+    providers,
+    open,
+    { onProtocol: () => Promise.resolve() },
+  );
+  expect(result.status).toBe('complete');
+  expect(result.people.map((person) => person.score.point)).toEqual([100, 100]);
+  expect(result.control.score.point).toBe(100);
+  expect(result.comparison.comparisonEligible).toBe(false);
+  expect(result.people.map((person) => person.baselineDifference)).toEqual([null, null]);
+  expect(result.comparison.summary).toMatch(/доступ.*знаниям/i);
+  expect(readStoredResult(JSON.stringify(result))).toEqual({ sourceVersion: 5, result });
+});
+
+it.each(['task', 'label', 'effort', 'adapter', 'matchedClaim'])(
+  'preflights the experiment before review or calls: %s',
+  async (field) => {
+    const { input } = setup();
+    const experiment = structuredClone(decodeV4Result(fixture).input);
+    const value = structuredClone(input);
+    const run = vi.fn<IntelligenceProvider['run']>();
+    const providers = { codex: { id: 'codex' as const, run }, kimi: { id: 'kimi' as const, run } };
+    if (field === 'task') Object.assign(experiment, { task: 'other' });
+    if (field === 'label') Object.assign(experiment.people[0], { label: 'other' });
+    if (field === 'effort') {
+      Object.assign(value.protocol.modelSettings.person!, { requestedEffort: 'low' });
+      for (const person of value.participants)
+        Object.assign(
+          person.manifest.modelSettings.find((model) => model.component === 'person')!,
+          { requestedEffort: 'low' },
+        );
+    }
+    if (field === 'adapter') Object.assign(providers.codex, { id: 'kimi' });
+    if (field === 'matchedClaim')
+      Object.assign(value.protocol.memory!, { neutralKnowledgeCondition: 'matchedRecall' });
+    const onProtocol = vi.fn(() => Promise.resolve());
+    await expect(
+      runMemoryExperiment({ ...value, experiment }, providers, open, { onProtocol }),
+    ).rejects.toThrow();
+    expect(onProtocol).not.toHaveBeenCalled();
+    expect(solve).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['historicalPrompt', 'duplicateCriterion', 'emptyAnchor', 'extraModel'])(
+  'rejects readable but non-executable protocol conditions before calls: %s',
+  async (field) => {
+    const { input, execution } = setup();
+    const value = structuredClone(input);
+    if (field === 'historicalPrompt')
+      Object.assign(value.protocol, { promptVersion: 'bsc-v2.3-source-identity' });
+    if (field === 'duplicateCriterion')
+      Object.assign(value.protocol.rubric, {
+        criteria: [value.protocol.rubric.criteria[0], value.protocol.rubric.criteria[0]],
+      });
+    if (field === 'emptyAnchor')
+      Object.assign(value.protocol.rubric.criteria[0]!.anchors, { met: '' });
+    if (field === 'extraModel')
+      Object.assign(value.protocol.modelSettings, {
+        unexpectedComponent: value.protocol.modelSettings.person,
+      });
+    await expect(runMemoryTrials(value, execution, open)).rejects.toThrow();
+    expect(solve).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  },
+);

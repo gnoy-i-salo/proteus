@@ -26,6 +26,9 @@ export const nativeCorpusSearch: CorpusSearchPort = {
           (selected.expectedIndexGeneration !== null &&
             result.indexGeneration !== selected.expectedIndexGeneration) ||
           result.hits.length > selected.limit ||
+          // Native fetches limit + 1 rows and truncates, so a true hasMore
+          // always ships the full requested page.
+          (result.hasMore && result.hits.length < selected.limit) ||
           result.hits.some((hit) => hit.personaId !== selected.personaId)
         )
           throw new Error('Результат поиска не соответствует запросу.');

@@ -8,8 +8,10 @@ import type {
 // Strict decoders for the native reference-only FTS boundary. They check exact
 // key sets and exact schemaVersion 1, reject unknown fields, non-finite,
 // fractional or unsafe numbers and foreign response hits, and never rename or
-// normalize payload values. They are structural only: the native runtime
-// re-authorizes grants and scope on every call.
+// normalize payload values. Native fetches limit + 1 rows and truncates to the
+// requested limit, so a true hasMore always ships a nonempty page. They are
+// structural only: the native runtime re-authorizes grants and scope on every
+// call.
 
 const MAX_JOB_ID_BYTES = 128;
 const MAX_ID_BYTES = 256;
@@ -204,12 +206,15 @@ export function decodeCorpusSearchResult(value: unknown): CorpusSearchResult {
     chunkIds.add(hit.chunkId);
     return hit;
   });
+  const hasMore = flag(input.hasMore);
+  if (hasMore && hits.length === 0)
+    throw new Error('Пустая страница поиска корпуса не может иметь продолжение.');
   return {
     schemaVersion: 1,
     snapshotId,
     snapshotGeneration: positiveInteger(input.snapshotGeneration),
     indexGeneration,
-    hasMore: flag(input.hasMore),
+    hasMore,
     hits,
   };
 }

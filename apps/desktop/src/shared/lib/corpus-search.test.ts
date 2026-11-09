@@ -93,6 +93,30 @@ it('rejects responses from another persona or snapshot, changed pins, and excess
     nativeCorpusSearch.search({ ...query, expectedIndexGeneration: 3 }),
   ).rejects.toThrow();
 });
+it('rejects a continuation flag on a page shorter than the requested limit', async () => {
+  for (const invalid of [
+    { ...result, hits: [], hasMore: true },
+    { ...result, hasMore: true },
+  ]) {
+    native.invoke.mockResolvedValue(invalid);
+    await expect(nativeCorpusSearch.search(query)).rejects.toThrow();
+  }
+});
+it('accepts full nonfinal pages and short or empty final pages', async () => {
+  const second = { ...result.hits[0], chunkId: 'chunk:2' };
+  const limitOne = { ...result, hits: [result.hits[0]], hasMore: true };
+  native.invoke.mockResolvedValue(limitOne);
+  await expect(nativeCorpusSearch.search({ ...query, limit: 1 })).resolves.toEqual(limitOne);
+  for (const valid of [
+    { ...result, hits: [result.hits[0], second], hasMore: true },
+    { ...result, hits: [result.hits[0], second], hasMore: false },
+    { ...result, hits: [result.hits[0]], hasMore: false },
+    { ...result, hits: [], hasMore: false },
+  ]) {
+    native.invoke.mockResolvedValue(valid);
+    await expect(nativeCorpusSearch.search({ ...query, limit: 2 })).resolves.toEqual(valid);
+  }
+});
 it('validates query and rebuild budgets before invoking native', async () => {
   for (const invalid of [
     { ...query, limit: 0 },

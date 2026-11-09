@@ -186,6 +186,21 @@ describe('corpus search result boundary', () => {
       }),
     ).toBeTruthy();
   });
+  it('rejects a continuation flag on an empty page', () => {
+    expect(() => decodeCorpusSearchResult({ ...result, hits: [] })).toThrow();
+  });
+  it('accepts empty and short final pages without a continuation flag', () => {
+    expect(decodeCorpusSearchResult({ ...result, hits: [], hasMore: false })).toEqual({
+      ...result,
+      hits: [],
+      hasMore: false,
+    });
+    expect(decodeCorpusSearchResult({ ...result, hits: [secondHit], hasMore: false })).toEqual({
+      ...result,
+      hits: [secondHit],
+      hasMore: false,
+    });
+  });
   it('rejects hits from a foreign snapshot or index generation', () => {
     expect(() =>
       decodeCorpusSearchResult({ ...result, hits: [{ ...hit, snapshotId: 'snapshot:other' }] }),

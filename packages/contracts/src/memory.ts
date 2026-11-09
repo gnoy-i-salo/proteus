@@ -271,11 +271,11 @@ export interface ManifestFreezeReceipt {
 export type SimulationMemoryDraft = Omit<SimulationMemoryEntry, 'id' | 'createdAt'>;
 
 export type ModelContextRequest = {
-  readonly schemaVersion: 1;
-  // SHA256 over UTF8 JSON.stringify([systemPrompt, task]); exact strings, no trimming.
-  readonly inputSha256: string;
-  // Byte length of that same framed UTF8 payload; recomputed at native dispatch.
-  readonly inputBytes: number;
+  readonly schemaVersion: 2;
+  // Native appends authorized context to this exact host-authored base input.
+  // Caller-supplied hashes cannot prove which source text reached the model.
+  readonly systemPrompt: string;
+  readonly task: string;
   readonly receiptIds: readonly string[];
   readonly memoryItemIds: readonly string[];
   readonly formatAttempt: 1 | 2;
@@ -284,14 +284,18 @@ export type ModelContextRequest = {
   | { readonly purpose: 'personaReply'; readonly manifestId: string }
 );
 
-// This DTO is a reservation receipt, not standalone authorization. The native CLI
-// consumer must revalidate the lease immediately before dispatch (later integration).
+// Native assembles this input and revalidates its exact bytes at CLI dispatch.
+// This receipt alone never grants source access or permission to invoke a model.
 export interface ModelContextLease {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly id: string;
   readonly singleUse: true;
   readonly personaId: string;
+  // SHA256 of UTF8 JSON.stringify([systemPrompt, task]); inputBytes uses the same framing.
   readonly inputSha256: string;
+  readonly inputBytes: number;
+  readonly systemPrompt: string;
+  readonly task: string;
   readonly corpusSnapshotId: string;
   readonly manifestId: string | null;
   readonly purpose: 'research' | 'personaReply';

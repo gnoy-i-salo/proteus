@@ -171,3 +171,5 @@ export {
   decodeCorpusSearchResult,
   decodeCorpusIndexReceipt,
 } from './corpus-search-codec';
+
+export { decodeModelContextRequest } from './memory-context-codec';

@@ -3,6 +3,14 @@ import type { OpenResearchSessionRequest, ResearchSessionDescriptor } from '@pro
 import { isDesktop } from './window-controls';
 import { runNativeOperation } from './native-operation';
 
+export function exactMemoryInput(value: string, maximumBytes: number): void {
+  const bytes = new TextEncoder().encode(value);
+  if (
+    bytes.length > maximumBytes ||
+    new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes) !== value
+  )
+    throw new Error('Неверный UTF-8 вход памяти.');
+}
 function available(signal?: AbortSignal): void {
   if (!isDesktop()) throw new Error('Исследование доступно в настольном приложении PROTEUS.');
   signal?.throwIfAborted();
@@ -20,7 +28,7 @@ async function discardAdmission(value: unknown): Promise<void> {
 
 export async function openNativeMemorySession<T extends ResearchSessionDescriptor>(
   command: string,
-  request: OpenResearchSessionRequest,
+  request: Pick<OpenResearchSessionRequest, 'operationId'>,
   decode: (value: unknown) => T,
   signal?: AbortSignal,
 ): Promise<T> {

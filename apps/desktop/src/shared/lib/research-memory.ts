@@ -15,16 +15,12 @@ import type {
   RecallResult,
   SourceExcerpt,
 } from '@proteus-int/contracts';
-import { openNativeMemorySession, memorySessionTransport } from './native-memory-session';
+import {
+  openNativeMemorySession,
+  memorySessionTransport,
+  exactMemoryInput,
+} from './native-memory-session';
 
-function exactInput(value: string, maximumBytes: number): void {
-  const bytes = new TextEncoder().encode(value);
-  if (
-    bytes.length > maximumBytes ||
-    new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes) !== value
-  )
-    throw new Error('Неверный UTF-8 вход памяти.');
-}
 export async function openNativeResearch(
   request: OpenResearchSessionRequest,
   signal?: AbortSignal,
@@ -71,7 +67,7 @@ function researchPort(
       check(signal);
       const action = parseMemoryAction({ action: 'recall', query, intent });
       if (action.action !== 'recall') throw new Error('Неверное действие памяти.');
-      exactInput(action.query, 4096);
+      exactMemoryInput(action.query, 4096);
       return execute(
         'recall_memory',
         { queryText: action.query },
@@ -89,7 +85,7 @@ function researchPort(
       check(signal);
       const action = parseMemoryAction({ action: 'readEpisode', episodeId });
       if (action.action !== 'readEpisode') throw new Error('Неверное действие памяти.');
-      exactInput(action.episodeId, 256);
+      exactMemoryInput(action.episodeId, 256);
       if (/\p{Cc}/u.test(action.episodeId)) throw new Error('Неверный идентификатор эпизода.');
       return execute(
         'read_memory_episode',

@@ -34,14 +34,14 @@ export function decodeModelCallBudget(value: unknown): ModelCallBudget {
     maxDurationMs: bounded(input.maxDurationMs, 3600000),
   };
 }
-function period(value: unknown): OpenResearchSessionRequest['period'] {
+export function decodeMemoryPeriod(value: unknown): OpenResearchSessionRequest['period'] {
   const input = fields(value, ['from', 'to', 'includeUndated']);
   const from = input.from === null ? null : integer(input.from, Number.MIN_SAFE_INTEGER);
   const to = input.to === null ? null : integer(input.to, Number.MIN_SAFE_INTEGER);
   if (from !== null && to !== null && from > to) throw new Error('Неверный период исследования.');
   return { from, to, includeUndated: flag(input.includeUndated) };
 }
-function model(value: unknown): OpenResearchSessionRequest['model'] {
+export function decodeMemoryModel(value: unknown): OpenResearchSessionRequest['model'] {
   const input = fields(value, ['provider', 'model', 'effort']);
   const selected = memoryText(input.model, 120);
   if (!selected.trim() || /[\r\n\0]/u.test(selected))
@@ -74,17 +74,22 @@ export function decodeOpenResearchSessionRequest(value: unknown): OpenResearchSe
     snapshotId: memoryId(input.snapshotId),
     personaId: memoryId(input.personaId),
     mode: choice(input.mode, ['lexical', 'hybrid']),
-    period: period(input.period),
+    period: decodeMemoryPeriod(input.period),
     recallBudget: decodeRecallBudget(input.recallBudget),
     modelBudget: decodeModelCallBudget(input.modelBudget),
-    model: model(input.model),
+    model: decodeMemoryModel(input.model),
   };
 }
 export function decodeResearchSession(
   value: unknown,
   request: OpenResearchSessionRequest,
 ): ResearchSessionDescriptor {
-  const expected = decodeOpenResearchSessionRequest(request);
+  return decodeMemorySession(value, decodeOpenResearchSessionRequest(request));
+}
+export function decodeMemorySession(
+  value: unknown,
+  expected: Pick<OpenResearchSessionRequest, 'personaId' | 'snapshotId' | 'mode'>,
+): ResearchSessionDescriptor {
   const input = fields(value, [
     'schemaVersion',
     'id',

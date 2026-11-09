@@ -203,3 +203,12 @@ export {
 export { decodeFabricContext } from './fabric-context-codec';
 export { decodePersonaManifest, decodeSkillDefinition } from './memory-profile-codec';
 export { decodePersonaManifestDraft, decodeManifestFreeze } from './manifest-freeze-codec';
+export type {
+  OpenPersonaSessionRequest,
+  PersonaSessionDescriptor,
+  PersonaContextRequest,
+  PersonaContextLease,
+  PersonaMemoryPort,
+} from './persona-memory';
+export { decodeOpenPersonaSessionRequest, decodePersonaSession } from './persona-memory-codec';
+export { decodePersonaContext, decodePersonaRetrieval } from './persona-context-codec';

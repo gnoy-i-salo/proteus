@@ -18,7 +18,8 @@ export function decodeContextWire(
   session: ResearchSessionDescriptor,
   expected: Pick<ModelContextRequest, 'systemPrompt' | 'task' | 'formatAttempt'>,
   modelBudget: ModelCallBudget,
-  purpose: 'research' | 'fabric',
+  purpose: 'research' | 'fabric' | 'personaReply',
+  manifestId: string | null = null,
 ): { base: Omit<ModelContextLease, 'purpose' | 'items'>; items: unknown[] } {
   const budget = decodeModelCallBudget(modelBudget);
   const input = fields(value, [
@@ -49,7 +50,8 @@ export function decodeContextWire(
     input.corpusSnapshotId !== session.corpusSnapshotId ||
     input.policyVersion !== session.policyVersion ||
     input.purpose !== purpose ||
-    input.manifestId !== null ||
+    input.manifestId !== manifestId ||
+    (purpose === 'personaReply') !== (manifestId !== null) ||
     input.formatAttempt !== expected.formatAttempt ||
     input.expiresAt !== session.expiresAt
   )
@@ -86,7 +88,7 @@ export function decodeContextWire(
       systemPrompt,
       task,
       corpusSnapshotId: session.corpusSnapshotId,
-      manifestId: null,
+      manifestId,
       formatAttempt: expected.formatAttempt,
       policyVersion: session.policyVersion,
       receiptIds,

@@ -906,3 +906,275 @@ fn corpus_database_wrapper_counts_reference_documents() {
     drop(database);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+// ==== Ignored synthetic latency measurement (proteus-tip.9 evidence) ====
+//
+// `measure_scoped_count_latency_over_fixed_100k_chunk_fixture` is an explicitly
+// ignored measurement, never a regression gate: it reports observed durations
+// of the metadata-only `count_reference_documents` over one fixed 100 000-chunk
+// synthetic fixture on the machine that ran it and its actual Cargo profile. There is no pass/fail threshold and no performance promise; peak
+// RSS and end-to-end retrieval/IPC latency are deliberately not claimed. The
+// fixture publishes through the normal stage/receipt path on the real
+// SQLCipher-backed search schema, and all texts and ids are synthetic. Run it
+// explicitly with `cargo test -- --ignored --nocapture`.
+
+/// Fixed fixture shape: 12 500 synthetic documents × 2 revisions × 4 chunks =
+/// 100 000 chunk rows, comfortably under the 1 000 000-row
+/// `MAX_STAGE_CHUNKS` publication cap. Every document is present under each of
+/// the four authorized bindings (chunk index mod 4), half of the documents are
+/// dated on one fixed synthetic day and the rest are undated, so the narrow
+/// scopes have closed-form expected counts independent of the SQL aggregate.
+const MEASURE_DOCUMENTS: usize = 12_500;
+const MEASURE_REVISIONS_PER_DOCUMENT: usize = 2;
+const MEASURE_CHUNKS_PER_REVISION: usize = 4;
+const MEASURE_BINDINGS: usize = 4;
+/// Fixed synthetic window anchor (2023-01-04T22:40:00Z in milliseconds), inside the
+/// JS-safe integer boundary the validators enforce.
+const MEASURE_DATED_DAY: i64 = 1_672_872_000_000;
+const MEASURE_REPETITIONS: usize = 10;
+
+const MEASURE_TOTAL_CHUNKS: i64 =
+    (MEASURE_DOCUMENTS * MEASURE_REVISIONS_PER_DOCUMENT * MEASURE_CHUNKS_PER_REVISION) as i64;
+
+struct MeasureFixture {
+    chunks: Vec<SearchChunkInput>,
+    expected_full: (i64, i64, i64),
+    expected_single_binding: (i64, i64, i64),
+    expected_dated_window: (i64, i64, i64),
+    expected_empty_window: (i64, i64, i64),
+}
+
+fn measure_grant_id(binding: usize) -> String {
+    format!("grant:measure-{binding}")
+}
+
+fn measure_binding_id(binding: usize) -> String {
+    format!("binding:measure-{binding}")
+}
+
+fn measure_fixture() -> MeasureFixture {
+    let mut chunks = Vec::with_capacity(
+        MEASURE_DOCUMENTS * MEASURE_REVISIONS_PER_DOCUMENT * MEASURE_CHUNKS_PER_REVISION,
+    );
+    for document in 0..MEASURE_DOCUMENTS {
+        for revision in 0..MEASURE_REVISIONS_PER_DOCUMENT {
+            for part in 0..MEASURE_CHUNKS_PER_REVISION {
+                let index = document
+                    * (MEASURE_REVISIONS_PER_DOCUMENT * MEASURE_CHUNKS_PER_REVISION)
+                    + revision * MEASURE_CHUNKS_PER_REVISION
+                    + part;
+                let binding = index % MEASURE_BINDINGS;
+                let dated = document % 2 == 0;
+                let (period_from, period_to) = if dated {
+                    (Some(MEASURE_DATED_DAY), Some(MEASURE_DATED_DAY))
+                } else {
+                    (None, None)
+                };
+                let text = format!("synthetic measurement fixture chunk {index}");
+                chunks.push(SearchChunkInput {
+                    stage_id: "stage:measure".into(),
+                    chunk_id: format!("measure-chunk-{index:07}"),
+                    snapshot_id: SNAPSHOT_A.into(),
+                    snapshot_generation: SNAPSHOT_GEN,
+                    partition: "reference".into(),
+                    text: text.clone(),
+                    document_id: format!("measure-document-{document:05}"),
+                    revision_id: format!("measure-revision-{document:05}-{revision}"),
+                    span_start: 0,
+                    span_end: text.len() as i64,
+                    persona_id: PERSONA_A.into(),
+                    grant_id: measure_grant_id(binding),
+                    binding_id: measure_binding_id(binding),
+                    record_id: format!("measure-record-{index:07}"),
+                    record_generation: 1,
+                    period_from,
+                    period_to,
+                    conversation_id: Some("conversation:measure".into()),
+                    thread_id: Some(format!("thread:measure-{binding}")),
+                });
+            }
+        }
+    }
+    assert_eq!(chunks.len() as i64, MEASURE_TOTAL_CHUNKS);
+    let dated_documents = (MEASURE_DOCUMENTS / 2) as i64;
+    let documents = MEASURE_DOCUMENTS as i64;
+    let revisions = documents * MEASURE_REVISIONS_PER_DOCUMENT as i64;
+    MeasureFixture {
+        chunks,
+        expected_full: (documents, revisions, MEASURE_TOTAL_CHUNKS),
+        expected_single_binding: (
+            documents,
+            revisions,
+            MEASURE_TOTAL_CHUNKS / MEASURE_BINDINGS as i64,
+        ),
+        expected_dated_window: (
+            dated_documents,
+            dated_documents * MEASURE_REVISIONS_PER_DOCUMENT as i64,
+            dated_documents
+                * MEASURE_REVISIONS_PER_DOCUMENT as i64
+                * MEASURE_CHUNKS_PER_REVISION as i64,
+        ),
+        expected_empty_window: (0, 0, 0),
+    }
+}
+
+fn measure_full_scope() -> SearchScope {
+    SearchScope {
+        snapshot_id: SNAPSHOT_A.into(),
+        snapshot_generation: SNAPSHOT_GEN,
+        persona_id: PERSONA_A.into(),
+        grant_ids: (0..MEASURE_BINDINGS).map(measure_grant_id).collect(),
+        binding_ids: (0..MEASURE_BINDINGS).map(measure_binding_id).collect(),
+        period: SearchPeriod {
+            from: None,
+            to: None,
+            include_undated: true,
+        },
+    }
+}
+
+fn millis(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1_000.0
+}
+
+/// Min, median and p95 (nearest-rank) of the measured warm samples.
+fn duration_stats(samples: &mut [Duration]) -> (Duration, Duration, Duration) {
+    samples.sort();
+    let len = samples.len();
+    let median = if len % 2 == 1 {
+        samples[len / 2]
+    } else {
+        (samples[len / 2 - 1] + samples[len / 2]) / 2
+    };
+    let p95_rank = ((len as f64) * 0.95).ceil() as usize;
+    let p95 = samples[p95_rank.saturating_sub(1).min(len - 1)];
+    (samples[0], median, p95)
+}
+
+#[test]
+#[ignore = "synthetic latency measurement; run explicitly with --ignored --nocapture"]
+fn measure_scoped_count_latency_over_fixed_100k_chunk_fixture() {
+    let fixture_started = Instant::now();
+    let (mut connection, directory) = setup();
+    let fixture = measure_fixture();
+    let fixture_built = fixture_started.elapsed();
+    let staged_started = Instant::now();
+    let receipt = publish(
+        &mut connection,
+        SNAPSHOT_A,
+        SNAPSHOT_GEN,
+        "stage:measure",
+        &fixture.chunks,
+    );
+    let staged = staged_started.elapsed();
+    let setup_total = fixture_started.elapsed();
+    assert_eq!(receipt.chunk_count, MEASURE_TOTAL_CHUNKS);
+    assert_eq!(receipt.index_generation, 1);
+
+    let full = measure_full_scope();
+    let mut single_binding = full.clone();
+    single_binding.grant_ids = vec![measure_grant_id(0)];
+    single_binding.binding_ids = vec![measure_binding_id(0)];
+    let mut dated_window = full.clone();
+    dated_window.period = SearchPeriod {
+        from: Some(MEASURE_DATED_DAY),
+        to: Some(MEASURE_DATED_DAY),
+        include_undated: false,
+    };
+    let mut empty_window = full.clone();
+    empty_window.period = SearchPeriod {
+        from: Some(MEASURE_DATED_DAY - 86_400_000),
+        to: Some(MEASURE_DATED_DAY - 86_400_000),
+        include_undated: false,
+    };
+    let cases = [
+        ("full", full, fixture.expected_full),
+        (
+            "single_binding",
+            single_binding,
+            fixture.expected_single_binding,
+        ),
+        ("dated_window", dated_window, fixture.expected_dated_window),
+        ("empty_window", empty_window, fixture.expected_empty_window),
+    ];
+
+    // First count after publication, reported separately. Publication has
+    // already touched these pages: this is not a cold disk-cache measurement.
+    let first_started = Instant::now();
+    let first_counts = count_scope(&connection, &cases[0].1, &receipt).unwrap();
+    let first = first_started.elapsed();
+    assert_eq!(
+        (
+            first_counts.document_count,
+            first_counts.revision_count,
+            first_counts.chunk_count
+        ),
+        cases[0].2
+    );
+
+    println!(
+        "measurement: debug_assertions={}, bundled SQLCipher, single connection, synthetic fixture",
+        cfg!(debug_assertions)
+    );
+    println!(
+        "fixture: documents={MEASURE_DOCUMENTS} revisions_per_document={MEASURE_REVISIONS_PER_DOCUMENT} \
+         chunks_per_revision={MEASURE_CHUNKS_PER_REVISION} total_chunk_rows={MEASURE_TOTAL_CHUNKS} \
+         bindings={MEASURE_BINDINGS}"
+    );
+    println!(
+        "setup: fixture_build_ms={:.3} stage_and_commit_ms={:.3} setup_total_ms={:.3}",
+        millis(fixture_built),
+        millis(staged),
+        millis(setup_total)
+    );
+    println!(
+        "receipt: snapshot_id={} snapshot_generation={} index_generation={} chunk_count={}",
+        receipt.snapshot_id,
+        receipt.snapshot_generation,
+        receipt.index_generation,
+        receipt.chunk_count
+    );
+    for (name, scope, expected) in &cases {
+        let mut samples = Vec::with_capacity(MEASURE_REPETITIONS);
+        for _ in 0..MEASURE_REPETITIONS {
+            let started = Instant::now();
+            let counts = count_scope(&connection, scope, &receipt).unwrap();
+            samples.push(started.elapsed());
+            assert_eq!(
+                (
+                    counts.document_count,
+                    counts.revision_count,
+                    counts.chunk_count
+                ),
+                *expected,
+                "scope {name}"
+            );
+        }
+        let (min, median, p95) = duration_stats(&mut samples);
+        let observed = count_scope(&connection, scope, &receipt).unwrap();
+        let observed = (
+            observed.document_count,
+            observed.revision_count,
+            observed.chunk_count,
+        );
+        println!(
+            "scope={name} expected_documents={} expected_revisions={} expected_chunks={} \
+             observed={observed:?} reps={MEASURE_REPETITIONS} min_ms={:.3} median_ms={:.3} \
+             p95_nearest_rank_ms={:.3}",
+            expected.0,
+            expected.1,
+            expected.2,
+            millis(min),
+            millis(median),
+            millis(p95)
+        );
+        let millis_samples = samples
+            .iter()
+            .map(|sample| millis(*sample))
+            .collect::<Vec<_>>();
+        println!("scope={name} durations_ms={millis_samples:.3?}");
+    }
+    println!("first_count_after_commit_ms={:.3}", millis(first));
+    drop(connection);
+    std::fs::remove_dir_all(directory).unwrap();
+}

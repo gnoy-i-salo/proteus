@@ -1,4 +1,4 @@
-import type { ModelContextLease } from './memory';
+import type { MemoryPort, ModelContextLease } from './memory';
 import type { OpenResearchSessionRequest, ResearchSessionDescriptor } from './research-memory';
 
 export type OpenFabricSessionRequest = Omit<OpenResearchSessionRequest, 'mode'> & {
@@ -21,9 +21,8 @@ export type FabricContextLease = Omit<ModelContextLease, 'purpose' | 'manifestId
   readonly manifestId: null;
 };
 
-// Published-memory preparation only. Native freeze has its own completion proof
-// and will extend this port when that command exists, rather than return a fake result.
-export interface FabricMemoryPort {
+// Preparation and freeze only; native owns completion proof and source authority.
+export interface FabricMemoryPort extends Pick<MemoryPort, 'freezeManifest'> {
   readonly session: FabricSessionDescriptor;
   reserveModelContext(
     request: FabricContextRequest,

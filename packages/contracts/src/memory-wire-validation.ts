@@ -1,3 +1,5 @@
+import type { SourceSpan } from './corpus';
+import { decodeSourceSpan } from './source-excerpt-codec';
 import { list } from './corpus-wire-validation';
 
 const encoder = new TextEncoder();
@@ -43,4 +45,51 @@ export function memoryReceiptText(value: unknown, allowEmpty = false): string {
   if (typeof value !== 'string' || (!allowEmpty && !value.trim()) || value.length > 2048)
     throw new Error('Invalid memory receipt text.');
   return value;
+}
+
+// Persisted native dates accept RFC3339 offsets and fractional seconds. Session
+// deadlines use a different, canonical UTC wire format; do not normalize stored dates.
+export function persistedMemoryTimestamp(value: unknown): string {
+  const result = memoryText(value, 64);
+  const parts =
+    /^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/u.exec(
+      result,
+    );
+  if (!parts) throw new Error('Неверная дата элемента памяти.');
+  const year = Number(parts[1]);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > days[month - 1]! ||
+    Number(parts[4]) > 23 ||
+    Number(parts[5]) > 59 ||
+    Number(parts[6]) > 60 ||
+    (parts[7] !== undefined && (Number(parts[8]) > 23 || Number(parts[9]) > 59))
+  )
+    throw new Error('Неверная дата элемента памяти.');
+  return result;
+}
+
+export function memoryList(value: unknown, maximum: number, minimum = 0): unknown[] {
+  const values = list(value);
+  if (values.length < minimum || values.length > maximum)
+    throw new Error('Неверное число ссылок элемента памяти.');
+  return values;
+}
+
+export function memorySpans(value: unknown): SourceSpan[] {
+  const sourceSpans = memoryList(value, 64, 1).map((value) => {
+    const span = decodeSourceSpan(value);
+    memoryId(span.documentId);
+    memoryId(span.revisionId);
+    return span;
+  });
+  if (new Set(sourceSpans.map((span) => JSON.stringify(span))).size !== sourceSpans.length)
+    throw new Error('Повторяющийся интервал элемента памяти.');
+  return sourceSpans;
 }

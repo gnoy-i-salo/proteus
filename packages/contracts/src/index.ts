@@ -201,3 +201,5 @@ export {
   decodeFabricContextRequest,
 } from './fabric-memory-codec';
 export { decodeFabricContext } from './fabric-context-codec';
+export { decodePersonaManifest, decodeSkillDefinition } from './memory-profile-codec';
+export { decodePersonaManifestDraft, decodeManifestFreeze } from './manifest-freeze-codec';

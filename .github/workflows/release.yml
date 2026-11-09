@@ -168,3 +168,15 @@ jobs:
             gh release create "$RELEASE_TAG" --verify-tag --draft --title "PROTEUS $RELEASE_TAG" --generate-notes --notes-file docs/release-notes.md
           fi
           gh release upload "$RELEASE_TAG" release-assets/*.dmg release-assets/*.exe release-assets/*.deb release-assets/SHA256SUMS.txt release-assets/BUILD-MANIFEST.json --clobber
+      - name: Verify uploaded draft bytes and source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          verify_dir="$(mktemp -d)"
+          gh release download "$RELEASE_TAG" --dir "$verify_dir"
+          cmp release-assets/SHA256SUMS.txt "$verify_dir/SHA256SUMS.txt"
+          cmp release-assets/BUILD-MANIFEST.json "$verify_dir/BUILD-MANIFEST.json"
+          (cd "$verify_dir" && sha256sum --check --strict SHA256SUMS.txt)
+          git fetch --no-tags --depth=1 origin "refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse --verify 'FETCH_HEAD^{commit}')" = "$SOURCE_SHA"
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true

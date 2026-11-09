@@ -205,7 +205,9 @@ pnpm build:pages                # совместная сборка auth и Like
 
 ## Релизы
 
-Тег `vX.Y.Z` запускает `.github/workflows/release.yml`: проверки, затем установщики macOS Apple Silicon, macOS Intel, Windows x64 и Linux x64. Публикация выполняется после успешной сборки всех четырёх вариантов, вместе с `SHA256SUMS.txt`, через встроенный `GITHUB_TOKEN`.
+Тег `vX.Y.Z` запускает `.github/workflows/release.yml`: проверки, затем установщики macOS Apple Silicon, macOS Intel, Windows x64 и Linux x64 из одного проверенного source SHA. После успешной сборки всех четырёх вариантов workflow создаёт только draft и прикрепляет установщики, `SHA256SUMS.txt` и `BUILD-MANIFEST.json` через встроенный `GITHUB_TOKEN`. Публичной публикации workflow не выполняет.
+
+Затем workflow скачивает файлы из draft обратно, сравнивает manifest и список сумм с проверенными локальными копиями, проверяет SHA256 всех установщиков, текущий commit тега и сохранение статуса draft. Ошибка загрузки, несовпадение байтов или SHA тега оставляют запуск неуспешным. Само наличие draft не означает завершённую приёмку релиза.
 
 Перед выпуском синхронизируйте версии в корневом и desktop `package.json`, `tauri.conf.json`, `Cargo.toml` и записи `proteus` в `Cargo.lock`. После проверок и push создайте и отправьте тег нужной версии. Workflow можно повторить через Actions → Release → Run workflow с существующим тегом; уже опубликованные файлы не заменяются. macOS использует ad-hoc подпись без notarization, Windows — сборку без сертификата издателя.
 

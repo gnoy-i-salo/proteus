@@ -42,6 +42,7 @@ fn model_context_binds_native_sources_until_completed_and_rejects_revoked_proof(
         )
         .unwrap();
     let ids = [reserved.id.clone()];
+    assert!(bound.completed_context_audit(&ids, || 70003).is_err());
     assert_eq!(reserved.input.system_prompt, "prompt\r\n");
     assert!(bound.completed_context_receipts(&ids, || 70003).is_err());
     bound
@@ -62,6 +63,10 @@ fn model_context_binds_native_sources_until_completed_and_rejects_revoked_proof(
         .complete_model_context(&reserved.id, "call-1", || 70003)
         .unwrap();
     let proof = bound.completed_context_receipts(&ids, || 70003).unwrap();
+    let audit = bound.completed_context_audit(&ids, || 70003).unwrap();
+    assert_eq!(audit[0].receipt_ids, vec![receipt.receipt.id.clone()]);
+    assert_eq!(audit[0].input_sha256, reserved.input.identity.input_sha256);
+    assert_eq!(audit[0].completed_at_ms, 70003);
     assert_eq!(
         serde_json::to_value(&*proof[0]).unwrap(),
         serde_json::to_value(&*receipt).unwrap()
@@ -71,6 +76,7 @@ fn model_context_binds_native_sources_until_completed_and_rejects_revoked_proof(
         .with_ingestion_database(&op, |db| db.remove(&grant))
         .unwrap();
     assert!(bound.completed_context_receipts(&ids, || 70004).is_err());
+    assert!(bound.completed_context_audit(&ids, || 70004).is_err());
     assert!(bound
         .completed_context_receipts(&ids, || panic!("revoked session reopened"))
         .is_err());

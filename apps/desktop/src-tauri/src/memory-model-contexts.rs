@@ -8,6 +8,23 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletedModelContext {
+    pub schema_version: u8,
+    pub lease_id: String,
+    pub invocation_id: String,
+    pub provider: String,
+    pub model: String,
+    pub effort: String,
+    pub operation: String,
+    pub input_sha256: String,
+    pub input_bytes: usize,
+    pub context_sha256: String,
+    pub receipt_ids: Vec<String>,
+    pub format_attempt: u8,
+    pub completed_at_ms: i64,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InvocationBinding {
     pub provider: String,
@@ -32,7 +49,7 @@ struct ContextEntry {
     input: Arc<PreparedModelInput>,
     receipts: Vec<Arc<RecordedRetrieval>>,
     invocation_id: Option<String>,
-    completed: bool,
+    completed_at_ms: Option<i64>,
 }
 pub struct ModelContexts {
     binding: InvocationBinding,
@@ -42,6 +59,39 @@ pub struct ModelContexts {
 }
 const INVALID: &str = "Контекст модельного вызова недоступен или не соответствует запросу.";
 impl ModelContexts {
+    pub fn completed_audit(
+        &mut self,
+        ids: &[String],
+        clock: &dyn Fn() -> Result<i64, String>,
+    ) -> Result<Vec<CompletedModelContext>, String> {
+        let entries = Self::completed_entries(&self.entries, ids)?;
+        self.ledger.verify(clock).map_err(|e| e.to_string())?;
+        let mut audit = Vec::with_capacity(entries.len());
+        for (id, entry) in entries {
+            self.ledger.verify(clock).map_err(|e| e.to_string())?;
+            audit.push(CompletedModelContext {
+                schema_version: 1,
+                lease_id: id.clone(),
+                invocation_id: entry.invocation_id.clone().ok_or(INVALID)?,
+                provider: self.binding.provider.clone(),
+                model: self.binding.model.clone(),
+                effort: self.binding.effort.clone(),
+                operation: self.binding.operation.clone(),
+                input_sha256: entry.input.identity.input_sha256.clone(),
+                input_bytes: entry.input.identity.input_bytes,
+                context_sha256: entry.input.context_sha256.clone(),
+                receipt_ids: entry
+                    .receipts
+                    .iter()
+                    .map(|r| r.receipt.id.clone())
+                    .collect(),
+                format_attempt: entry.format_attempt,
+                completed_at_ms: entry.completed_at_ms.ok_or(INVALID)?,
+            });
+        }
+        self.ledger.verify(clock).map_err(|e| e.to_string())?;
+        Ok(audit)
+    }
     pub fn verify(&mut self, clock: &dyn Fn() -> Result<i64, String>) -> Result<(), String> {
         self.ledger
             .verify(clock)
@@ -115,7 +165,7 @@ impl ModelContexts {
                 input: input.clone(),
                 receipts,
                 invocation_id: None,
-                completed: false,
+                completed_at_ms: None,
             },
         );
         self.ledger.verify(clock).map_err(|e| e.to_string())?;
@@ -176,7 +226,8 @@ impl ModelContexts {
             return Err(INVALID.into());
         }
         let entry = self.entries.get(id).ok_or(INVALID)?;
-        if entry.completed || entry.invocation_id.as_deref() != Some(invocation_id) {
+        if entry.completed_at_ms.is_some() || entry.invocation_id.as_deref() != Some(invocation_id)
+        {
             return Err(INVALID.into());
         }
         self.ledger
@@ -192,8 +243,8 @@ impl ModelContexts {
         clock: &dyn Fn() -> Result<i64, String>,
     ) -> Result<(), String> {
         self.check_running(id, invocation_id, clock)?;
-        self.entries.get_mut(id).ok_or(INVALID)?.completed = true;
-        self.ledger.verify(clock).map_err(|e| e.to_string())?;
+        let completed_at_ms = self.ledger.verify(clock).map_err(|e| e.to_string())?;
+        self.entries.get_mut(id).ok_or(INVALID)?.completed_at_ms = Some(completed_at_ms);
         Ok(())
     }
     pub fn completed_receipts(
@@ -201,25 +252,11 @@ impl ModelContexts {
         ids: &[String],
         clock: &dyn Fn() -> Result<i64, String>,
     ) -> Result<Vec<Arc<RecordedRetrieval>>, String> {
-        if ids.len() > 1000 {
-            return Err(INVALID.into());
-        }
-        let mut seen_ids = HashSet::new();
-        let mut entries = Vec::with_capacity(ids.len());
-        for id in ids {
-            if id.len() > 128 || !seen_ids.insert(id) {
-                return Err(INVALID.into());
-            }
-            let entry = self.entries.get(id).ok_or(INVALID)?;
-            if !entry.completed {
-                return Err(INVALID.into());
-            }
-            entries.push(entry);
-        }
+        let entries = Self::completed_entries(&self.entries, ids)?;
         self.ledger.verify(clock).map_err(|e| e.to_string())?;
         let mut seen_receipts = HashSet::new();
         let mut receipts = Vec::new();
-        for entry in entries {
+        for (_, entry) in entries {
             self.ledger.verify(clock).map_err(|e| e.to_string())?;
             for receipt in &entry.receipts {
                 if seen_receipts.insert(&receipt.receipt.id) {
@@ -229,6 +266,27 @@ impl ModelContexts {
         }
         self.ledger.verify(clock).map_err(|e| e.to_string())?;
         Ok(receipts)
+    }
+    fn completed_entries<'a>(
+        entries_by_id: &'a HashMap<String, ContextEntry>,
+        ids: &'a [String],
+    ) -> Result<Vec<(&'a String, &'a ContextEntry)>, String> {
+        if ids.len() > 1000 {
+            return Err(INVALID.into());
+        }
+        let mut seen_ids = HashSet::new();
+        let mut entries = Vec::with_capacity(ids.len());
+        for id in ids {
+            if id.len() > 128 || !seen_ids.insert(id) {
+                return Err(INVALID.into());
+            }
+            let entry = entries_by_id.get(id).ok_or(INVALID)?;
+            if entry.completed_at_ms.is_none() {
+                return Err(INVALID.into());
+            }
+            entries.push((id, entry));
+        }
+        Ok(entries)
     }
 }
 #[cfg(test)]

@@ -9,6 +9,20 @@ use crate::memory::{
 use std::sync::Arc;
 const UNCONFIGURED: &str = "Модельная сессия памяти не настроена.";
 impl MemorySession {
+    pub fn completed_context_audit(
+        &mut self,
+        ids: &[String],
+        now: impl Fn() -> i64,
+    ) -> Result<Vec<super::CompletedModelContext>, String> {
+        self.verify_current(&now)?;
+        let audit = self
+            .models
+            .as_mut()
+            .ok_or(UNCONFIGURED)?
+            .completed_audit(ids, &|| self.scope.guard(&now))?;
+        self.verify_current(now)?;
+        Ok(audit)
+    }
     pub fn verify_research_support(
         &mut self,
         items: &[crate::memory::types::MemoryItem],

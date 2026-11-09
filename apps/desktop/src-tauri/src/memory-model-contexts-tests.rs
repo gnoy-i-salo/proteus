@@ -239,6 +239,11 @@ fn late_completion_failure_never_exposes_even_an_earlier_successful_context() {
         .is_err());
     for id in [first.id, second.id] {
         assert!(contexts
+            .completed_audit(std::slice::from_ref(&id), &|| panic!(
+                "failed audit reopened"
+            ))
+            .is_err());
+        assert!(contexts
             .completed_receipts(&[id], &|| panic!("failed completion reopened"))
             .is_err());
     }
@@ -270,7 +275,127 @@ fn revoked_consumption_and_expired_completion_never_produce_analysis_proof() {
                 .is_err());
         }
         assert!(contexts
-            .completed_receipts(&[reserved.id], &|| panic!("invalid proof checked grant"))
+            .completed_receipts(std::slice::from_ref(&reserved.id), &|| panic!(
+                "invalid proof checked grant"
+            ))
+            .is_err());
+        assert!(contexts
+            .completed_audit(&[reserved.id], &|| panic!("invalid audit checked grant"))
             .is_err());
     }
+}
+
+#[test]
+fn completed_audit_records_exact_host_input_and_preserves_completion_time() {
+    let binding = binding();
+    let mut contexts = ModelContexts::new(binding.clone(), 2, 100000, 100, 10).unwrap();
+    let first = contexts
+        .reserve(
+            "  system\r\n",
+            "задача",
+            vec![empty_receipt("a")],
+            1,
+            &|| Ok(11),
+        )
+        .unwrap();
+    let second = contexts
+        .reserve(
+            "  system\r\n",
+            "исправление",
+            vec![empty_receipt("b"), empty_receipt("a")],
+            2,
+            &|| Ok(11),
+        )
+        .unwrap();
+    for (reserved, invocation, time) in [(&first, "first", 13), (&second, "repair", 15)] {
+        assert!(contexts
+            .completed_audit(std::slice::from_ref(&reserved.id), &|| Ok(11))
+            .is_err());
+        contexts
+            .consume(
+                &reserved.id,
+                dispatch(&binding, &reserved.input, invocation),
+                &|| Ok(time - 1),
+            )
+            .unwrap();
+        assert!(contexts
+            .completed_audit(std::slice::from_ref(&reserved.id), &|| Ok(time - 1))
+            .is_err());
+        contexts
+            .complete(&reserved.id, invocation, &|| Ok(time))
+            .unwrap();
+    }
+    let ids = [second.id.clone(), first.id.clone()];
+    let audit = contexts.completed_audit(&ids, &|| Ok(16)).unwrap();
+    assert_eq!(audit.len(), 2);
+    assert_eq!(
+        serde_json::to_value(&audit[0]).unwrap(),
+        serde_json::json!({
+            "schemaVersion": 1, "leaseId": second.id, "invocationId": "repair",
+            "provider": "codex", "model": "chosen-model", "effort": "medium", "operation": "corpus-analysis",
+            "inputSha256": second.input.identity.input_sha256, "inputBytes": second.input.identity.input_bytes,
+            "contextSha256": second.input.context_sha256, "receiptIds": ["b", "a"],
+            "formatAttempt": 2, "completedAtMs": 15
+        })
+    );
+    assert_eq!(audit[1].completed_at_ms, 13);
+    assert_eq!(audit[1].format_attempt, 1);
+    assert_eq!(audit[1].input_sha256, first.input.identity.input_sha256);
+    assert_ne!(audit[0].input_sha256, audit[1].input_sha256);
+    assert_eq!(contexts.completed_audit(&ids, &|| Ok(17)).unwrap(), audit);
+    for invalid in [
+        vec![first.id.clone(), first.id],
+        vec!["foreign".into()],
+        vec!["x".repeat(129)],
+        vec!["x".into(); 1001],
+    ] {
+        assert!(contexts
+            .completed_audit(&invalid, &|| panic!("invalid audit accessed authority"))
+            .is_err());
+    }
+    assert!(contexts
+        .completed_audit(&[], &|| Ok(18))
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn completed_audit_rechecks_revocation_before_return_and_never_reopens() {
+    let binding = binding();
+    let mut contexts = ModelContexts::new(binding.clone(), 1, 100000, 100, 10).unwrap();
+    let reserved = contexts
+        .reserve("", "task", vec![empty_receipt("a")], 1, &|| Ok(11))
+        .unwrap();
+    contexts
+        .consume(
+            &reserved.id,
+            dispatch(&binding, &reserved.input, "call"),
+            &|| Ok(12),
+        )
+        .unwrap();
+    contexts.complete(&reserved.id, "call", &|| Ok(13)).unwrap();
+    let ids = [reserved.id];
+    let calls = std::cell::Cell::new(0);
+    contexts
+        .completed_audit(&ids, &|| {
+            calls.set(calls.get() + 1);
+            Ok(14)
+        })
+        .unwrap();
+    let last = calls.get();
+    assert!(last >= 2);
+    calls.set(0);
+    assert!(contexts
+        .completed_audit(&ids, &|| {
+            calls.set(calls.get() + 1);
+            if calls.get() == last {
+                Err("revoked before return".into())
+            } else {
+                Ok(14)
+            }
+        })
+        .is_err());
+    assert!(contexts
+        .completed_audit(&ids, &|| panic!("closed audit reopened"))
+        .is_err());
 }

@@ -8,7 +8,9 @@ mod recall;
 mod receipts;
 use super::budget::{RecallLedger, RecallLimits, RetrievalCharge};
 pub use super::context_input::PreparedModelInput;
-pub use super::model_contexts::{DispatchInput, InvocationBinding, ReservedContext};
+pub use super::model_contexts::{
+    CompletedModelContext, DispatchInput, InvocationBinding, ReservedContext,
+};
 pub use super::research_support::VerifiedResearchSupport;
 use crate::{
     corpus_database::search::{SearchIndexReceipt, SearchPeriod},

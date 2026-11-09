@@ -304,3 +304,37 @@ test('saved profile preserves exact sample pages and attribution without provide
   await expect(page.getByRole('dialog')).toContainText('doc-a-public');
   await noProviderCalls(page);
 });
+
+test('reopens v5 series roles independently when A and B share a saved persona ID', async ({
+  page,
+}) => {
+  const saved = JSON.parse(modern) as ExperimentResult;
+  const value = {
+    ...saved,
+    schemaVersion: 5,
+    people: saved.people.map((person, index) => ({
+      ...person,
+      participantId: index === 0 ? 'a' : 'b',
+      baseProfile: { ...person.baseProfile, id: 'shared-saved-person' },
+      profile: { ...person.profile, id: 'shared-saved-person' },
+    })),
+    control: { ...saved.control, participantId: 'neutral' },
+  };
+  await historyFixture(page, { roles: JSON.stringify(value) });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'История запусков', exact: true }).click();
+  await page.getByRole('button', { name: 'Открыть roles', exact: true }).click();
+  await expect(page.getByText('Версия файла: 5', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Ответ', exact: true }).click();
+  const body = page.getByTestId('persona-reply-body');
+  await expect(body).toContainText('Irrigation schedule');
+  await page
+    .getByRole('navigation', { name: 'Участники сохранённого запуска' })
+    .getByRole('button', { name: 'Boris Fixture', exact: true })
+    .click();
+  await expect(body).toContainText('Manual watering');
+  await expect(body).not.toContainText('Irrigation schedule');
+  await page.getByRole('button', { name: 'Профиль', exact: true }).click();
+  await expect(page.getByLabel('Текст профиля', { exact: true })).toContainText('Boris Fixture');
+  await noProviderCalls(page);
+});

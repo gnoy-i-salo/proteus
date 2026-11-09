@@ -208,4 +208,13 @@ it('keeps historical control retry counts unknown instead of reading an empty pe
   expect(reportText(output, control, 'analysis')).toContain(
     'повторных запросов формата: неизвестно (старый формат)',
   );
+  const a: ExperimentPerson = { ...control, participantId: 'a' };
+  const b: ExperimentPerson = { ...control, participantId: 'b' };
+  const independent: ExperimentResult = {
+    ...output,
+    schemaVersion: 5,
+    people: [a, b],
+    control: { ...control, participantId: 'neutral' },
+  };
+  expect(reportText(independent, b, 'analysis')).toContain('повторных запросов формата: 0');
 });

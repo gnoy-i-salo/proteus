@@ -200,7 +200,7 @@ export function createReplyNavigation(options: {
 
   createEffect(
     on(
-      () => options.person()?.profile.id,
+      () => options.person()?.participantId ?? options.person()?.profile.id,
       () => {
         batch(() => {
           setRound(null);
@@ -248,7 +248,7 @@ export function createReplyNavigation(options: {
   });
 
   const positionKey = () =>
-    `${options.person()?.profile.id ?? ''}:${activeRound() ?? ''}:${activeMessageIndex()}`;
+    `${options.person()?.participantId ?? options.person()?.profile.id ?? ''}:${activeRound() ?? ''}:${activeMessageIndex()}`;
   const positionFor = (key: string) => positions.get(key);
   const savePosition = (key: string, position: TextWorkspacePosition) => {
     if (highlight()) return;

@@ -22,6 +22,7 @@ export function ExperimentResultView(props: {
 }) {
   const persona = () =>
     props.selected === 2 ? props.run.result()?.control : props.run.result()?.people[props.selected];
+  const participantKey = () => persona()?.participantId ?? persona()?.profile.id;
   const replies = createReplyNavigation({
     person: persona,
     personIndex: () => (props.selected === 0 || props.selected === 1 ? props.selected : 2),
@@ -47,7 +48,7 @@ export function ExperimentResultView(props: {
   };
   const openCall = (stageId: string) => {
     props.traces.select(stageId);
-    setCallReturnPerson(persona()?.profile.id);
+    setCallReturnPerson(participantKey());
     props.onDetail('traces');
   };
   const returnToPriorTab = () => {
@@ -122,7 +123,7 @@ export function ExperimentResultView(props: {
                   when={
                     props.detail === 'traces' &&
                     callReturnPerson() !== undefined &&
-                    callReturnPerson() === persona()?.profile.id
+                    callReturnPerson() === participantKey()
                   }
                 >
                   <button
@@ -153,6 +154,7 @@ export function ExperimentResultView(props: {
                               <PersonaMemoryView
                                 profile={person().profile}
                                 baseProfile={person().baseProfile}
+                                adaptation={person().taskAdaptation}
                               />
                             )}
                           </Show>

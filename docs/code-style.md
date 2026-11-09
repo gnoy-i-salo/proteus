@@ -73,7 +73,7 @@ Tauri commands проверяют вход/контекст и вызывают 
 
 1. Зафиксировать owner, поддерживаемые версии, reader/writer и mapping каждого поля: TS, IPC/events, Rust serde, model JSON/prompts/skills, `.proteus`, results, localStorage, encrypted source storage и новые RAG данные.
 2. Добавить schema-aware decoder legacy → canonical camelCase и отдельный новый encoder. Сначала тесты old/new, null/optional, invalid/oversize, unknown version и conflicting aliases. Не применять recursive generic `kebabToCamel`, `as unknown as` вместо валидации или aliases в domain interfaces.
-3. Не менять формат под прежним номером. Текущий writer experiment result имеет `schemaVersion: 4`, `scoringVersion: 2`, preset `.proteus` version 2; исходный inventory v3/v1 сохранён в [совместимости](code-compatibility.md). Для следующего writer выбрать свободную версию по актуальному коду. Не обещать reader результатов, пока он не реализован.
+3. Не менять формат под прежним номером. Текущий writer experiment result имеет `schemaVersion: 5`, `scoringVersion: 2`, preset `.proteus` version 2; исходный inventory v3/v1 сохранён в [совместимости](code-compatibility.md). Для следующего writer выбрать свободную версию по актуальному коду. Не обещать reader результатов, пока он не реализован.
 4. Переключить TS contracts и всех consumers одним зелёным срезом без смысловой декомпозиции; временный legacy native wire нормализует TS adapter. Затем согласованно переключить Rust DTO, frontend boundary и writers. Storage migration атомарна/идемпотентна, исходник сохраняется до проверки нового состояния; сбой допускает повтор и recovery.
 5. Декомпозировать пакеты, UI и native отдельно. Общие RAG/UX contracts, source picker, storage и MemoryPort реализуются один раз; соседние эпики не создают копии.
 

@@ -37,7 +37,7 @@ export async function runTrials(
     for (let round = 1; round <= repetitions; round++) {
       for (const planned of trials.filter((item) => item.round === round)) {
         activeTrial = planned;
-        const index = prepared.findIndex((person) => person.profile.id === planned.personId);
+        const index = prepared.findIndex((person) => person.participantId === planned.personId);
         const participant = prepared[index]!;
         const attempt = await stage(
           `solve-${planned.id}`,
@@ -88,7 +88,7 @@ export async function runTrials(
     for (const trial of trials) {
       if (trial.status === 'pending') {
         replace({ ...trial, status: 'skipped', error: message });
-        const index = prepared.findIndex((person) => person.profile.id === trial.personId);
+        const index = prepared.findIndex((person) => person.participantId === trial.personId);
         execution.skipStage(
           `solve-${trial.id}`,
           'person',

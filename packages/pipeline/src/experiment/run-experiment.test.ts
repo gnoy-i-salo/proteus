@@ -10,7 +10,7 @@ import { decodeExecutionSnapshot } from '@proteus-int/contracts';
 import { createModelSettings } from '@proteus-int/intelligence';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { exportExperiment, runExperiment, validateExperiment } from '../index';
-import { decodeV4Result } from '../history/result-v4';
+import { decodeV5Result } from '../history/result-v5';
 
 const input = {
   task: 'Design a public reading room',
@@ -389,7 +389,7 @@ describe('controlled persona experiment', () => {
         onProgress: (event) => stages.push(event.stage),
       },
     );
-    expect(result).toMatchObject({ schemaVersion: 4, scoringVersion: 2, status: 'complete' });
+    expect(result).toMatchObject({ schemaVersion: 5, scoringVersion: 2, status: 'complete' });
     expect(calls).toHaveLength(13);
     expect(result.traces).toHaveLength(13);
     expect(calls.filter((call) => call.provider === 'kimi')).toHaveLength(2);
@@ -676,9 +676,9 @@ it.each(['complete', 'incomplete', 'cancelled'] as const)(
     expect(result.status).toBe(status);
     const before = JSON.stringify(result);
     const callCount = calls.length;
-    expect(decodeV4Result(JSON.parse(before))).toEqual(JSON.parse(before));
+    expect(decodeV5Result(JSON.parse(before))).toEqual(JSON.parse(before));
     const exported = JSON.parse(exportExperiment(result)) as unknown;
-    expect(decodeV4Result(exported)).toEqual(exported);
+    expect(decodeV5Result(exported)).toEqual(exported);
     expect(JSON.stringify(result)).toBe(before);
     expect(calls).toHaveLength(callCount);
   },

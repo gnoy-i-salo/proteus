@@ -1,5 +1,5 @@
 export interface HistoryEnvelope {
-  readonly formatVersion: 1 | 2 | 3 | 4;
+  readonly formatVersion: 1 | 2 | 3 | 4 | 5;
   readonly value: Readonly<Record<string, unknown>>;
 }
 
@@ -24,7 +24,7 @@ export function parseHistoryEnvelope(text: string): HistoryEnvelope {
   const legacy = owns('schema-version');
   if (camel && legacy) throw new Error('Смешанные версии формата результата.');
   const version = camel ? value.schemaVersion : legacy ? value['schema-version'] : 1;
-  if ((camel && version !== 4) || (legacy && version !== 2 && version !== 3))
+  if ((camel && version !== 4 && version !== 5) || (legacy && version !== 2 && version !== 3))
     throw new Error('Неподдерживаемая версия результата.');
   const formatVersion = version as HistoryEnvelope['formatVersion'];
   const required =
@@ -44,7 +44,7 @@ export function parseHistoryEnvelope(text: string): HistoryEnvelope {
           camel ? 'finishedAt' : 'finished-at',
         ];
   const optional =
-    formatVersion === 4
+    formatVersion === 4 || formatVersion === 5
       ? ['execution', 'exportMetadata']
       : formatVersion === 3
         ? ['export-metadata']

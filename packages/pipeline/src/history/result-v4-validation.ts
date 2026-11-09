@@ -1,4 +1,4 @@
-// Strict validation primitives for the schemaVersion 4 saved-result reader.
+// Strict validation primitives for the schemaVersion 4/5 saved-result readers.
 // Every guard reports the dotted path of the offending field and never mutates input.
 
 export const maxEnvelopeBytes = 8 * 1024 * 1024;
@@ -7,7 +7,7 @@ export const maxEnvelopeBytes = 8 * 1024 * 1024;
 const defaultMaxItems = maxEnvelopeBytes / 2;
 
 export function invalid(path: string, detail: string): never {
-  throw new Error(`Invalid stored v4 result at ${path}: ${detail}.`);
+  throw new Error(`Invalid stored series result at ${path}: ${detail}.`);
 }
 
 export function asRecord(value: unknown, path: string): Record<string, unknown> {

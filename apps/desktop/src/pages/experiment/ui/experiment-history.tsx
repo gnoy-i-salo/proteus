@@ -13,7 +13,7 @@ function OpenedHistory(props: {
   const view = () => props.value.result.view;
   const modern = () => {
     const value = view();
-    return value.sourceVersion === 4 ? value.result : undefined;
+    return value.sourceVersion === 4 || value.sourceVersion === 5 ? value.result : undefined;
   };
   const legacy = () => {
     const value = view();

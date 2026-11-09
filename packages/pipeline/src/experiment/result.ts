@@ -5,6 +5,7 @@ import type {
   ExperimentProtocol,
   IntelligenceResult,
   PersonProfile,
+  PersonaTaskAdaptation,
   ScoreInterval,
   ScoreSummary,
   TrialScore,
@@ -27,6 +28,9 @@ export interface TrialResult {
   readonly error: string | null;
 }
 export interface ExperimentPerson {
+  /** Required by schemaVersion 5; legacy v4 uses profile.id for the series role. */
+  readonly participantId?: 'a' | 'b' | 'neutral';
+  readonly taskAdaptation?: PersonaTaskAdaptation;
   readonly report: StalkerReport | null;
   readonly baseProfile: PersonProfile;
   readonly profile: PersonProfile;
@@ -39,7 +43,7 @@ export interface ExperimentPerson {
   readonly artifacts: Readonly<Record<string, string>>;
 }
 export interface ExperimentResult {
-  readonly schemaVersion: 4;
+  readonly schemaVersion: 4 | 5;
   /** Absent for historical schema4 results without lifecycle observations. */
   readonly execution?: ExecutionSnapshot;
   readonly scoringVersion: 2;
@@ -68,14 +72,16 @@ export function buildExperimentResult(
 ): ExperimentResult {
   const repetitions = protocol.repetitions;
   const participants = prepared.map((person, index): ExperimentPerson => {
-    const ownTrials = trials.filter((trial) => trial.personId === person.profile.id);
+    const ownTrials = trials.filter((trial) => trial.personId === person.participantId);
     return {
+      participantId: person.participantId,
+      ...(person.taskAdaptation ? { taskAdaptation: person.taskAdaptation } : {}),
       report: person.report,
       baseProfile: person.base,
       profile: person.profile,
       attempt: ownTrials.find((trial) => trial.attempt)?.attempt ?? null,
       score: summarizeScores(
-        person.profile.id,
+        person.participantId,
         ownTrials.flatMap((trial) => (trial.score ? [trial.score] : [])),
         repetitions,
       ),
@@ -113,7 +119,7 @@ export function buildExperimentResult(
           ? 'Описательное сравнение трёх прогонов в одинаковых условиях. Это не доказательство статистического превосходства.'
           : 'Сравнение ограничено: есть непроверенные критерии, расхождение оценок или невыполненные обязательные требования.';
   const result: ExperimentResult = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     scoringVersion: 2,
     status,
     input,

@@ -1,11 +1,11 @@
 import { createSignal, For } from 'solid-js';
-import type { LegacyV1Result, StoredV4Result } from '@proteus-int/pipeline';
+import type { LegacyV1Result, StoredV4Result, StoredV5Result } from '@proteus-int/pipeline';
 import { createTraceNavigation } from '../model/trace-navigation';
 import { ExperimentResultView } from './experiment-result-view';
 import { PagedText } from './paged-text';
 import styles from './experiment-history.module.scss';
 
-export function HistorySeries(props: { readonly result: StoredV4Result }) {
+export function HistorySeries(props: { readonly result: StoredV4Result | StoredV5Result }) {
   const [selected, setSelected] = createSignal(0);
   const [detail, setDetail] = createSignal('analysis');
   const traces = createTraceNavigation({

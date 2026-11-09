@@ -458,3 +458,16 @@ it('never assigns a creating call to an absent answer, failed call or duplicate 
     ).kind,
   ).toBe('unavailable');
 });
+
+it('resets quote and reader position when the same saved persona changes A/B roles', () => {
+  const trials = [trial({ round: 1, attempt: attempt({ answer: 'alfa bravo' }) })];
+  const s = setupModel(trials);
+  s.setPerson(person({ participantId: 'a', trials }));
+  s.model.revealQuote({ quote: 'bravo', round: 1 });
+  expect(s.model.quoteTarget()?.quote).toBe('bravo');
+  const key = s.model.positionKey();
+  s.setPerson(person({ participantId: 'b', trials }));
+  expect(s.model.quoteTarget()).toBeUndefined();
+  expect(s.model.positionKey()).not.toBe(key);
+  s.dispose();
+});

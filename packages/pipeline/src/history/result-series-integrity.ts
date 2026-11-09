@@ -12,10 +12,20 @@ function unique(ids: readonly string[], path: string): void {
 }
 
 /** Validate references that the structured viewer uses to associate answers and scores. */
-export function validateV4References(result: ExperimentResult): void {
+export function validateSeriesReferences(result: ExperimentResult): void {
   const participants = [...result.people, result.control];
-  const ids = participants.map((person) => person.profile.id);
+  const ids = participants.map((person) =>
+    result.schemaVersion === 5 ? person.participantId! : person.profile.id,
+  );
+  if (result.schemaVersion === 5 && ids.some((id, index) => id !== ['a', 'b', 'neutral'][index]))
+    invalid('result.people', 'conflicting participant roles');
   unique(ids, 'result.people');
+  if (result.schemaVersion === 5) {
+    if (result.input.task !== result.protocol.task)
+      invalid('result.protocol.task', 'task differs from series input');
+    validateMemoryBindings(result);
+  }
+
   const criteria = result.protocol.rubric.criteria.map((criterion) => criterion.id);
   unique(criteria, 'result.protocol.rubric.criteria');
   const assessments = (values: readonly { readonly criterionId: string }[], path: string) => {
@@ -56,11 +66,52 @@ export function validateV4References(result: ExperimentResult): void {
   });
   participants.forEach((person, index) => {
     const path = index === 2 ? 'result.control' : `result.people[${index}]`;
-    const id = person.profile.id;
-    if (person.baseProfile.id !== id || person.score.personId !== id)
+    const id = ids[index]!;
+    if (
+      person.baseProfile.id !== person.profile.id ||
+      !person.profile.id ||
+      person.score.personId !== id
+    )
       invalid(path, 'conflicting participant identity');
     const trials = result.trials.filter((trial) => trial.personId === id);
     same(person.trials, trials, `${path}.trials`);
     same(person.attempt, trials.find((trial) => trial.attempt)?.attempt ?? null, `${path}.attempt`);
   });
+}
+
+function validateMemoryBindings(result: ExperimentResult): void {
+  const participants = [...result.people, result.control];
+  const memory = result.protocol.memory;
+  if (!memory) {
+    if (
+      participants.some(
+        (person) => person.profile.memory || person.baseProfile.memory || person.taskAdaptation,
+      )
+    )
+      invalid('result.protocol.memory', 'missing recorded memory bindings');
+    return;
+  }
+  if (memory.participants.length !== 3)
+    invalid('result.protocol.memory', 'expected three role bindings');
+  unique(
+    memory.participants.map((entry) => entry.participantId),
+    'result.protocol.memory.participants',
+  );
+  for (const person of participants) {
+    const binding = memory.participants.find(
+      (entry) => entry.participantId === person.participantId,
+    );
+    if (
+      !binding ||
+      !person.profile.memory ||
+      binding.manifestId !== person.profile.memory.manifestId
+    )
+      invalid('result.protocol.memory', 'profile differs from recorded manifest');
+    same(person.baseProfile, person.profile, 'result.people.baseProfile');
+    if (person.profile.taskSkills.length)
+      invalid(
+        'result.people.profile.taskSkills',
+        'task guidance is separate from frozen memory profile',
+      );
+  }
 }

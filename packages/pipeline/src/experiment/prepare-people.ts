@@ -1,6 +1,7 @@
 import type {
   ExperimentInput,
   PersonProfile,
+  PersonaTaskAdaptation,
   SourceGrant,
   SourcePort,
 } from '@proteus-int/contracts';
@@ -12,6 +13,8 @@ import { freeze } from './input-snapshot';
 import type { RunOptions } from './run-options';
 
 export interface PreparedPerson {
+  readonly participantId: 'a' | 'b' | 'neutral';
+  readonly taskAdaptation?: PersonaTaskAdaptation;
   readonly report: StalkerReport | null;
   readonly base: PersonProfile;
   profile: PersonProfile;
@@ -68,10 +71,15 @@ export async function preparePeople(
           options.signal,
         ),
     );
-    prepared.push({ report, base: freeze(profile), profile });
+    prepared.push({
+      participantId: index === 0 ? 'a' : 'b',
+      report,
+      base: freeze(profile),
+      profile,
+    });
   }
   const neutral = freeze(neutralProfile());
-  prepared.push({ report: null, base: neutral, profile: neutral });
+  prepared.push({ participantId: 'neutral', report: null, base: neutral, profile: neutral });
   for (const [index, person] of prepared.entries()) {
     const { profile } = await stage(
       `adapt-${index}`,

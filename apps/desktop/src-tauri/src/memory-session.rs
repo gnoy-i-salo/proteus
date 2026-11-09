@@ -2,6 +2,8 @@
 //! orchestration; model actions can only select a query or an episode ID.
 #[path = "memory-model-session.rs"]
 mod model_session;
+#[path = "memory-publication-session.rs"]
+mod publication_session;
 #[path = "memory-recall.rs"]
 mod recall;
 #[path = "memory-receipts.rs"]
@@ -36,6 +38,7 @@ pub struct MemorySession {
     ledger: RecallLedger,
     history: super::receipt_history::ReceiptHistory,
     models: Option<super::model_contexts::ModelContexts>,
+    publication: Option<publication_session::PublicationMemo>,
 }
 struct MemoryScope {
     deadline: i64,
@@ -115,6 +118,7 @@ impl MemorySession {
             ledger,
             history: Default::default(),
             models: None,
+            publication: None,
         })
     }
     pub fn read_episode(

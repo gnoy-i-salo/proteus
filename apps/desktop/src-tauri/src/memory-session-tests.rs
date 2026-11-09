@@ -3,6 +3,8 @@ use super::*;
 mod cli_memory_dispatch_tests;
 #[path = "memory-model-session-tests.rs"]
 mod model_session_tests;
+#[path = "memory-publication-session-tests.rs"]
+mod publication_session_tests;
 #[path = "memory-recall-tests.rs"]
 mod recall_tests;
 #[path = "memory-receipts-tests.rs"]

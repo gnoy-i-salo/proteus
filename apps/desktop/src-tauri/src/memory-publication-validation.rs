@@ -83,6 +83,9 @@ fn retrieval(value: &RetrievalReceipt, corpus: &str) -> Result<(), String> {
                 .into_iter()
                 .flatten()
                 .any(|r| r == 0 || r > 100000)
+            || (value.operation == "recall"
+                && hit.lexical_rank.is_none()
+                && hit.semantic_rank.is_none())
             || (value.mode == "lexical" && hit.semantic_rank.is_some())
             || (value.operation == "readEpisode"
                 && (hit.lexical_rank.is_some()
@@ -133,9 +136,11 @@ pub(super) fn validate(value: &ResearchPublication) -> Result<(), String> {
         || coverage.indexed_documents > coverage.loaded_documents
         || coverage.analyzed_documents > coverage.indexed_documents
         || coverage.used_documents > coverage.analyzed_documents
-        || coverage
-            .total_documents
-            .is_some_and(|v| v < coverage.loaded_documents || v > SAFE_INTEGER)
+        || coverage.total_documents.is_some_and(|v| {
+            v < coverage.loaded_documents
+                || v > SAFE_INTEGER
+                || (coverage.complete && v != coverage.loaded_documents)
+        })
     {
         return Err(INVALID.into());
     }

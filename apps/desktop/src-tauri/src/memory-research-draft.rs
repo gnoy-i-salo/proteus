@@ -41,6 +41,7 @@ pub enum Contradiction {
     },
 }
 /// Native-only identity chosen once for a publication attempt and retained for retries.
+#[derive(Clone)]
 pub struct PublicationIdentity {
     pub memory_snapshot_id: String,
     pub corpus_snapshot_id: String,

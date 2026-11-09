@@ -162,3 +162,33 @@ fn empty_analysis_is_valid_and_deduplicated_spans_count_documents_not_hits() {
     value.receipt.coverage.used_documents = 0;
     value.validate().unwrap();
 }
+
+#[test]
+fn publication_matches_shared_coverage_completion_contract() {
+    let mut value = fixture();
+    value.receipt.coverage.complete = true;
+    value.receipt.coverage.total_documents = Some(3);
+    assert!(
+        value.validate().is_err(),
+        "complete acquisition cannot omit a known document"
+    );
+    value.receipt.coverage.total_documents = Some(2);
+    value.validate().unwrap();
+    assert_eq!(
+        value.receipt.coverage.analyzed_documents, 1,
+        "acquisition completion is not complete analysis"
+    );
+}
+
+#[test]
+fn publication_matches_shared_recall_rank_contract() {
+    let mut value = fixture();
+    value.retrievals[0].hits[0].lexical_rank = None;
+    assert!(
+        value.validate().is_err(),
+        "ranked recall must have a lexical or semantic rank"
+    );
+    value.retrievals[0].operation = "readEpisode".into();
+    value.retrievals[0].hits[0].fusion_score = 0.0;
+    value.validate().unwrap();
+}

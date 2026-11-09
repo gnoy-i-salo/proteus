@@ -87,6 +87,23 @@ impl MemorySession {
         session.verify_current(now)?;
         Ok(session)
     }
+    pub fn persona_skills(
+        &mut self,
+        now: impl Fn() -> i64,
+    ) -> Result<Vec<crate::memory::types::SkillDefinition>, String> {
+        self.verify_current(&now)?;
+        let skills = self
+            .scope
+            .persona
+            .as_ref()
+            .ok_or(INVALID)?
+            .pin
+            .bundle()
+            .skills
+            .clone();
+        self.verify_current(now)?;
+        Ok(skills)
+    }
     pub fn persona_manifest(
         &mut self,
         now: impl Fn() -> i64,
@@ -134,6 +151,16 @@ fn load_binding(
         authority.current(db, started, GrantUse::Model)?;
         let pin = db.pin_manifest_checked(input.manifest_id, input.persona_id, &check)?;
         let manifest = &pin.bundle().manifest;
+        if manifest.schema_version != 2
+            || manifest.profile_snapshot.is_none()
+            || manifest.profile_version != "person-memory-profile:2"
+            || manifest.prompt_version != "person-fabric-memory:2"
+        {
+            return Err(
+                "Манифест не закрепляет полный профиль. Подготовьте персону заново.".into(),
+            );
+        }
+
         let index = authority.pin_index(db, &manifest.corpus_snapshot_id, &check)?;
         let prepared = db.prepared_snapshot_checked(&manifest.corpus_snapshot_id, &check)?;
         if manifest.split_version != prepared.split_version

@@ -3,6 +3,7 @@ import type {
   ModelContextLease,
   ModelContextRequest,
   PersonaManifest,
+  SkillDefinition,
   SimulationMemoryEntry,
 } from './memory';
 import type { OpenResearchSessionRequest, ResearchSessionDescriptor } from './research-memory';
@@ -11,9 +12,11 @@ export type OpenPersonaSessionRequest = Pick<
   OpenResearchSessionRequest,
   'schemaVersion' | 'operationId' | 'jobId' | 'personaId' | 'period'
 > & { readonly manifestId: string };
-export interface PersonaSessionDescriptor extends ResearchSessionDescriptor {
+export interface PersonaSessionDescriptor extends Omit<ResearchSessionDescriptor, 'schemaVersion'> {
+  readonly schemaVersion: 2;
+  readonly skills: readonly SkillDefinition[];
   readonly purpose: 'personaReply';
-  readonly manifest: PersonaManifest;
+  readonly manifest: Extract<PersonaManifest, { readonly schemaVersion: 2 }>;
 }
 export type PersonaContextRequest = Extract<ModelContextRequest, { purpose: 'personaReply' }>;
 export type PersonaContextLease = ModelContextLease & {

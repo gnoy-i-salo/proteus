@@ -14,10 +14,19 @@ import {
   decodeModelContextRequest,
   decodeAppendPersonaSimulationRequest,
   decodePersonaSimulation,
+  personaMemoryPrompt,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 
 type Record = Pick<RecallResult, 'receipt' | 'sources'>;
+function promptData(task: string, formatAttempt: 1 | 2, feedback: string | undefined): string {
+  const data: unknown = JSON.parse(task);
+  if (!data || typeof data !== 'object' || Array.isArray(data))
+    throw new Error('Неверный вход Person.');
+  if (formatAttempt === 2 && (!feedback || new TextEncoder().encode(feedback).length > 4000))
+    throw new Error('Отсутствует ограниченная диагностика исправления Person.');
+  return JSON.stringify({ ...data, ...(formatAttempt === 2 ? { formatFeedback: feedback } : {}) });
+}
 export function createPersonaModel(
   request: OpenPersonaSessionRequest,
   itemIds: readonly string[],
@@ -47,6 +56,7 @@ export function createPersonaModel(
   let context: PersonaContextLease | undefined;
   let output: { answer: string; invocationId?: string } | undefined;
   let fixedEvidence: string | undefined;
+  let formatFeedback: string | undefined;
   const knownEpisodes = new Set<string>();
   const retrieved = new Set<string>();
   const fixed = session.manifest.mode === 'fixedContext';
@@ -125,7 +135,11 @@ export function createPersonaModel(
     },
     provider: {
       id: provider.id,
-      onValidation: (event) => provider.onValidation?.(event),
+      onValidation: (event) => {
+        formatFeedback =
+          event.status === 'rejected' ? (event.error ?? 'Invalid response fields') : undefined;
+        provider.onValidation?.(event);
+      },
       async run(input, signal) {
         signal?.throwIfAborted();
         if (active) throw new Error('Модель Person занята.');
@@ -133,10 +147,14 @@ export function createPersonaModel(
           throw new Error('Недопустимая операция Person.');
         if (attempts >= session.manifest.modelCallBudget.maxCalls)
           throw new Error('Исчерпан бюджет модельных попыток Person.');
+        const formatAttempt = input.formatAttempt ?? 1;
         const draft = decodeModelContextRequest({
           ...selection,
-          systemPrompt: input.systemPrompt,
-          task: input.task,
+          systemPrompt: personaMemoryPrompt(
+            session.manifest.profileSnapshot.sourceStatus,
+            formatAttempt,
+          ),
+          task: promptData(input.task, formatAttempt, formatFeedback),
           receiptIds: records.map((r) => r.receipt.id),
           formatAttempt: input.formatAttempt ?? 1,
         });

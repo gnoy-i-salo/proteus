@@ -1,3 +1,4 @@
+import { boundManifest, frozenManifest } from './testing/manifest-fixtures';
 import { expect, it } from 'vitest';
 import { decodeOpenPersonaSessionRequest, decodePersonaSession } from './persona-memory-codec';
 import { personaRequest, personaSession } from './testing/persona-fixtures';
@@ -38,7 +39,7 @@ it('binds session persona, manifest, mode, configured model and strict version',
   const session = personaSession();
   for (const patch of [
     { purpose: 'research' },
-    { schemaVersion: 2 },
+    { schemaVersion: 1 },
     { id: '' },
     { personaId: 'foreign' },
     { corpusSnapshotId: 'foreign' },
@@ -59,4 +60,35 @@ it('binds session persona, manifest, mode, configured model and strict version',
     },
   ])
     expect(() => decodePersonaSession({ ...session, ...patch }, personaRequest)).toThrow();
+});
+
+it('requires a bound V2 session with native full skill bodies before use', () => {
+  const bundle = boundManifest();
+  const value = {
+    ...personaSession(),
+    schemaVersion: 2,
+    manifest: bundle.manifest,
+    skills: bundle.skills,
+  };
+  const decoded = decodePersonaSession(value, personaRequest);
+  expect(decoded).toEqual(value);
+  expect(decoded).not.toBe(value);
+  expect(() =>
+    decodePersonaSession({ ...value, manifest: frozenManifest().manifest }, personaRequest),
+  ).toThrow();
+  expect(() => decodePersonaSession({ ...value, skills: [] }, personaRequest)).toThrow();
+  expect(() =>
+    decodePersonaSession({ ...value, skills: [...value.skills, value.skills[0]] }, personaRequest),
+  ).toThrow();
+});
+it('rejects the old unbound session before any model can run', () => {
+  const previous = Object.fromEntries(
+    Object.entries(personaSession()).filter(([key]) => key !== 'skills'),
+  );
+  expect(() =>
+    decodePersonaSession(
+      { ...previous, schemaVersion: 1, manifest: frozenManifest().manifest },
+      personaRequest,
+    ),
+  ).toThrow();
 });

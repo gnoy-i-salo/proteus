@@ -25,7 +25,8 @@ const request: OpenPersonaSessionRequest = {
 };
 function descriptor(): PersonaSessionDescriptor {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    skills: [],
     id: 'memorySession:person:1',
     personaId: request.personaId,
     corpusSnapshotId: 'corpus:1',
@@ -35,7 +36,29 @@ function descriptor(): PersonaSessionDescriptor {
     expiresAt: '2026-11-09T03:01:00.000Z',
     purpose: 'personaReply',
     manifest: {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      profileSnapshot: {
+        schemaVersion: 1,
+        label: 'Fixture',
+        palette: 'turquoise',
+        archetype: 'Недостаточно данных',
+        rules: [],
+        sourceStatus: 'synthetic',
+        styleExemplars: [],
+        styleProfile: {
+          version: 2,
+          reasoningPatterns: [],
+          voiceRules: [],
+          formatRules: [],
+          contextModes: (['dialogue', 'comment', 'formal'] as const).map((mode) => ({
+            mode,
+            status: 'insufficient',
+            limitations: [],
+          })),
+          styleExemplarIds: [],
+          limitations: [],
+        },
+      },
       id: request.manifestId,
       personaId: request.personaId,
       profileVersion: 'profile:1',

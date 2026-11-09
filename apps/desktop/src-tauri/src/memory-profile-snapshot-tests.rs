@@ -84,3 +84,17 @@ fn complete_body_budget_counts_utf8_without_truncation() {
     body["styleExemplars"][0]["context"] = json!("я".repeat(262144));
     assert!(!valid(body));
 }
+
+#[test]
+fn explicit_neutral_profile_has_no_persona_traits_or_samples() {
+    let mut body = value();
+    body["rules"] = json!([]);
+    body["sourceStatus"] = json!("neutral");
+    body["styleExemplars"] = json!([]);
+    body["styleProfile"]["voiceRules"] = json!([]);
+    body["styleProfile"]["styleExemplarIds"] = json!([]);
+    for mode in body["styleProfile"]["contextModes"].as_array_mut().unwrap() {
+        mode["status"] = json!("insufficient");
+    }
+    assert!(valid(body));
+}

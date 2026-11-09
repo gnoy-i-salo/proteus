@@ -222,3 +222,5 @@ export {
 
 export type { PersonaProfileSnapshot } from './persona-profile-snapshot';
 export { decodePersonaProfileSnapshot } from './persona-profile-snapshot';
+
+export { personaMemoryPrompt } from './persona-memory-prompt';

@@ -1,3 +1,4 @@
+import profileFixture from './testing/persona-profile-snapshot.json';
 import { describe, expect, it } from 'vitest';
 import { decodeManifestFreeze, decodePersonaManifestDraft } from './manifest-freeze-codec';
 import { frozenManifest, manifestDraft } from './testing/manifest-fixtures';
@@ -126,4 +127,43 @@ describe('native manifest freeze request and receipt', () => {
     };
     expect(decodeManifestFreeze(empty, fabricSession, draft, [])).toEqual(empty);
   });
+});
+
+function boundDraft() {
+  const old = manifestDraft();
+  const profileSnapshot = structuredClone(profileFixture);
+  const id = old.exemplarIds[0]!;
+  profileSnapshot.styleExemplars[0]!.id = id;
+  profileSnapshot.styleProfile.styleExemplarIds = [id];
+  profileSnapshot.styleProfile.voiceRules[0]!.exemplarIds = [id];
+  return { ...old, schemaVersion: 2, profileSnapshot };
+}
+it('freezes V2 only when the receipt preserves the entire profile body', () => {
+  const draft = decodePersonaManifestDraft(boundDraft());
+  expect(draft).toEqual(boundDraft());
+  const old = frozenManifest();
+  const receipt = {
+    ...old,
+    manifest: { ...old.manifest, schemaVersion: 2, profileSnapshot: boundDraft().profileSnapshot },
+  };
+  expect(decodeManifestFreeze(receipt, fabricSession, draft, old.manifest.sourceRefs)).toEqual(
+    receipt,
+  );
+  const changed = structuredClone(receipt);
+  changed.manifest.profileSnapshot.archetype += ' substituted';
+  expect(() =>
+    decodeManifestFreeze(changed, fabricSession, draft, old.manifest.sourceRefs),
+  ).toThrow();
+  expect(() => decodeManifestFreeze(old, fabricSession, draft, old.manifest.sourceRefs)).toThrow();
+});
+it('rejects body/version and exemplar conflicts in a freeze request', () => {
+  const draft = boundDraft();
+  for (const value of [
+    { ...draft, schemaVersion: 1 },
+    { ...draft, schemaVersion: 3 },
+    { ...draft, profileSnapshot: null },
+    { ...draft, profileSnapshot: undefined },
+    { ...draft, exemplarIds: [] },
+  ])
+    expect(() => decodePersonaManifestDraft(value)).toThrow();
 });

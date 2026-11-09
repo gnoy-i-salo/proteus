@@ -105,7 +105,9 @@ function publication(draft: PersonaManifestDraft): ManifestFreezeReceipt {
     schemaVersion: 1,
     skills,
     manifest: {
-      schemaVersion: 1,
+      ...(draft.schemaVersion === 1
+        ? { schemaVersion: 1 as const }
+        : { schemaVersion: 2 as const, profileSnapshot: structuredClone(draft.profileSnapshot) }),
       id: 'personaManifest:1',
       personaId: session.personaId,
       profileVersion: draft.profileVersion,
@@ -320,4 +322,24 @@ it('enforces the overall preparation deadline and does not publish a late model 
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('freezes the entire task-free body before returning a profile', async () => {
+  const result = await fabricateMemory(input, provider, open);
+  expect(freeze.mock.calls[0]![0]).toMatchObject({
+    schemaVersion: 2,
+    profileVersion: 'person-memory-profile:2',
+    promptVersion: 'person-fabric-memory:2',
+    profileSnapshot: {
+      schemaVersion: 1,
+      label: result.profile.label,
+      palette: result.profile.palette,
+      archetype: result.profile.archetype,
+      rules: result.profile.rules,
+      sourceStatus: result.profile.sourceStatus,
+      styleProfile: result.profile.styleProfile,
+      styleExemplars: result.profile.styleExemplars,
+    },
+  });
+  expect(result.publication.manifest.schemaVersion).toBe(2);
 });

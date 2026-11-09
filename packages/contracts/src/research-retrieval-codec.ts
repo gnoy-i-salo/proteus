@@ -11,7 +11,10 @@ export type ResearchRead =
   | { readonly operation: 'readEpisode'; readonly episodeId: string };
 export function decodeResearchRetrieval(
   value: unknown,
-  session: ResearchSessionDescriptor,
+  session: Pick<
+    ResearchSessionDescriptor,
+    'corpusSnapshotId' | 'policyVersion' | 'indexGeneration' | 'mode'
+  >,
   budget: RecallBudget,
   read: ResearchRead,
 ): Pick<RecallResult, 'receipt' | 'sources'> {

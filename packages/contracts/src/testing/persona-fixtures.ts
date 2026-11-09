@@ -5,7 +5,7 @@ import type {
   PersonaContextLease,
 } from '../persona-memory';
 import { fabricContextRequest, fabricSession, fabricLease } from './fabric-fixtures';
-import { frozenManifest } from './manifest-fixtures';
+import { frozenManifest, boundManifest } from './manifest-fixtures';
 
 export const personaRequest: OpenPersonaSessionRequest = {
   schemaVersion: 1,
@@ -16,11 +16,15 @@ export const personaRequest: OpenPersonaSessionRequest = {
   period: { from: null, to: null, includeUndated: true },
 };
 export function personaSession(): PersonaSessionDescriptor {
+  const bundle = boundManifest();
+  if (bundle.manifest.schemaVersion !== 2) throw new Error('Fixture must be bound.');
   return {
     ...fabricSession,
+    schemaVersion: 2,
+    skills: bundle.skills,
     id: 'memorySession:persona:1',
     purpose: 'personaReply',
-    manifest: frozenManifest().manifest,
+    manifest: bundle.manifest,
   };
 }
 export const personaContextRequest: PersonaContextRequest = {

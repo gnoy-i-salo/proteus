@@ -57,6 +57,7 @@ impl MemorySession {
         {
             return Err(INVALID.into());
         }
+        crate::memory::persona_input::validate(manifest, &persona.pin.bundle().skills, request)?;
         let manifest_id = manifest.id.clone();
         let memory_snapshot_id = manifest.memory_snapshot_id.clone();
         let fixed = manifest.mode == RecallMode::FixedContext;

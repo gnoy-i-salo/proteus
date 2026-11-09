@@ -252,7 +252,12 @@ export type SkillDefinitionDraft = Omit<SkillDefinition, 'schemaVersion' | 'id'>
 };
 
 // The native bound session derives corpus/persona/source/split/preparation/index identity.
-export interface PersonaManifestDraft extends Pick<
+export type PersonaManifestDraft = PersonaManifestDraftBody &
+  (
+    | { readonly schemaVersion: 1 }
+    | { readonly schemaVersion: 2; readonly profileSnapshot: PersonaProfileSnapshot }
+  );
+interface PersonaManifestDraftBody extends Pick<
   PersonaManifest,
   | 'profileVersion'
   | 'exemplarIds'
@@ -263,7 +268,6 @@ export interface PersonaManifestDraft extends Pick<
   | 'modelCallBudget'
   | 'modelSettings'
 > {
-  readonly schemaVersion: 1;
   readonly contextLeaseIds: readonly string[];
   readonly skills: readonly SkillDefinitionDraft[];
 }

@@ -77,6 +77,7 @@ pub enum Palette {
 pub enum SourceStatus {
     EvidenceInformed,
     Synthetic,
+    Neutral,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -122,6 +123,11 @@ impl PersonaProfileSnapshot {
             if rule.evidence_ids.is_empty() {
                 return Err(INVALID.into());
             }
+        }
+        if self.source_status == SourceStatus::Neutral
+            && (!self.rules.is_empty() || !self.style_exemplars.is_empty())
+        {
+            return Err(INVALID.into());
         }
         if (self.source_status == SourceStatus::EvidenceInformed)
             != self

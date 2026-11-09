@@ -1,3 +1,4 @@
+import { decodePersonaProfileSnapshot } from './persona-profile-snapshot';
 import type { ManifestFreezeReceipt, PersonaManifestDraft } from './memory';
 import type { RevisionReference } from './corpus';
 import type { FabricSessionDescriptor } from './fabric-memory';
@@ -13,7 +14,13 @@ import {
 import { decodeModelCallBudget, decodeRecallBudget } from './research-memory-codec';
 
 export function decodePersonaManifestDraft(value: unknown): PersonaManifestDraft {
+  const bound =
+    value !== null &&
+    typeof value === 'object' &&
+    'schemaVersion' in value &&
+    value.schemaVersion === 2;
   const input = fields(value, [
+    ...(bound ? ['profileSnapshot'] : []),
     'schemaVersion',
     'profileVersion',
     'memorySnapshotId',
@@ -26,16 +33,31 @@ export function decodePersonaManifestDraft(value: unknown): PersonaManifestDraft
     'modelSettings',
     'skills',
   ]);
-  if (input.schemaVersion !== 1) throw new Error('Неизвестная версия запроса манифеста.');
+  if (input.schemaVersion !== 1 && input.schemaVersion !== 2)
+    throw new Error('Неизвестная версия запроса манифеста.');
+  const version =
+    input.schemaVersion === 1
+      ? { schemaVersion: 1 as const }
+      : {
+          schemaVersion: 2 as const,
+          profileSnapshot: decodePersonaProfileSnapshot(input.profileSnapshot),
+        };
+  const exemplarIds = memoryIds(memoryList(input.exemplarIds, 100));
+  if (
+    version.schemaVersion === 2 &&
+    JSON.stringify(exemplarIds) !==
+      JSON.stringify(version.profileSnapshot.styleExemplars.map((sample) => sample.id))
+  )
+    throw new Error('Черновик изменяет состав образцов профиля.');
   const skills = memoryList(input.skills, 64).map(decodeSkillDraft);
   if (new Set(skills.map((skill) => skill.draftId)).size !== skills.length)
     throw new Error('Повторный черновик навыка.');
   return {
-    schemaVersion: 1,
+    ...version,
     profileVersion: memoryId(input.profileVersion),
     memorySnapshotId: memoryId(input.memorySnapshotId),
     contextLeaseIds: memoryIds(memoryList(input.contextLeaseIds, 1000, 1)),
-    exemplarIds: memoryIds(memoryList(input.exemplarIds, 100)),
+    exemplarIds,
     promptVersion: memoryId(input.promptVersion),
     mode: choice(input.mode, ['fixedContext', 'agenticRecall']),
     recallBudget: decodeRecallBudget(input.recallBudget),
@@ -59,6 +81,10 @@ export function decodeManifestFreeze(
   const skills = memoryList(input.skills, 64).map(decodeSkillDefinition);
   memoryTimestamp(manifest.createdAt);
   if (
+    manifest.schemaVersion !== expected.schemaVersion ||
+    (manifest.schemaVersion === 2 &&
+      expected.schemaVersion === 2 &&
+      JSON.stringify(manifest.profileSnapshot) !== JSON.stringify(expected.profileSnapshot)) ||
     manifest.personaId !== session.personaId ||
     manifest.corpusSnapshotId !== session.corpusSnapshotId ||
     manifest.memorySnapshotId !== expected.memorySnapshotId ||

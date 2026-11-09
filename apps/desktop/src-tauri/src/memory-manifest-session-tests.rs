@@ -15,6 +15,7 @@ fn freeze_draft(
 ) -> PersonaManifestDraft {
     PersonaManifestDraft {
         schema_version: 1,
+        profile_snapshot: None,
         profile_version: "personFabricMemory:1".into(),
         memory_snapshot_id: memory.into(),
         context_lease_ids: vec![lease.id.clone()],
@@ -459,6 +460,63 @@ fn freeze_draft_wire_rejects_caller_identity_missing_fields_and_unknown_versions
     let mut bad = draft;
     bad.model_settings[1] = bad.model_settings[0].clone();
     assert!(bad.validate().is_err());
+    drop(fabric);
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+fn profile_body() -> crate::memory::profile_snapshot::PersonaProfileSnapshot {
+    use crate::memory::profile_snapshot::{ModeStatus, SourceStatus};
+    let mut profile: crate::memory::profile_snapshot::PersonaProfileSnapshot =
+        serde_json::from_str(include_str!(
+            "../../../../packages/contracts/src/testing/persona-profile-snapshot.json"
+        ))
+        .unwrap();
+    profile.rules.clear();
+    profile.source_status = SourceStatus::Synthetic;
+    profile.style_exemplars.clear();
+    profile.style_profile.voice_rules.clear();
+    profile.style_profile.style_exemplar_ids.clear();
+    for mode in &mut profile.style_profile.context_modes {
+        mode.status = ModeStatus::Insufficient;
+    }
+    profile
+}
+#[test]
+fn freeze_v2_records_the_exact_profile_body_and_rejects_replacement() {
+    let (sources, dir) = local();
+    let (op, snapshot, _) = indexed(&sources, &dir, 0);
+    enable_model(&sources, &op);
+    let mut researcher = session(&sources, &snapshot, limits()).unwrap();
+    let publication = publish_two(&mut researcher);
+    drop(researcher);
+    let mut fabric = session(&sources, &snapshot, limits()).unwrap();
+    fabric
+        .configure_fabric_model(fabric_binding(), fabric_budget(), || 70004)
+        .unwrap();
+    let lease = fabric
+        .reserve_fabric_context(&request(&publication), || 70005)
+        .unwrap();
+    let mut value = serde_json::to_value(freeze_draft(&publication.snapshot.id, &lease)).unwrap();
+    value["schemaVersion"] = serde_json::json!(2);
+    value["profileSnapshot"] = serde_json::to_value(profile_body()).unwrap();
+    let draft: PersonaManifestDraft =
+        serde_json::from_value(value.clone()).expect("V2 body request");
+    complete(&mut fabric, &lease);
+    let receipt = fabric.freeze_manifest(&draft, || 70006).unwrap();
+    assert_eq!(receipt.manifest.schema_version, 2);
+    assert_eq!(receipt.manifest.profile_snapshot, Some(profile_body()));
+    assert_eq!(fabric.freeze_manifest(&draft, || 70007).unwrap(), receipt);
+    value["profileSnapshot"]["archetype"] = serde_json::json!("changed body");
+    let changed: PersonaManifestDraft = serde_json::from_value(value).unwrap();
+    assert!(fabric.freeze_manifest(&changed, || 70007).is_err());
+    let stored = sources
+        .with_ingestion_database(&op, |db| {
+            db.read_manifest_checked(&receipt.manifest.id, "personA", &|| Ok(()))
+        })
+        .unwrap();
+    assert_eq!(stored.manifest, receipt.manifest);
     drop(fabric);
     drop(op);
     drop(sources);

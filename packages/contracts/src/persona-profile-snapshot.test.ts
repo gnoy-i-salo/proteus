@@ -56,7 +56,7 @@ describe('task-free profile snapshot boundary', () => {
       },
     ],
     [
-      'neutral identity',
+      'neutral identity with persona traits',
       (x: ReturnType<typeof snapshot>) => {
         x.sourceStatus = 'neutral';
       },
@@ -157,4 +157,17 @@ describe('task-free profile snapshot boundary', () => {
     input.styleExemplars[0]!.context = 'я'.repeat(262144);
     expect(() => decodePersonaProfileSnapshot(input)).toThrow();
   });
+});
+
+it('preserves an explicitly frozen neutral role without persona traits or voice samples', () => {
+  const input = snapshot();
+  input.rules = [];
+  input.sourceStatus = 'neutral';
+  input.styleExemplars = [];
+  input.styleProfile.voiceRules = [];
+  input.styleProfile.styleExemplarIds = [];
+  input.styleProfile.contextModes.forEach((mode) => {
+    mode.status = 'insufficient';
+  });
+  expect(decodePersonaProfileSnapshot(input)).toEqual(input);
 });

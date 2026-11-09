@@ -1,3 +1,5 @@
+import snapshotFixture from './persona-profile-snapshot.json';
+import { decodePersonaProfileSnapshot } from '../persona-profile-snapshot';
 import type { ManifestFreezeReceipt, PersonaManifestDraft, SkillDefinition } from '../memory';
 import { fabricContextRequest, fabricLease, fabricRequest, fabricSession } from './fabric-fixtures';
 
@@ -76,5 +78,25 @@ export function frozenManifest(): ManifestFreezeReceipt {
       createdAt: '2026-11-09T03:00:01.004Z',
     },
     skills: [native],
+  };
+}
+
+/** Synthetic bound V2 bundle; the original V1 fixture remains unchanged. */
+export function boundManifest(): ManifestFreezeReceipt {
+  const previous = frozenManifest();
+  const snapshot = structuredClone(snapshotFixture);
+  const id = previous.manifest.exemplarIds[0]!;
+  snapshot.styleExemplars[0]!.id = id;
+  snapshot.styleProfile.styleExemplarIds = [id];
+  snapshot.styleProfile.voiceRules[0]!.exemplarIds = [id];
+  return {
+    ...previous,
+    manifest: {
+      ...previous.manifest,
+      schemaVersion: 2,
+      profileVersion: 'person-memory-profile:2',
+      promptVersion: 'person-fabric-memory:2',
+      profileSnapshot: decodePersonaProfileSnapshot(snapshot),
+    },
   };
 }

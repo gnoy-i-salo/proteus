@@ -12,13 +12,14 @@ import type {
 import {
   decodeOpenPersonaSessionRequest,
   decodeSkillDefinition,
+  decodePersonaProfileSnapshot,
   parseMemoryAction,
   decodePersonaSimulationScope,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
 import { createPersonaModel } from './persona-model';
-import { personInstructions, personTask } from './person-prompt';
+import { personTask } from './person-prompt';
 import { parseReply } from './parse-reply';
 export interface MemoryPersonInput {
   readonly profile: PersonProfile;
@@ -62,6 +63,18 @@ function validate(input: MemoryPersonInput) {
     throw new Error('Неверная область памяти Person.');
   exactText(input.task, 100000);
   exactText(profile.label, 512);
+  if (profile.skills.length || profile.taskSkills.length || profile.sourceContext !== true)
+    throw new Error('Person требует неизменённый task-free профиль памяти.');
+  const snapshot = decodePersonaProfileSnapshot({
+    schemaVersion: 1,
+    label: profile.label,
+    palette: profile.palette,
+    archetype: profile.archetype,
+    rules: profile.rules,
+    sourceStatus: profile.sourceStatus,
+    styleProfile: profile.styleProfile,
+    styleExemplars: profile.styleExemplars,
+  });
   const skills = profile.memory.skills.map(decodeSkillDefinition);
   const itemIds = [
     ...new Set([
@@ -76,6 +89,7 @@ function validate(input: MemoryPersonInput) {
   return {
     request,
     profile,
+    snapshot,
     skills,
     itemIds,
     data,
@@ -113,8 +127,6 @@ function turn(
     throw new Error('Нельзя читать неизвестный эпизод.');
   return action;
 }
-const actionInstructions =
-  ' For this memory session the final response must additionally have "action":"reply" (with messages, summary and styleConflicts). When retrievalAllowed is true you may instead return exactly {"action":"recall","query":string,"intent":"facts"|"context"|"style"|"procedure"} or {"action":"readEpisode","episodeId":string}. Use only episode IDs supplied in native evidence. These are bounded host actions, not CLI tools. Never request shell, network, publication, manifest changes or memory writes. Original source evidence and model-generated simulation are distinct; no generated reply proves a biographical fact. Empty retrieval means no supporting evidence was found, not that a claim was disproved. If retrievalAllowed is false, answer using only the existing evidence and state gaps without inventing them.';
 export async function solveMemory(
   input: MemoryPersonInput,
   provider: IntelligenceProvider,
@@ -137,13 +149,11 @@ export async function solveMemory(
     const model = createPersonaModel(selected.request, selected.itemIds, memory, provider);
     const manifest = model.session.manifest;
     if (
-      manifest.profileVersion !== 'person-memory-profile:1' ||
-      manifest.promptVersion !== 'person-fabric-memory:1' ||
-      selected.profile.memory!.memorySnapshotId !== manifest.memorySnapshotId ||
-      JSON.stringify(selected.skills.map((skill) => skill.id)) !==
-        JSON.stringify(manifest.skillIds) ||
-      JSON.stringify(selected.profile.styleExemplars?.map((sample) => sample.id) ?? []) !==
-        JSON.stringify(manifest.exemplarIds)
+      manifest.profileVersion !== 'person-memory-profile:2' ||
+      manifest.promptVersion !== 'person-fabric-memory:2' ||
+      JSON.stringify(selected.snapshot) !== JSON.stringify(manifest.profileSnapshot) ||
+      JSON.stringify(selected.skills) !== JSON.stringify(model.session.skills) ||
+      selected.profile.memory!.memorySnapshotId !== manifest.memorySnapshotId
     )
       throw new Error('Профиль не соответствует манифесту Person.');
     clearTimeout(timer);
@@ -165,7 +175,7 @@ export async function solveMemory(
       const { data, trace, invocationId } = await structured(
         model.provider,
         'PERSON memory',
-        personInstructions(selected.profile) + actionInstructions,
+        '', // The bound provider supplies the versioned native-checked instructions.
         { ...selected.data, retrievalAllowed: canRetrieve },
         controller.signal,
         'high',

@@ -26,7 +26,7 @@ async function discardAdmission(value: unknown): Promise<void> {
     await closeHandle(id);
 }
 
-export async function openNativeMemorySession<T extends ResearchSessionDescriptor>(
+export async function openNativeMemorySession<T extends Pick<ResearchSessionDescriptor, 'id'>>(
   command: string,
   request: Pick<OpenResearchSessionRequest, 'operationId'>,
   decode: (value: unknown) => T,
@@ -57,7 +57,7 @@ export async function openNativeMemorySession<T extends ResearchSessionDescripto
   }
 }
 
-export function memorySessionTransport<T extends ResearchSessionDescriptor>(
+export function memorySessionTransport<T extends Pick<ResearchSessionDescriptor, 'id'>>(
   descriptor: T,
   onStop: () => void,
 ) {

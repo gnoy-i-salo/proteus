@@ -10,7 +10,7 @@ export interface PersonaProfileSnapshot {
   readonly palette: PaletteId;
   readonly archetype: string;
   readonly rules: readonly PersonaRule[];
-  readonly sourceStatus: 'evidence-informed' | 'synthetic';
+  readonly sourceStatus: 'evidence-informed' | 'synthetic' | 'neutral';
   readonly styleProfile: PersonaStyleProfile;
   readonly styleExemplars: readonly StyleExemplar[];
 }
@@ -130,8 +130,11 @@ export function decodePersonaProfileSnapshot(value: unknown): PersonaProfileSnap
   if (input.schemaVersion !== 1) throw new Error('Неизвестная версия тела профиля.');
   const styleExemplars = unique(memoryList(input.styleExemplars, 100).map(exemplar));
   const rules = unique(memoryList(input.rules, 10).map(rule));
-  const sourceStatus = choice(input.sourceStatus, ['evidence-informed', 'synthetic']);
-  if ((sourceStatus === 'evidence-informed') !== rules.some((rule) => rule.status === 'supported'))
+  const sourceStatus = choice(input.sourceStatus, ['evidence-informed', 'synthetic', 'neutral']);
+  if (
+    (sourceStatus === 'neutral' && (rules.length > 0 || styleExemplars.length > 0)) ||
+    (sourceStatus === 'evidence-informed') !== rules.some((rule) => rule.status === 'supported')
+  )
     throw new Error('Статус профиля не соответствует основаниям.');
   return {
     schemaVersion: 1,

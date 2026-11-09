@@ -132,3 +132,10 @@ pipeline. Последний возвращает тип своей эпохи �
 `corpus-persona-manifest` хранит body в существующей атомарной записи и проверяет
 его ссылки на опубликованную память. Исторические experiment profiles сохраняют
 свои era-декодеры; новый strict body не используется для пересмотра старых данных.
+
+`memory::persona_input` сверяет весь profile-derived JSON и фиксированные
+системные инструкции перед выдачей model lease. `persona-model` владеет передачей
+точной диагностики исправления как данных; `structured-response` сохраняет общий
+цикл двух попыток. `persona-memory-prompt.json` — общий versioned текст renderer
+для TypeScript и Rust. Transport helpers зависят только от используемого session
+ID; версии и полный scope проверяют отдельные owning codecs Research/Fabric/Person.

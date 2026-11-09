@@ -7,6 +7,13 @@ fn frozen(
     sources: &Sources,
     snapshot: &crate::ingestion::publication::SnapshotView,
 ) -> crate::memory::manifest_draft::ManifestFreezeReceipt {
+    freeze_persona(sources, snapshot, true)
+}
+fn freeze_persona(
+    sources: &Sources,
+    snapshot: &crate::ingestion::publication::SnapshotView,
+    bound: bool,
+) -> crate::memory::manifest_draft::ManifestFreezeReceipt {
     let mut researcher = session(sources, snapshot, limits()).unwrap();
     let publication = publish_two(&mut researcher);
     drop(researcher);
@@ -17,7 +24,13 @@ fn frozen(
     let lease = fabric
         .reserve_fabric_context(&request(&publication), || 70005)
         .unwrap();
-    let draft = freeze_draft(&publication.snapshot.id, &lease);
+    let mut draft = freeze_draft(&publication.snapshot.id, &lease);
+    if bound {
+        draft.schema_version = 2;
+        draft.profile_snapshot = Some(profile_body());
+        draft.profile_version = "person-memory-profile:2".into();
+        draft.prompt_version = "person-fabric-memory:2".into();
+    }
     complete(&mut fabric, &lease);
     fabric.freeze_manifest(&draft, || 70006).unwrap()
 }
@@ -219,6 +232,25 @@ fn persona_without_embeddings_does_not_adopt_a_later_vector_index() {
         .embedding_fingerprint
         .is_none());
     drop(person);
+    drop(op);
+    drop(sources);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn persona_admission_rejects_unbound_legacy_manifest_without_rewriting_it() {
+    let (sources, dir) = local();
+    let (op, snapshot, _) = indexed(&sources, &dir, 0);
+    enable_model(&sources, &op);
+    let receipt = freeze_persona(&sources, &snapshot, false);
+    assert!(bind(&sources, &receipt.manifest.id, "personA").is_err());
+    let stored = sources
+        .with_ingestion_database(&op, |db| {
+            db.read_manifest_checked(&receipt.manifest.id, "personA", &|| Ok(()))
+        })
+        .unwrap();
+    assert_eq!(stored.manifest, receipt.manifest);
+    assert_eq!(stored.manifest.schema_version, 1);
     drop(op);
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();

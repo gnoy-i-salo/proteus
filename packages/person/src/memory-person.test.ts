@@ -10,6 +10,7 @@ import {
   lease,
   retrieval,
   sourceRetrieval,
+  snapshotOf,
 } from './testing/person-memory-fixtures';
 const input = {
   request,
@@ -108,7 +109,14 @@ it('uses fresh contexts for format repair and never dispatches model-invented ho
 it('keeps fixed-context and neutral roles without offering or invoking recall', async () => {
   memory = {
     ...memory,
-    session: { ...memory.session, manifest: { ...memory.session.manifest, mode: 'fixedContext' } },
+    session: {
+      ...memory.session,
+      manifest: {
+        ...memory.session.manifest,
+        mode: 'fixedContext',
+        profileSnapshot: snapshotOf({ ...profile, sourceStatus: 'neutral' }),
+      },
+    },
   };
   run.mockResolvedValueOnce({
     answer: JSON.stringify({ action: 'recall', query: 'x', intent: 'facts' }),
@@ -378,7 +386,15 @@ it('selects profile evidence once and keeps proposed procedural skills and their
   };
   memory = {
     ...memory,
-    session: { ...memory.session, manifest: { ...memory.session.manifest, skillIds: [skill.id] } },
+    session: {
+      ...memory.session,
+      skills: [skill],
+      manifest: {
+        ...memory.session.manifest,
+        skillIds: [skill.id],
+        profileSnapshot: snapshotOf(chosen),
+      },
+    },
   };
   reserve.mockImplementation((draft) =>
     Promise.resolve(lease(draft, memory.session, 1, [], [item], [base])),
@@ -474,4 +490,123 @@ it('repairs null conflict metadata rather than deferring an invalid reply to nat
   await solveMemory(input, provider, open);
   expect(run).toHaveBeenCalledTimes(2);
   expect(append.mock.calls[0]![0].contextLeaseId).toBe('lease:2');
+});
+
+it('rejects changed profile text under the same native manifest before invoking the model', async () => {
+  for (const changed of [
+    { ...profile, label: 'changed label' },
+    { ...profile, archetype: 'changed archetype' },
+    { ...profile, skills: ['changed general skill'] },
+    {
+      ...profile,
+      taskSkills: [
+        {
+          id: 's1',
+          instruction: 'changed task rule',
+          evidenceIds: [],
+          status: 'hypothesis' as const,
+          limitations: [],
+        },
+      ],
+    },
+  ]) {
+    await expect(solveMemory({ ...input, profile: changed }, provider, open)).rejects.toThrow();
+  }
+  expect(run).not.toHaveBeenCalled();
+  expect(reserve).not.toHaveBeenCalled();
+});
+
+it('rejects same-ID procedural, rule and verbatim-example substitutions before native reservation', async () => {
+  const skill: SkillDefinition = {
+    schemaVersion: 1,
+    id: 'skill:bound',
+    trigger: 'Проверка',
+    inputs: [],
+    steps: ['  Исходный шаг é\r\n'],
+    outcomeCheck: 'Сверено',
+    support: 'proposed',
+    memoryItemIds: ['item:1'],
+    sourceSpans: [
+      { documentId: 'doc:1', revisionId: 'rev:1', unit: 'utf8Bytes', start: 0, end: 5 },
+    ],
+    limitations: ['Предложение'],
+  };
+  const chosen = {
+    ...profile,
+    rules: [
+      {
+        id: 'r1',
+        instruction: '  Правило\r\n',
+        evidenceIds: ['item:1'],
+        status: 'hypothesis' as const,
+        limitations: [],
+      },
+    ],
+    memory: { ...profile.memory!, skills: [skill] },
+    styleExemplars: [
+      {
+        id: 'sample:1',
+        documentId: 'doc:1',
+        mode: 'dialogue' as const,
+        text: '  Дословно 👩🏽‍🔬\r\n',
+        context: 'Контекст',
+        redactions: [],
+        exportAllowed: false,
+      },
+    ],
+    styleProfile: {
+      ...profile.styleProfile!,
+      voiceRules: [
+        {
+          id: 'voice-1',
+          instruction: 'Не менять слова',
+          exemplarIds: ['sample:1'],
+          status: 'observed' as const,
+          limitations: [],
+        },
+      ],
+      styleExemplarIds: ['sample:1'],
+      contextModes: profile.styleProfile!.contextModes.map((mode) => ({
+        ...mode,
+        status: mode.mode === 'dialogue' ? ('observed' as const) : ('insufficient' as const),
+      })),
+    },
+  };
+  memory = {
+    ...memory,
+    session: {
+      ...memory.session,
+      skills: [skill],
+      manifest: {
+        ...memory.session.manifest,
+        skillIds: [skill.id],
+        exemplarIds: ['sample:1'],
+        profileSnapshot: snapshotOf(chosen),
+      },
+    },
+  };
+  for (const changed of [
+    { ...chosen, memory: { ...chosen.memory, skills: [{ ...skill, steps: ['changed step'] }] } },
+    { ...chosen, rules: [{ ...chosen.rules[0]!, instruction: 'changed rule' }] },
+    { ...chosen, styleExemplars: [{ ...chosen.styleExemplars[0]!, text: 'changed words' }] },
+    {
+      ...chosen,
+      styleProfile: {
+        ...chosen.styleProfile,
+        voiceRules: [{ ...chosen.styleProfile.voiceRules[0]!, instruction: 'changed voice' }],
+      },
+    },
+  ])
+    await expect(solveMemory({ ...input, profile: changed }, provider, open)).rejects.toThrow();
+  expect(run).not.toHaveBeenCalled();
+  expect(reserve).not.toHaveBeenCalled();
+});
+
+it('passes precise repair feedback as data under the fixed persona instructions', async () => {
+  run.mockResolvedValueOnce({ invocationId: 'bad-call', answer: 'not JSON', trace });
+  await solveMemory(input, provider, open);
+  const second = reserve.mock.calls[1]![0];
+  expect(JSON.parse(second.task)).toHaveProperty('formatFeedback', 'Invalid JSON syntax');
+  expect(second.systemPrompt).not.toContain('failed validation: Invalid JSON syntax');
+  expect(second.systemPrompt).toContain('formatFeedback');
 });

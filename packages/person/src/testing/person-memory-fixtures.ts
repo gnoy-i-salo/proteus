@@ -1,3 +1,4 @@
+import { decodePersonaProfileSnapshot } from '@proteus-int/contracts';
 import type {
   OpenPersonaSessionRequest,
   PersonaSessionDescriptor,
@@ -17,7 +18,8 @@ export const request: OpenPersonaSessionRequest = {
 };
 export function session(): PersonaSessionDescriptor {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    skills: [...profile.memory!.skills],
     id: 'session:1',
     personaId: request.personaId,
     corpusSnapshotId: 'corpus:1',
@@ -27,10 +29,11 @@ export function session(): PersonaSessionDescriptor {
     indexGeneration: 1,
     expiresAt: new Date(Date.now() + 60000).toISOString(),
     manifest: {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      profileSnapshot: snapshotOf(profile),
       id: request.manifestId,
       personaId: request.personaId,
-      profileVersion: 'person-memory-profile:1',
+      profileVersion: 'person-memory-profile:2',
       skillIds: [],
       exemplarIds: [],
       corpusSnapshotId: 'corpus:1',
@@ -39,7 +42,7 @@ export function session(): PersonaSessionDescriptor {
       splitVersion: 'split:1',
       preparationVersion: 'nativePreparation:1:' + 'a'.repeat(64),
       retrievalVersion: 'nativeMemoryRetrieval:1',
-      promptVersion: 'person-fabric-memory:1',
+      promptVersion: 'person-fabric-memory:2',
       embeddingFingerprint: null,
       mode: 'agenticRecall',
       recallBudget: {
@@ -73,6 +76,20 @@ export const profile: PersonProfile = {
   taskSkills: [],
   sourceStatus: 'synthetic',
   sourceContext: true,
+  styleExemplars: [],
+  styleProfile: {
+    version: 2,
+    reasoningPatterns: [],
+    voiceRules: [],
+    formatRules: [],
+    contextModes: (['dialogue', 'comment', 'formal'] as const).map((mode) => ({
+      mode,
+      status: 'insufficient',
+      limitations: [],
+    })),
+    styleExemplarIds: [],
+    limitations: [],
+  },
   memory: {
     schemaVersion: 1,
     manifestId: request.manifestId,
@@ -202,4 +219,17 @@ export function sourceRetrieval(
       contextTokens: bytes,
     },
   };
+}
+
+export function snapshotOf(value: PersonProfile) {
+  return decodePersonaProfileSnapshot({
+    schemaVersion: 1,
+    label: value.label,
+    palette: value.palette,
+    archetype: value.archetype,
+    rules: value.rules,
+    sourceStatus: value.sourceStatus,
+    styleProfile: value.styleProfile,
+    styleExemplars: value.styleExemplars,
+  });
 }

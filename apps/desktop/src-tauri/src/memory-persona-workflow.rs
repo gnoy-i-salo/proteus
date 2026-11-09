@@ -3,7 +3,7 @@ use super::{
     registry::MemorySessions,
     research_workflow::{self, ResearchMode, ResearchSession},
     session::{MemorySession, PersonaSessionInput},
-    types::{self, PersonaManifest},
+    types::{self, PersonaManifest, SkillDefinition},
 };
 use crate::{
     ingestion::search_workflow::QueryPeriod, local_embedding::model::EmbeddingModel,
@@ -55,6 +55,7 @@ pub struct PersonaSession {
     pub session: ResearchSession,
     pub purpose: &'static str,
     pub manifest: PersonaManifest,
+    pub skills: Vec<SkillDefinition>,
 }
 pub fn open(
     sources: &Sources,
@@ -113,8 +114,12 @@ pub fn admit(
 ) -> Result<PersonaSession, String> {
     session.verify_persona_runtime()?;
     let manifest = session.persona_manifest(&now)?;
+    let skills = session.persona_skills(&now)?;
+    let mut session = research_workflow::admit(session, sessions, now)?;
+    session.schema_version = 2;
     Ok(PersonaSession {
-        session: research_workflow::admit(session, sessions, now)?,
+        session,
+        skills,
         purpose: "personaReply",
         manifest,
     })

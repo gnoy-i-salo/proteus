@@ -150,8 +150,8 @@ impl MemorySession {
                     })
                     .transpose()?;
                 let manifest = PersonaManifest {
-                    schema_version: 1,
-                    profile_snapshot: None,
+                    schema_version: draft.schema_version,
+                    profile_snapshot: draft.profile_snapshot.clone(),
                     id: memo.id.clone(),
                     persona_id: scope.persona_id.clone(),
                     profile_version: draft.profile_version.clone(),

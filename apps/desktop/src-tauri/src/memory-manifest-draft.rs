@@ -11,6 +11,12 @@ use std::collections::BTreeSet;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PersonaManifestDraft {
     pub schema_version: u8,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::types::profile_snapshot"
+    )]
+    pub profile_snapshot: Option<super::profile_snapshot::PersonaProfileSnapshot>,
     pub profile_version: String,
     pub memory_snapshot_id: String,
     pub context_lease_ids: Vec<String>,
@@ -44,7 +50,21 @@ pub struct ManifestFreezeReceipt {
 }
 impl PersonaManifestDraft {
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema_version != 1 || self.skills.len() > 64 || self.model_settings.len() != 4 {
+        match (self.schema_version, &self.profile_snapshot) {
+            (1, None) => (),
+            (2, Some(profile)) => {
+                profile.validate()?;
+                if !self
+                    .exemplar_ids
+                    .iter()
+                    .eq(profile.style_exemplars.iter().map(|sample| &sample.id))
+                {
+                    return Err("Черновик изменяет образцы профиля.".into());
+                }
+            }
+            _ => return Err("Неверная версия тела черновика.".into()),
+        }
+        if self.skills.len() > 64 || self.model_settings.len() != 4 {
             return Err("Неверная схема черновика манифеста.".into());
         }
         for value in [

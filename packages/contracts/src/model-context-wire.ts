@@ -15,7 +15,10 @@ function digest(value: unknown): string {
 
 export function decodeContextWire(
   value: unknown,
-  session: ResearchSessionDescriptor,
+  session: Pick<
+    ResearchSessionDescriptor,
+    'personaId' | 'corpusSnapshotId' | 'policyVersion' | 'expiresAt'
+  >,
   expected: Pick<ModelContextRequest, 'systemPrompt' | 'task' | 'formatAttempt'>,
   modelBudget: ModelCallBudget,
   purpose: 'research' | 'fabric' | 'personaReply',

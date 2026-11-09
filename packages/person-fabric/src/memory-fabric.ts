@@ -14,6 +14,7 @@ import {
   decodePersonaManifestDraft,
   decodeFabricContextRequest,
   decodeManifestFreeze,
+  decodePersonaProfileSnapshot,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
@@ -81,8 +82,8 @@ function validate(input: MemoryFabricInput) {
   hostText(JSON.stringify(person), 30000);
   const draft = decodePersonaManifestDraft({
     schemaVersion: 1,
-    profileVersion: 'person-memory-profile:1',
-    promptVersion: 'person-fabric-memory:1',
+    profileVersion: 'person-memory-profile:2',
+    promptVersion: 'person-fabric-memory:2',
     memorySnapshotId: scope.memorySnapshotId,
     contextLeaseIds: ['pending:validation'],
     exemplarIds: [],
@@ -144,8 +145,29 @@ export async function fabricateMemory(
       true,
     );
     controller.signal.throwIfAborted();
+    const profileSnapshot = decodePersonaProfileSnapshot({
+      schemaVersion: 1,
+      label: selected.person.label,
+      palette: selected.palette,
+      archetype: data.rules.length
+        ? data.rules
+            .map(
+              (rule) =>
+                '[' + rule.status + '; ' + rule.evidenceIds.join(', ') + '] ' + rule.instruction,
+            )
+            .join('\n')
+        : 'Недостаточно сведений для характерных черт. Не приписывайте человеку особенности или способности.',
+      rules: data.rules,
+      sourceStatus: data.rules.some((rule) => rule.status === 'supported')
+        ? 'evidence-informed'
+        : 'synthetic',
+      styleProfile: data.style,
+      styleExemplars: data.exemplars,
+    });
     const draft = decodePersonaManifestDraft({
       ...selected.draft,
+      schemaVersion: 2,
+      profileSnapshot,
       contextLeaseIds: model.completedLeaseIds,
       exemplarIds: data.exemplars.map((sample) => sample.id),
       skills: data.skills,
@@ -163,27 +185,21 @@ export async function fabricateMemory(
       [...references.values()],
     );
     controller.signal.throwIfAborted();
+    if (publication.manifest.schemaVersion !== 2)
+      throw new Error('Сохранение не закрепило тело профиля.');
+    const stored = publication.manifest.profileSnapshot;
     const profile: PersonProfile = {
       id: publication.manifest.personaId,
-      label: selected.person.label,
-      palette: selected.palette,
-      archetype: data.rules.length
-        ? data.rules
-            .map(
-              (rule) =>
-                '[' + rule.status + '; ' + rule.evidenceIds.join(', ') + '] ' + rule.instruction,
-            )
-            .join('\n')
-        : 'Недостаточно сведений для характерных черт. Не приписывайте человеку особенности или способности.',
+      label: stored.label,
+      palette: stored.palette,
+      archetype: stored.archetype,
       skills: [],
       taskSkills: [],
-      rules: data.rules,
-      sourceStatus: data.rules.some((rule) => rule.status === 'supported')
-        ? 'evidence-informed'
-        : 'synthetic',
+      rules: stored.rules,
+      sourceStatus: stored.sourceStatus,
       sourceContext: true,
-      styleProfile: data.style,
-      styleExemplars: data.exemplars,
+      styleProfile: stored.styleProfile,
+      styleExemplars: stored.styleExemplars,
       memory: {
         schemaVersion: 1,
         manifestId: publication.manifest.id,

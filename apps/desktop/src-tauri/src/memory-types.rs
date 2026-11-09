@@ -554,7 +554,7 @@ impl MemorySnapshot {
     }
 }
 
-fn profile_snapshot<'de, D: serde::Deserializer<'de>>(
+pub(super) fn profile_snapshot<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<super::profile_snapshot::PersonaProfileSnapshot>, D::Error> {
     // Omitted is legacy; explicit null is never a bound or legacy profile body.

@@ -1,7 +1,7 @@
 import type { OpenPersonaSessionRequest, PersonaSessionDescriptor } from './persona-memory';
 import { fields } from './corpus-wire-validation';
-import { memoryId } from './memory-wire-validation';
-import { decodePersonaManifest } from './memory-profile-codec';
+import { memoryId, memoryList } from './memory-wire-validation';
+import { decodePersonaManifest, decodeSkillDefinition } from './memory-profile-codec';
 import {
   decodeMemoryPeriod,
   decodeMemorySession,
@@ -43,16 +43,22 @@ export function decodePersonaSession(
     'expiresAt',
     'purpose',
     'manifest',
+    'skills',
   ]);
-  const { purpose, manifest: rawManifest, ...descriptor } = input;
+  const { purpose, manifest: rawManifest, skills: rawSkills, schemaVersion, ...descriptor } = input;
+  if (schemaVersion !== 2) throw new Error('Старая сессия Person не закрепляет полный профиль.');
+  const skills = memoryList(rawSkills, 64).map(decodeSkillDefinition);
   const manifest = decodePersonaManifest(rawManifest);
   if (
+    manifest.schemaVersion !== 2 ||
     purpose !== 'personaReply' ||
     manifest.id !== expected.manifestId ||
     manifest.personaId !== expected.personaId ||
     manifest.retrievalVersion !== 'nativeMemoryRetrieval:1'
   )
     throw new Error('Сессия Person не соответствует сохранённому манифесту.');
+  if (JSON.stringify(skills.map((skill) => skill.id)) !== JSON.stringify(manifest.skillIds))
+    throw new Error('Сессия изменила состав закреплённых навыков.');
   const person = manifest.modelSettings.find((entry) => entry.component === 'person');
   if (!person) throw new Error('Модель Person не закреплена.');
   decodeMemoryModel({
@@ -60,10 +66,13 @@ export function decodePersonaSession(
     model: person.requestedModel,
     effort: person.requestedEffort,
   });
-  const session = decodeMemorySession(descriptor, {
-    personaId: expected.personaId,
-    snapshotId: manifest.corpusSnapshotId,
-    mode: manifest.embeddingFingerprint === null ? 'lexical' : 'hybrid',
-  });
-  return { ...session, purpose, manifest };
+  const session = decodeMemorySession(
+    { ...descriptor, schemaVersion: 1 },
+    {
+      personaId: expected.personaId,
+      snapshotId: manifest.corpusSnapshotId,
+      mode: manifest.embeddingFingerprint === null ? 'lexical' : 'hybrid',
+    },
+  );
+  return { ...session, schemaVersion: 2, purpose, manifest, skills };
 }

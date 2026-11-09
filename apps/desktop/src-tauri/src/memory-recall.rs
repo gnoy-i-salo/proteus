@@ -91,6 +91,7 @@ impl MemorySession {
         model: Option<&dyn EmbeddingModel>,
         now_ms: impl Fn() -> i64,
     ) -> Result<NativeRecallResult, String> {
+        self.authorize_recall_action(&now_ms)?;
         let scope = &self.scope;
         self.ledger.run_checked(
             || scope.guard(&now_ms),

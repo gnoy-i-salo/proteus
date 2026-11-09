@@ -16,6 +16,8 @@ pub mod model_budget;
 mod model_contexts;
 #[path = "memory-model-input.rs"]
 pub mod model_input;
+#[path = "memory-persona-workflow.rs"]
+pub mod persona_workflow;
 #[path = "memory-publication.rs"]
 pub mod publication;
 #[path = "memory-receipt-history.rs"]

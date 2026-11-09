@@ -1,5 +1,7 @@
 use super::*;
 use crate::memory::session::PersonaSessionInput;
+#[path = "memory-persona-context-tests.rs"]
+mod context_tests;
 
 fn frozen(
     sources: &Sources,

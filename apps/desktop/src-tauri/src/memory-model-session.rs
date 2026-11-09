@@ -16,8 +16,8 @@ impl MemorySession {
     ) -> Result<crate::memory::context_wire::ModelContextLease, String> {
         use crate::memory::context_wire::{ContextSources, ContextUsage, ModelContextLease};
         request.validate()?;
-        if request.purpose != "research" {
-            return Err("Контекст Person требует закреплённого manifest.".into());
+        if request.purpose == "personaReply" {
+            return self.reserve_persona_context(request, now);
         }
         let deadline = self.research_deadline()?;
         let expires_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(deadline)

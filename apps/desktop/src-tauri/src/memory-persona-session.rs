@@ -14,6 +14,7 @@ const INVALID: &str = "Манифест Person не соответствует �
 pub(super) struct PersonaBinding {
     pub(super) pin: ManifestPin,
     pub(super) vectors: Option<VectorReceipt>,
+    pub(super) context_memory: Option<std::sync::Arc<super::AuthorizedMemory>>,
 }
 pub struct PersonaSessionInput<'a> {
     pub job_id: &'a str,
@@ -162,6 +163,13 @@ fn load_binding(
             None
         };
         check()?;
-        Ok((PersonaBinding { pin, vectors }, index.receipt))
+        Ok((
+            PersonaBinding {
+                pin,
+                vectors,
+                context_memory: None,
+            },
+            index.receipt,
+        ))
     })
 }

@@ -57,6 +57,34 @@ pub async fn open_research_session(
     .map_err(|_| "Не удалось открыть исследовательскую сессию.".to_string())?
 }
 #[tauri::command]
+pub async fn open_persona_session(
+    request: super::persona_workflow::OpenPersonaRequest,
+    sources: tauri::State<'_, Sources>,
+    sessions: tauri::State<'_, Arc<MemorySessions>>,
+    models: tauri::State<'_, Arc<LocalModelService>>,
+) -> Result<super::persona_workflow::PersonaSession, String> {
+    use super::persona_workflow;
+    request.validate()?;
+    let sources = sources.inner().clone();
+    let sessions = sessions.inner().clone();
+    let models = models.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut session = persona_workflow::prepare(&sources, &request, now)?;
+        if session
+            .persona_manifest(now)?
+            .embedding_fingerprint
+            .is_some()
+        {
+            research_workflow::with_local_model(&mut session, &models, now, |session, model| {
+                persona_workflow::configure(session, Some(model), now)
+            })?;
+        }
+        persona_workflow::admit(session, &sessions, now)
+    })
+    .await
+    .map_err(|_| "Не удалось открыть сессию Person.".to_string())?
+}
+#[tauri::command]
 pub async fn open_fabric_session(
     request: OpenResearchRequest,
     sources: tauri::State<'_, Sources>,
@@ -141,7 +169,7 @@ pub async fn read_memory_episode(
 ) -> Result<RetrievalResponse, String> {
     in_session(sessions.inner().clone(), session_id, move |session| {
         session
-            .read_episode_recorded(&episode_id, now)
+            .read_episode_action(&episode_id, now)
             .map(RetrievalResponse)
     })
     .await

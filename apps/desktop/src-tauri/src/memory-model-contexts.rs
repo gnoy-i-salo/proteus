@@ -149,7 +149,7 @@ impl ModelContexts {
         format_attempt: u8,
         clock: &dyn Fn() -> Result<i64, String>,
     ) -> Result<ReservedContext, String> {
-        if self.binding.operation != "generation" {
+        if !["generation", "persona-reply"].contains(&self.binding.operation.as_str()) {
             return Err(INVALID.into());
         }
         self.reserve_authorized(

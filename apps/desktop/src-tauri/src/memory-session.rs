@@ -10,6 +10,8 @@ pub use fabric_session::FabricContextRequest;
 mod manifest_session;
 #[path = "memory-model-session.rs"]
 mod model_session;
+#[path = "memory-persona-context.rs"]
+mod persona_context;
 #[path = "memory-persona-session.rs"]
 mod persona_session;
 pub use persona_session::PersonaSessionInput;

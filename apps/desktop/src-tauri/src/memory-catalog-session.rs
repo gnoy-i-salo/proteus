@@ -17,7 +17,7 @@ impl MemorySession {
         limit: usize,
         now: impl Fn() -> i64,
     ) -> Result<ResearchCatalogResponse, String> {
-        if !(1..=10000).contains(&limit) {
+        if !(1..=10000).contains(&limit) || self.scope.persona.is_some() {
             return Err("Неверный размер каталога исследования.".into());
         }
         self.verify_current(&now)?;

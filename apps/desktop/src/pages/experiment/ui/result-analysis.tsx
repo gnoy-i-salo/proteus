@@ -135,6 +135,7 @@ export function ResultAnalysis(props: {
                   >
                     <button
                       type="button"
+                      aria-label={`К ответу: порядок ${order + 1}`}
                       onClick={() =>
                         props.onRevealQuote({
                           quote: value()!.quote,
@@ -142,7 +143,7 @@ export function ResultAnalysis(props: {
                         })
                       }
                     >
-                      Показать в ответе
+                      К ответу
                     </button>
                     <span role="status">{quoteStatusLabels(location())}</span>
                   </Show>

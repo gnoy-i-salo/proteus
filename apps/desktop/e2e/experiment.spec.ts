@@ -247,50 +247,60 @@ async function confirmProtocol(page: Page) {
   await page.getByRole('button', { name: 'Подтвердить и продолжить', exact: true }).click();
 }
 
-test('structured analysis exposes both judge orders, control and comparison at 640×600', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 640, height: 600 });
-  await nativeFixture(page);
-  await fillExperiment(page);
-  await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
-  await page.getByRole('button', { name: 'Критерии', exact: true }).click();
-  const matrix = page.getByRole('table', { name: 'Матрица критериев' });
-  await expect(matrix).toBeVisible();
-  await expect(matrix.getByRole('columnheader', { name: 'Порядок 1' })).toBeVisible();
-  await expect(matrix.getByRole('columnheader', { name: 'Порядок 2' })).toBeVisible();
-  await page.screenshot({ path: test.info().outputPath('criteria-640.png') });
-  await matrix
-    .getByRole('button', { name: /Развернуть критерий/ })
-    .first()
-    .click();
-  const quote = await page.evaluate(
-    () =>
-      (window as unknown as NativeFixtureWindow).savedExperiment.people[0]!.trials[0]!
-        .evaluations[0]!.criteria[0]!.quote,
-  );
-  await page
-    .getByRole('button', { name: 'Развернуть: Основания и точные цитаты', exact: true })
-    .click();
-  await expect(page.getByLabel('Основания и точные цитаты', { exact: true }).last()).toContainText(
-    quote,
-  );
-  await page
-    .getByRole('button', { name: 'Свернуть: Основания и точные цитаты', exact: true })
-    .click();
-  await noOverflow(page);
-  await page.getByRole('button', { name: 'Контроль', exact: true }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Нейтральный контроль', exact: true }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Ответ', exact: true }).click();
-  await expect(page.getByText(/Ответ Контроль\./)).toBeVisible();
-  await page.getByRole('button', { name: 'Сравнение', exact: true }).click();
-  await expect(page.getByRole('table', { name: 'Сравнение участников' })).toBeVisible();
-  await expect(page.getByText(/не доказательство статистического превосходства/)).toBeVisible();
-  await page.screenshot({ path: test.info().outputPath('comparison-640.png') });
-  await noOverflow(page);
-});
+for (const textScale of [100, 125]) {
+  test(`structured analysis exposes both judge orders, control and comparison at 640×600 at ${textScale}% text`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 600 });
+    await nativeFixture(page);
+    await fillExperiment(page);
+    await page.evaluate((scale) => {
+      document.documentElement.style.setProperty('--reading', `${14 * scale}px`);
+      document.documentElement.style.setProperty('--caption', `${12 * scale}px`);
+    }, textScale / 100);
+    await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
+    await page.getByRole('button', { name: 'Критерии', exact: true }).click();
+    const matrix = page.getByRole('table', { name: 'Матрица критериев' });
+    await expect(matrix).toBeVisible();
+    await expect(matrix.getByRole('columnheader', { name: 'Порядок 1' })).toBeVisible();
+    await expect(matrix.getByRole('columnheader', { name: 'Порядок 2' })).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('criteria-640.png') });
+    await matrix
+      .getByRole('button', { name: /Развернуть критерий/ })
+      .first()
+      .click();
+    const quote = await page.evaluate(
+      () =>
+        (window as unknown as NativeFixtureWindow).savedExperiment.people[0]!.trials[0]!
+          .evaluations[0]!.criteria[0]!.quote,
+    );
+    await page
+      .getByRole('button', { name: 'Развернуть: Основания и точные цитаты', exact: true })
+      .click();
+    await expect(
+      page.getByLabel('Основания и точные цитаты', { exact: true }).last(),
+    ).toContainText(quote);
+    await page
+      .getByRole('button', { name: 'Свернуть: Основания и точные цитаты', exact: true })
+      .click();
+    const exactText = page.getByLabel('Основания и точные цитаты', { exact: true }).locator('p');
+    await expect(exactText).toHaveCSS('margin-top', '0px');
+    await expect(exactText).toHaveCSS('margin-bottom', '0px');
+    await page.screenshot({ path: test.info().outputPath('collapsed-details.png') });
+    await noOverflow(page);
+    await page.getByRole('button', { name: 'Контроль', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Нейтральный контроль', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Ответ', exact: true }).click();
+    await expect(page.getByText(/Ответ Контроль\./)).toBeVisible();
+    await page.getByRole('button', { name: 'Сравнение', exact: true }).click();
+    await expect(page.getByRole('table', { name: 'Сравнение участников' })).toBeVisible();
+    await expect(page.getByText(/не доказательство статистического превосходства/)).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('comparison-640.png') });
+    await noOverflow(page);
+  });
+}
 
 test('structured analysis keeps unknown scores and required failures explicit', async ({
   page,
@@ -815,18 +825,25 @@ test('stopping preparation preserves its stage and a delayed event is separate f
   await expect(status.locator('[data-active="true"]')).toHaveCount(0);
 });
 
-test('incomplete result exposes the actual failed stage cause alongside retained results', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 640, height: 600 });
-  await nativeFixture(page, false, true, { failSolve: true });
-  await fillExperiment(page);
-  const failure = page.getByRole('region', { name: 'Причина неполной серии', exact: true });
-  await expect(failure).toContainText('Fixture CLI unavailable');
-  await expect(failure).toContainText('Сохранённые ответы и этапы доступны');
-  await expect(page.getByRole('button', { name: '↓ JSON', exact: true })).toBeVisible();
-  await noOverflow(page);
-});
+for (const textScale of [100, 125]) {
+  test(`incomplete result exposes the actual failed stage cause alongside retained results at ${textScale}% text`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 600 });
+    await nativeFixture(page, false, true, { failSolve: true });
+    await fillExperiment(page);
+    await page.evaluate((scale) => {
+      document.documentElement.style.setProperty('--reading', `${14 * scale}px`);
+      document.documentElement.style.setProperty('--caption', `${12 * scale}px`);
+    }, textScale / 100);
+    const failure = page.getByRole('region', { name: 'Причина неполной серии', exact: true });
+    await expect(failure).toContainText('Fixture CLI unavailable');
+    await expect(failure).toContainText('Сохранённые ответы и этапы доступны');
+    await expect(page.getByRole('button', { name: '↓ JSON', exact: true })).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('incomplete-summary.png') });
+    await noOverflow(page);
+  });
+}
 
 test('long preparation failure remains fully readable without overflowing the compact window', async ({
   page,

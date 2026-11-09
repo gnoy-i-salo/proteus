@@ -25,16 +25,19 @@
     gap: 4px 12px;
   }
 
+  &__summary > p {
+    margin: 0;
+  }
+
   &__quoteActions {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px 16px;
     font-size: var(--caption);
   }
 
   &__quoteAction {
     display: flex;
-    flex: 1 1 220px;
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 8px;
@@ -45,7 +48,7 @@
     }
   }
 
-  p {
+  > p {
     margin: 6px 0;
   }
 
@@ -87,5 +90,11 @@
   [data-required='failed'] {
     color: #ffbfbd;
     font-weight: bold;
+  }
+}
+
+@media (height <= 750px) {
+  .resultAnalysis button {
+    padding: 4px 8px;
   }
 }

@@ -65,7 +65,7 @@ test('assessment quote drilldown highlights an explicit occurrence and returns t
   await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
   await page.getByRole('button', { name: 'Критерии', exact: true }).click();
   await page.getByRole('button', { name: 'Развернуть критерий', exact: true }).click();
-  await page.getByRole('button', { name: 'Показать в ответе', exact: true }).first().click();
+  await page.getByRole('button', { name: 'К ответу: порядок 1', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Ответ', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -97,7 +97,7 @@ test('quote spanning joined messages highlights each exact part', async ({ page 
   await expect(page.getByRole('heading', { name: 'BSC v2 · 50' })).toBeVisible();
   await page.getByRole('button', { name: 'Критерии', exact: true }).click();
   await page.getByRole('button', { name: 'Развернуть критерий', exact: true }).click();
-  await page.getByRole('button', { name: 'Показать в ответе', exact: true }).first().click();
+  await page.getByRole('button', { name: 'К ответу: порядок 1', exact: true }).first().click();
   const body = page.getByTestId('persona-reply-body');
   await expect(page.getByLabel('Сообщение ответа', { exact: true })).toHaveValue('0');
   await expect(body.locator('mark')).toHaveText('сообщение');
@@ -154,7 +154,7 @@ test('returns from a creating call through the quote to the same analysis criter
   await expect(page.getByRole('heading', { name: 'BSC v2 · 100' })).toBeVisible();
   await page.getByRole('button', { name: 'Критерии', exact: true }).click();
   await page.getByRole('button', { name: 'Развернуть критерий', exact: true }).click();
-  await page.getByRole('button', { name: 'Показать в ответе', exact: true }).first().click();
+  await page.getByRole('button', { name: 'К ответу: порядок 1', exact: true }).first().click();
   await page.getByRole('button', { name: 'Следующее вхождение', exact: true }).click();
   await page.getByRole('button', { name: 'К вызову', exact: true }).click();
   await page.getByRole('button', { name: '← Вернуться к ответу', exact: true }).click();

@@ -1,5 +1,7 @@
 //! Single-use model input bindings. The session owner supplies authorized source
 //! receipts and a checked clock; this owner never grants corpus access itself.
+#[path = "memory-model-output.rs"]
+mod output;
 use crate::memory::{
     model_budget::{BudgetUsage, ModelCallLedger},
     session::{AuthorizedMemory, PreparedModelInput, RecordedRetrieval},
@@ -51,6 +53,7 @@ struct ContextEntry {
     memory: Option<Arc<AuthorizedMemory>>,
     invocation_id: Option<String>,
     completed_at_ms: Option<i64>,
+    output: Option<output::OutputIdentity>,
 }
 pub struct ModelContexts {
     binding: InvocationBinding,
@@ -206,6 +209,7 @@ impl ModelContexts {
                 memory,
                 invocation_id: None,
                 completed_at_ms: None,
+                output: None,
             },
         );
         self.ledger.verify(clock).map_err(|e| e.to_string())?;

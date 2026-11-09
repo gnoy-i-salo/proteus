@@ -262,6 +262,12 @@ fn persona_context_uses_pinned_memory_and_exact_single_use_model_input() {
         &|| 70008,
     )
     .unwrap();
+    person
+        .check_completed_model_output(&lease.id, "person-call", "fixture answer", || 70008)
+        .unwrap();
+    assert!(person
+        .check_completed_model_output(&lease.id, "person-call", "caller-invented answer", || 70008)
+        .is_err());
     assert_eq!(
         std::fs::read_to_string(run.join("received.txt")).unwrap(),
         format!("{}\n\nINPUT DATA:\n{}", lease.system_prompt, lease.task)

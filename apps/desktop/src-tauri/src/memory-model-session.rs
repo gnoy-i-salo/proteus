@@ -183,6 +183,34 @@ impl MemorySession {
             .complete(id, invocation_id, &|| self.scope.guard(&now))?;
         self.verify_current(now)
     }
+    pub fn complete_model_context_with_output(
+        &mut self,
+        id: &str,
+        invocation_id: &str,
+        answer: &str,
+        now: impl Fn() -> i64,
+    ) -> Result<(), String> {
+        self.verify_current(&now)?;
+        self.models
+            .as_mut()
+            .ok_or(UNCONFIGURED)?
+            .complete_with_output(id, invocation_id, answer, &|| self.scope.guard(&now))?;
+        self.verify_current(now)
+    }
+    pub fn check_completed_model_output(
+        &mut self,
+        id: &str,
+        invocation_id: &str,
+        answer: &str,
+        now: impl Fn() -> i64,
+    ) -> Result<(), String> {
+        self.verify_current(&now)?;
+        self.models
+            .as_mut()
+            .ok_or(UNCONFIGURED)?
+            .check_completed_output(id, invocation_id, answer, &|| self.scope.guard(&now))?;
+        self.verify_current(now)
+    }
     pub fn completed_context_receipts(
         &mut self,
         ids: &[String],

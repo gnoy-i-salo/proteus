@@ -285,7 +285,7 @@ pub(crate) fn execute_at(
                     if !status.success() || failure || answer.trim().is_empty() {
                         break Err(format!("{} CLI не вернул ответ ({}). Проверьте вход, выбранную модель и лимиты в терминале.", request.provider, status));
                     }
-                    if let Err(error) = context.complete() {
+                    if let Err(error) = context.complete(&answer) {
                         break Err(error);
                     }
                     let elapsed = start.elapsed().as_millis() as u64;

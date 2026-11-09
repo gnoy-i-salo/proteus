@@ -63,10 +63,15 @@ impl<'a> Context<'a> {
         }
         self.check_cancellation()
     }
-    pub fn complete(&mut self) -> Result<(), String> {
+    pub fn complete(&mut self, answer: &str) -> Result<(), String> {
         self.check_cancellation()?;
         if let (Some(session), Some(context)) = (&mut self.session, &self.request.memory_context) {
-            session.complete_model_context(&context.lease_id, &self.request.id, self.now)?;
+            session.complete_model_context_with_output(
+                &context.lease_id,
+                &self.request.id,
+                answer,
+                self.now,
+            )?;
         }
         self.check_cancellation()
     }

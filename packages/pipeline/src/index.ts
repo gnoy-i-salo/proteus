@@ -19,3 +19,9 @@ export { prepareStoredResult } from './history/prepare-stored-result';
 export type { PreparedStoredResult } from './history/prepare-stored-result';
 
 export type { LegacySeriesResult } from './history/legacy-series-types';
+export { prepareMemoryPersona } from './memory/prepare-memory-persona';
+export type {
+  PrepareMemoryPersonaInput,
+  PrepareMemoryPersonaLimits,
+  PreparedMemoryPersona,
+} from './memory/prepare-memory-persona';

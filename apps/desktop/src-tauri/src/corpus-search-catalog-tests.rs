@@ -142,3 +142,43 @@ fn catalog_checks_identity_limits_and_cancellation_before_disclosure() {
     drop(db);
     std::fs::remove_dir_all(dir).unwrap();
 }
+#[test]
+fn catalog_includes_episode_at_chunk_cap_and_excludes_episode_over_cap() {
+    let (mut db, dir) = setup();
+    let mut chunks = Vec::new();
+    let mut episodes = Vec::new();
+    // Whole-episode cap boundary: exactly 100 prepared chunks stays eligible,
+    // 101 is excluded even though every chunk is inside the authorized scope.
+    for index in 0..100 {
+        chunks.push(sample_chunk(
+            &format!("cap-ok-{index:03}"),
+            BINDING_A,
+            Some(0),
+        ));
+        episodes.push("episode:at-cap");
+    }
+    for index in 0..=100 {
+        chunks.push(sample_chunk(
+            &format!("cap-over-{index:03}"),
+            BINDING_A,
+            Some(0),
+        ));
+        episodes.push("episode:over-cap");
+    }
+    catalog_fixture(&db, &chunks, &episodes);
+    let receipt = publish(&mut db, SNAPSHOT_A, SNAPSHOT_GEN, "catalog", &chunks);
+    let catalog = research_catalog(&db, &scope_a(), &receipt, 100, &|| Ok(())).unwrap();
+    assert_eq!(catalog.eligible_episodes, 1);
+    assert_eq!(
+        catalog
+            .samples
+            .iter()
+            .map(|s| s.episode_id.as_str())
+            .collect::<Vec<_>>(),
+        ["episode:at-cap"]
+    );
+    assert_eq!(catalog.samples[0].source_key, BINDING_A);
+    assert_eq!(catalog.samples[0].period_key, "window30d:0");
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}

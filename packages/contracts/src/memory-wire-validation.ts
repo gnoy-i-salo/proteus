@@ -21,3 +21,19 @@ export function memoryIds(value: unknown): string[] {
   if (new Set(result).size !== result.length) throw new Error('Повторяющиеся ссылки контекста.');
   return result;
 }
+
+export function memoryFields(value: unknown, expected: readonly string[]): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Invalid memory receipt object.');
+  const keys = Object.keys(value);
+  if (keys.length !== expected.length || keys.some((key) => !expected.includes(key)))
+    throw new Error('Unknown, missing or mixed memory receipt fields.');
+  return value as Record<string, unknown>;
+}
+
+// Retain the legacy receipt/action character limit; do not reinterpret held data as UTF8 byte limits.
+export function memoryReceiptText(value: unknown, allowEmpty = false): string {
+  if (typeof value !== 'string' || (!allowEmpty && !value.trim()) || value.length > 2048)
+    throw new Error('Invalid memory receipt text.');
+  return value;
+}

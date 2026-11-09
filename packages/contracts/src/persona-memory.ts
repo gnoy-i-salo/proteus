@@ -1,4 +1,10 @@
-import type { MemoryPort, ModelContextLease, ModelContextRequest, PersonaManifest } from './memory';
+import type {
+  MemoryPort,
+  ModelContextLease,
+  ModelContextRequest,
+  PersonaManifest,
+  SimulationMemoryEntry,
+} from './memory';
 import type { OpenResearchSessionRequest, ResearchSessionDescriptor } from './research-memory';
 
 export type OpenPersonaSessionRequest = Pick<
@@ -14,13 +20,27 @@ export type PersonaContextLease = ModelContextLease & {
   readonly purpose: 'personaReply';
   readonly manifestId: string;
 };
-// Host lifecycle and Person recall only. Simulation publication has its own
-// completion authority and will be added when that native command is connected.
+// Native checks this proof against the actual completed CLI output. Host scope
+// is separate from model JSON; native assigns manifest, role, ID and timestamp.
+export interface PersonaSimulationScope {
+  readonly experimentId: string;
+  readonly trialId: string;
+}
+export interface AppendPersonaSimulationRequest extends PersonaSimulationScope {
+  readonly schemaVersion: 1;
+  readonly contextLeaseId: string;
+  readonly invocationId: string;
+  readonly answer: string;
+}
 export interface PersonaMemoryPort extends Pick<MemoryPort, 'recall' | 'readEpisode'> {
   readonly session: PersonaSessionDescriptor;
   reserveModelContext(
     request: ModelContextRequest,
     signal?: AbortSignal,
   ): Promise<PersonaContextLease>;
+  appendSimulation(
+    request: AppendPersonaSimulationRequest,
+    signal?: AbortSignal,
+  ): Promise<SimulationMemoryEntry>;
   close(): Promise<void>;
 }

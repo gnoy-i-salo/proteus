@@ -6,11 +6,14 @@ import type {
   IntelligenceTrace,
   PersonaContextLease,
   ModelMemoryAction,
+  PersonaSimulationScope,
+  SimulationMemoryEntry,
 } from '@proteus-int/contracts';
 import {
   decodeOpenPersonaSessionRequest,
   decodeSkillDefinition,
   parseMemoryAction,
+  decodePersonaSimulationScope,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
@@ -22,6 +25,7 @@ export interface MemoryPersonInput {
   readonly task: string;
   readonly request: OpenPersonaSessionRequest;
   readonly maxRetrievalSteps: number;
+  readonly simulation: PersonaSimulationScope;
 }
 export type OpenPersonaMemory = (
   request: OpenPersonaSessionRequest,
@@ -31,6 +35,7 @@ export interface MemoryPersonResult extends IntelligenceResult {
   readonly traces: readonly IntelligenceTrace[];
   readonly contextLeaseIds: readonly string[];
   readonly context: PersonaContextLease;
+  readonly simulation: SimulationMemoryEntry;
 }
 function exactText(value: string, limit: number): void {
   const bytes = new TextEncoder().encode(value);
@@ -43,6 +48,7 @@ function exactText(value: string, limit: number): void {
 }
 function validate(input: MemoryPersonInput) {
   const request = decodeOpenPersonaSessionRequest(input.request);
+  const simulation = decodePersonaSimulationScope(input.simulation);
   const profile = structuredClone(input.profile);
   if (
     !profile.memory ||
@@ -67,7 +73,15 @@ function validate(input: MemoryPersonInput) {
   ];
   const data = { ...personTask(profile, input.task), proceduralSkills: skills };
   exactText(JSON.stringify(data), 150000);
-  return { request, profile, skills, itemIds, data, maxRetrievalSteps: input.maxRetrievalSteps };
+  return {
+    request,
+    profile,
+    skills,
+    itemIds,
+    data,
+    simulation,
+    maxRetrievalSteps: input.maxRetrievalSteps,
+  };
 }
 function turn(
   value: Record<string, unknown>,
@@ -76,6 +90,7 @@ function turn(
 ) {
   if (value.action === 'reply') {
     if (
+      !Array.isArray(value.styleConflicts) ||
       Object.keys(value).length !== 4 ||
       Object.keys(value).some(
         (key) => !['action', 'messages', 'summary', 'styleConflicts'].includes(key),
@@ -83,7 +98,7 @@ function turn(
     )
       throw new Error('Неверные поля ответа Person.');
     const reply = parseReply(value);
-    for (const message of reply.messages) exactText(message, 64000);
+    exactText(reply.messages.join('\n\n'), 65536);
     return { action: 'reply' as const, reply };
   }
   if (!canRetrieve) throw new Error('Поиск недоступен: ответьте по уже предоставленным данным.');
@@ -167,9 +182,13 @@ export async function solveMemory(
       );
       controller.signal.throwIfAborted();
       if (data.action === 'reply') {
+        const answer = data.reply.messages.join('\n\n');
+        const simulation = await model.publish(selected.simulation, answer, controller.signal);
+        controller.signal.throwIfAborted();
         result = {
+          simulation,
           ...(invocationId ? { invocationId } : {}),
-          answer: data.reply.messages.join('\n\n'),
+          answer,
           reply: {
             version: 2,
             messages: data.reply.messages,

@@ -14,6 +14,8 @@ mod model_session;
 mod persona_context;
 #[path = "memory-persona-session.rs"]
 mod persona_session;
+#[path = "memory-persona-simulation.rs"]
+mod persona_simulation;
 pub use persona_session::PersonaSessionInput;
 #[path = "memory-published-read.rs"]
 mod published_read;

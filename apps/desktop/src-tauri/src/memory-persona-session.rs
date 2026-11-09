@@ -15,6 +15,7 @@ pub(super) struct PersonaBinding {
     pub(super) pin: ManifestPin,
     pub(super) vectors: Option<VectorReceipt>,
     pub(super) context_memory: Option<std::sync::Arc<super::AuthorizedMemory>>,
+    pub(super) simulation: Option<super::persona_simulation::SimulationMemo>,
 }
 pub struct PersonaSessionInput<'a> {
     pub job_id: &'a str,
@@ -168,6 +169,7 @@ fn load_binding(
                 pin,
                 vectors,
                 context_memory: None,
+                simulation: None,
             },
             index.receipt,
         ))

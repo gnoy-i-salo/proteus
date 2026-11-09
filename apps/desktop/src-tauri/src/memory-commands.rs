@@ -198,3 +198,16 @@ pub async fn publish_memory_research(
     })
     .await
 }
+
+#[tauri::command]
+pub async fn append_persona_simulation(
+    session_id: String,
+    request: super::simulation::AppendSimulationRequest,
+    sessions: tauri::State<'_, Arc<MemorySessions>>,
+) -> Result<crate::corpus_database::simulation::SimulationMemoryEntry, String> {
+    request.validate()?;
+    in_session(sessions.inner().clone(), session_id, move |session| {
+        session.append_simulation(&request, now)
+    })
+    .await
+}

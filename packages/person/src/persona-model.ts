@@ -5,12 +5,15 @@ import type {
   IntelligenceTrace,
   ModelMemoryAction,
   RecallResult,
+  PersonaSimulationScope,
 } from '@proteus-int/contracts';
 import {
   decodePersonaSession,
   decodePersonaContext,
   decodePersonaRetrieval,
   decodeModelContextRequest,
+  decodeAppendPersonaSimulationRequest,
+  decodePersonaSimulation,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 
@@ -42,6 +45,7 @@ export function createPersonaModel(
   let usedBytes = 0;
   let active = false;
   let context: PersonaContextLease | undefined;
+  let output: { answer: string; invocationId?: string } | undefined;
   let fixedEvidence: string | undefined;
   const knownEpisodes = new Set<string>();
   const retrieved = new Set<string>();
@@ -65,6 +69,28 @@ export function createPersonaModel(
     },
     knowsEpisode(id: string) {
       return knownEpisodes.has(id);
+    },
+    async publish(scope: PersonaSimulationScope, text: string, signal: AbortSignal) {
+      signal.throwIfAborted();
+      if (active || !context || !output) throw new Error('Нет завершённого ответа Person.');
+      const request = decodeAppendPersonaSimulationRequest({
+        schemaVersion: 1,
+        ...scope,
+        contextLeaseId: context.id,
+        invocationId: output.invocationId,
+        answer: output.answer,
+      });
+      active = true;
+      try {
+        const raw = await memory.appendSimulation(request, signal);
+        signal.throwIfAborted();
+        const entry = decodePersonaSimulation(raw, session.manifest.id, request);
+        if (entry.text !== text)
+          throw new Error('Сохранённый текст не соответствует ответу Person.');
+        return entry;
+      } finally {
+        active = false;
+      }
     },
     async retrieve(action: ModelMemoryAction, signal: AbortSignal) {
       signal.throwIfAborted();
@@ -117,6 +143,7 @@ export function createPersonaModel(
         attempts++;
         active = true;
         context = undefined;
+        output = undefined;
         try {
           const raw = await memory.reserveModelContext(draft, signal);
           signal?.throwIfAborted();
@@ -157,6 +184,10 @@ export function createPersonaModel(
           );
           signal?.throwIfAborted();
           context = lease;
+          output = {
+            answer: result.answer,
+            ...(result.invocationId ? { invocationId: result.invocationId } : {}),
+          };
           completed.push(lease.id);
           traces.push(structuredClone(result.trace));
           for (const id of lease.receiptIds) retrieved.add(id);

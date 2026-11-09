@@ -363,3 +363,64 @@ it('rejects malformed Unicode and unsupported model actions before IPC', async (
   expect(host.invoke).toHaveBeenCalledTimes(count);
   await port.close();
 });
+
+const simulationRequest = {
+  schemaVersion: 1 as const,
+  experimentId: 'experiment:1',
+  trialId: 'trial:1',
+  contextLeaseId: 'lease:1',
+  invocationId: 'person-call',
+  answer: '{"action":"reply","messages":["  😀\\r\\n "],"summary":"done","styleConflicts":[]}',
+};
+const simulationEntry = {
+  schemaVersion: 1,
+  id: 'simulation:abc123',
+  experimentId: 'experiment:1',
+  trialId: 'trial:1',
+  manifestId: request.manifestId,
+  role: 'simulation',
+  text: '  😀\r\n ',
+  createdAt: '2026-11-09T03:00:00.000Z',
+};
+it('appends only a reserved Persona lease, preserving native scope and exact raw output', async () => {
+  const port = await openNativePersona(request);
+  const calls = host.invoke.mock.calls.length;
+  await expect(port.appendSimulation(simulationRequest)).rejects.toThrow();
+  expect(host.invoke).toHaveBeenCalledTimes(calls);
+  await port.reserveModelContext(context);
+  host.invoke.mockResolvedValueOnce(simulationEntry);
+  expect(await port.appendSimulation(simulationRequest)).toEqual(simulationEntry);
+  expect(host.invoke).toHaveBeenLastCalledWith('append_persona_simulation', {
+    sessionId: descriptor().id,
+    request: simulationRequest,
+  });
+  host.invoke.mockResolvedValueOnce(simulationEntry);
+  expect(await port.appendSimulation(simulationRequest)).toEqual(simulationEntry);
+  await port.close();
+});
+it('closes the session on a forged simulation receipt', async () => {
+  const port = await openNativePersona(request);
+  await port.reserveModelContext(context);
+  host.invoke.mockResolvedValueOnce({ ...simulationEntry, role: 'user' });
+  await expect(port.appendSimulation(simulationRequest)).rejects.toThrow();
+  expect(host.invoke).toHaveBeenLastCalledWith('close_memory_session', {
+    sessionId: descriptor().id,
+  });
+});
+it('discards a late saved simulation after cancellation and prevents further writes', async () => {
+  const port = await openNativePersona(request);
+  await port.reserveModelContext(context);
+  const pending = deferred<unknown>();
+  host.invoke.mockReturnValueOnce(pending.promise);
+  const cancel = new AbortController();
+  const running = port.appendSimulation(simulationRequest, cancel.signal);
+  const rejected = expect(running).rejects.toThrow();
+  await expect(port.recall('query', 'facts')).rejects.toThrow();
+  cancel.abort();
+  pending.resolve(simulationEntry);
+  await rejected;
+  await expect(port.appendSimulation(simulationRequest)).rejects.toThrow();
+  expect(host.invoke).toHaveBeenLastCalledWith('close_memory_session', {
+    sessionId: descriptor().id,
+  });
+});

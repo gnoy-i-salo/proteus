@@ -209,6 +209,13 @@ export type {
   PersonaContextRequest,
   PersonaContextLease,
   PersonaMemoryPort,
+  AppendPersonaSimulationRequest,
+  PersonaSimulationScope,
 } from './persona-memory';
 export { decodeOpenPersonaSessionRequest, decodePersonaSession } from './persona-memory-codec';
 export { decodePersonaContext, decodePersonaRetrieval } from './persona-context-codec';
+export {
+  decodeAppendPersonaSimulationRequest,
+  decodePersonaSimulation,
+  decodePersonaSimulationScope,
+} from './persona-simulation-codec';

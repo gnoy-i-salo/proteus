@@ -11,7 +11,13 @@ import {
   retrieval,
   sourceRetrieval,
 } from './testing/person-memory-fixtures';
-const input = { request, profile, task: '  Напиши Борису\r\n🙂  ', maxRetrievalSteps: 3 };
+const input = {
+  request,
+  profile,
+  task: '  Напиши Борису\r\n🙂  ',
+  maxRetrievalSteps: 3,
+  simulation: { experimentId: 'experiment:1', trialId: 'trial:1' },
+};
 const messages = ['  Ну… **да** 👩🏽‍🔬\r\n', 'é\tне менять  '];
 const reply = { action: 'reply', messages, summary: 'Готово', styleConflicts: [] };
 const trace = { provider: 'codex' as const, reasoningMs: 1, terminalMs: 2, summary: 'CLI summary' };
@@ -20,20 +26,40 @@ const reserve = vi.fn<PersonaMemoryPort['reserveModelContext']>();
 const recall = vi.fn<PersonaMemoryPort['recall']>();
 const readEpisode = vi.fn<PersonaMemoryPort['readEpisode']>();
 const close = vi.fn<PersonaMemoryPort['close']>();
+const append = vi.fn<PersonaMemoryPort['appendSimulation']>();
 const provider: IntelligenceProvider = { id: 'codex', run };
 let memory: PersonaMemoryPort;
 const open = vi.fn<() => Promise<PersonaMemoryPort>>();
 beforeEach(() => {
   vi.resetAllMocks();
-  memory = { session: session(), reserveModelContext: reserve, recall, readEpisode, close };
+  memory = {
+    session: session(),
+    reserveModelContext: reserve,
+    recall,
+    readEpisode,
+    close,
+    appendSimulation: append,
+  };
   open.mockImplementation(() => Promise.resolve(memory));
   let calls = 0;
   reserve.mockImplementation((draft) =>
     Promise.resolve(lease(draft, memory.session, ++calls, [retrieval()])),
   );
   recall.mockResolvedValue(retrieval());
-  run.mockResolvedValue({ invocationId: 'call:1', answer: JSON.stringify(reply), trace });
+  run.mockResolvedValue({ invocationId: 'call-1', answer: JSON.stringify(reply), trace });
   close.mockResolvedValue();
+  append.mockImplementation((draft) =>
+    Promise.resolve({
+      schemaVersion: 1,
+      id: 'simulation:abc',
+      manifestId: request.manifestId,
+      experimentId: draft.experimentId,
+      trialId: draft.trialId,
+      role: 'simulation',
+      text: messages.join('\n\n'),
+      createdAt: '2026-11-09T00:00:00.000Z',
+    }),
+  );
 });
 it('answers through a pinned native context preserving identity, exact task/messages and observable traces', async () => {
   const result = await solveMemory(input, provider, open);
@@ -51,7 +77,7 @@ it('answers through a pinned native context preserving identity, exact task/mess
   expect(result).toMatchObject({
     answer: messages.join('\n\n'),
     reply: { version: 2, messages, styleConflicts: [] },
-    invocationId: 'call:1',
+    invocationId: 'call-1',
     contextLeaseIds: ['lease:1'],
     traces: [trace],
   });
@@ -362,4 +388,90 @@ it('selects profile evidence once and keeps proposed procedural skills and their
   expect(JSON.parse(reserve.mock.calls[0]![0].task)).toHaveProperty('proceduralSkills', [skill]);
   expect(result.context.items).toEqual([item]);
   expect(result.context.sources).toEqual(base.sources);
+});
+
+it('saves the exact successful CLI output before closing, excluding repair attempts and host scope from prompt', async () => {
+  const raw = '\uFEFF```json\n' + JSON.stringify(reply, null, 2) + '\n``` \r\n';
+  run.mockResolvedValueOnce({ invocationId: 'bad-call', answer: 'not JSON', trace });
+  run.mockResolvedValueOnce({ invocationId: 'final-call', answer: raw, trace });
+  const result = await solveMemory(input, provider, open);
+  expect(append).toHaveBeenCalledExactlyOnceWith(
+    {
+      schemaVersion: 1,
+      ...input.simulation,
+      contextLeaseId: 'lease:2',
+      invocationId: 'final-call',
+      answer: raw,
+    },
+    expect.any(AbortSignal),
+  );
+  expect(append.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0]!);
+  expect(result).toHaveProperty('simulation.id', 'simulation:abc');
+  expect(run.mock.calls[0]![0].task).not.toContain(input.simulation.experimentId);
+});
+it('repairs aggregate oversized dialogue before native publication', async () => {
+  run.mockResolvedValueOnce({
+    invocationId: 'long-call',
+    answer: JSON.stringify({ ...reply, messages: ['a'.repeat(40000), 'b'.repeat(40000)] }),
+    trace,
+  });
+  await solveMemory(input, provider, open);
+  expect(run).toHaveBeenCalledTimes(2);
+  expect(append).toHaveBeenCalledOnce();
+  expect(append.mock.calls[0]![0].contextLeaseId).toBe('lease:2');
+});
+it.each(['missingInvocation', 'foreignText', 'saveFailure', 'cancelled'])(
+  'does not report success after invalid or failed publication: %s',
+  async (kind) => {
+    const cancel = new AbortController();
+    if (kind === 'missingInvocation')
+      run.mockResolvedValueOnce({ answer: JSON.stringify(reply), trace });
+    if (kind === 'foreignText')
+      append.mockResolvedValueOnce({
+        schemaVersion: 1,
+        id: 'simulation:abc',
+        ...input.simulation,
+        manifestId: request.manifestId,
+        role: 'simulation',
+        text: 'forged',
+        createdAt: '2026-11-09T00:00:00.000Z',
+      });
+    if (kind === 'saveFailure') append.mockRejectedValueOnce(new Error('revoked'));
+    if (kind === 'cancelled')
+      append.mockImplementationOnce(() => {
+        cancel.abort(new Error('late save'));
+        return Promise.reject(new Error('late save'));
+      });
+    await expect(solveMemory(input, provider, open, cancel.signal)).rejects.toThrow();
+    expect(close).toHaveBeenCalledOnce();
+    if (kind === 'missingInvocation') expect(append).not.toHaveBeenCalled();
+  },
+);
+it('rejects malformed host simulation scope before opening and freezes it across admission', async () => {
+  await expect(
+    solveMemory(
+      { ...input, simulation: { ...input.simulation, trialId: 'bad\n' } },
+      provider,
+      open,
+    ),
+  ).rejects.toThrow();
+  expect(open).not.toHaveBeenCalled();
+  const selected = structuredClone(input);
+  open.mockImplementationOnce(() => {
+    selected.simulation.trialId = 'mutated';
+    return Promise.resolve(memory);
+  });
+  await solveMemory(selected, provider, open);
+  expect(append.mock.calls[0]![0].trialId).toBe(input.simulation.trialId);
+});
+
+it('repairs null conflict metadata rather than deferring an invalid reply to native storage', async () => {
+  run.mockResolvedValueOnce({
+    invocationId: 'bad-call',
+    answer: JSON.stringify({ ...reply, styleConflicts: null }),
+    trace,
+  });
+  await solveMemory(input, provider, open);
+  expect(run).toHaveBeenCalledTimes(2);
+  expect(append.mock.calls[0]![0].contextLeaseId).toBe('lease:2');
 });

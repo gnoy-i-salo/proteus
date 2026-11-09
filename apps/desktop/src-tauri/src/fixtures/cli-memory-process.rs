@@ -69,7 +69,8 @@ fn main() {
     fs::write("answer-written", "done").unwrap();
     println!(
         "{}",
-        r#"{"type":"item.completed","item":{"type":"agent_message","text":"fixture answer"}}"#
+        fs::read_to_string("reply-event.json").unwrap_or_else(|_|
+            r#"{"type":"item.completed","item":{"type":"agent_message","text":"fixture answer"}}"#.into())
     );
     println!("{}", r#"{"type":"turn.completed"}"#);
 }

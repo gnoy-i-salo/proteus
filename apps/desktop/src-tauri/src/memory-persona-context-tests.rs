@@ -369,3 +369,6 @@ fn fixed_persona_context_reuses_evidence_and_rejects_new_selections_and_revocati
     drop(sources);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[path = "memory-persona-simulation-tests.rs"]
+mod simulation_tests;

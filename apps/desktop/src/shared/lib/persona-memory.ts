@@ -10,6 +10,8 @@ import {
   decodePersonaContext,
   decodePersonaRetrieval,
   parseMemoryAction,
+  decodeAppendPersonaSimulationRequest,
+  decodePersonaSimulation,
 } from '@proteus-int/contracts';
 import {
   openNativeMemorySession,
@@ -138,6 +140,18 @@ export async function openNativePersona(
           usedBytes = result.usage.inputBytes;
           return result;
         },
+        signal,
+      );
+    },
+    async appendSimulation(input, signal) {
+      check(signal);
+      const request = decodeAppendPersonaSimulationRequest(input);
+      if (!leases.has(request.contextLeaseId))
+        throw new Error('Контекст симуляции не принадлежит сессии Person.');
+      return execute(
+        'append_persona_simulation',
+        { request },
+        (value) => decodePersonaSimulation(value, session.manifest.id, request),
         signal,
       );
     },

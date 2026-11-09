@@ -34,3 +34,6 @@ pub mod research_workflow;
 pub mod session;
 #[path = "memory-types.rs"]
 pub mod types;
+
+#[path = "memory-simulation.rs"]
+pub mod simulation;

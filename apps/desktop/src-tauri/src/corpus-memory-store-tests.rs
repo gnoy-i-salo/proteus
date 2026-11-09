@@ -944,3 +944,6 @@ fn read_rejects_a_deleted_cross_snapshot_contradiction_target() {
 
 #[path = "corpus-memory-encrypted-tests.rs"]
 mod encrypted_tests;
+
+#[path = "corpus-research-publication-tests.rs"]
+mod publication_tests;

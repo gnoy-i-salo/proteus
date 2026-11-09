@@ -8,8 +8,8 @@ use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompletedModelContext {
     pub schema_version: u8,
     pub lease_id: String,

@@ -4,33 +4,36 @@ use crate::{
     corpus_database::episodes::ChunkSpan, ingestion::source_excerpt::SourceExcerpt,
     local_embedding::model::EmbeddingModel, memory::types::EmbeddingFingerprint,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{cell::Cell, sync::Arc};
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RetrievalReceipt {
     pub schema_version: u8,
-    pub operation: &'static str,
+    pub operation: String,
     pub id: String,
     pub snapshot_id: String,
     pub policy_version: String,
-    pub retrieval_version: &'static str,
+    pub retrieval_version: String,
     pub index_generation: i64,
+    #[serde(deserialize_with = "crate::memory::types::required_nullable")]
     pub embedding_fingerprint: Option<EmbeddingFingerprint>,
-    pub mode: &'static str,
+    pub mode: String,
     pub hits: Vec<ReceiptHit>,
     pub elapsed_ms: i64,
     pub source_bytes: usize,
     pub context_tokens: usize,
 }
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ReceiptHit {
     pub chunk_id: String,
     pub episode_id: String,
     pub spans: Vec<ChunkSpan>,
+    #[serde(deserialize_with = "crate::memory::types::required_nullable")]
     pub lexical_rank: Option<usize>,
+    #[serde(deserialize_with = "crate::memory::types::required_nullable")]
     pub semantic_rank: Option<usize>,
     pub fusion_score: f64,
 }
@@ -207,17 +210,17 @@ impl MemorySession {
             .ok_or("Неверное время квитанции поиска.")?;
         Ok(RetrievalReceipt {
             schema_version: 2,
-            operation,
+            operation: operation.into(),
             id,
             snapshot_id: scope.source.snapshot_id.clone(),
             policy_version: policy.clone(),
-            retrieval_version: "nativeMemoryRetrieval:1",
+            retrieval_version: "nativeMemoryRetrieval:1".into(),
             index_generation: scope.source.index_generation,
             embedding_fingerprint,
             mode: if scope.hybrid.is_some() {
-                "hybrid"
+                "hybrid".into()
             } else {
-                "lexical"
+                "lexical".into()
             },
             hits: vec![],
             elapsed_ms,

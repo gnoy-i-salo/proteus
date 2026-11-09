@@ -10,6 +10,8 @@ pub mod model_budget;
 mod model_contexts;
 #[path = "memory-model-input.rs"]
 pub mod model_input;
+#[path = "memory-publication.rs"]
+pub mod publication;
 #[path = "memory-receipt-history.rs"]
 mod receipt_history;
 #[path = "memory-session-registry.rs"]

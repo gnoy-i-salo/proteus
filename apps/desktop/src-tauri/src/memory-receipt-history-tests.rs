@@ -5,14 +5,14 @@ fn record(id: &str, metadata: &str) -> RecordedRetrieval {
     RecordedRetrieval {
         receipt: RetrievalReceipt {
             schema_version: 2,
-            operation: "recall",
+            operation: "recall".into(),
             id: id.into(),
             snapshot_id: metadata.into(),
             policy_version: "policy:1".into(),
-            retrieval_version: "nativeMemoryRetrieval:1",
+            retrieval_version: "nativeMemoryRetrieval:1".into(),
             index_generation: 1,
             embedding_fingerprint: None,
-            mode: "lexical",
+            mode: "lexical".into(),
             hits: vec![],
             elapsed_ms: 0,
             source_bytes: 0,

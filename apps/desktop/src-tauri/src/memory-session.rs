@@ -23,7 +23,7 @@ use crate::{
     sources::Sources,
 };
 pub use recall::{NativeRecallHit, NativeRecallResult};
-pub use receipts::{RecordedRetrieval, RetrievalReceipt};
+pub use receipts::{ReceiptHit, RecordedRetrieval, RetrievalReceipt};
 pub struct SessionInput<'a> {
     pub job_id: &'a str,
     pub snapshot_id: &'a str,

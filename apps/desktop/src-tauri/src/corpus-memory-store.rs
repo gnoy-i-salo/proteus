@@ -31,6 +31,10 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::Serialize;
 use std::collections::HashSet;
 
+#[path = "corpus-research-publication.rs"]
+mod publication;
+pub use publication::StoredResearchPublication;
+
 const MAX_OWNER_BYTES: usize = 256;
 const MAX_ITEM_PAYLOAD_BYTES: i64 = 512 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: i64 = 1024 * 1024;
@@ -118,68 +122,13 @@ impl CorpusDatabase {
     ) -> Result<MemoryBundle, String> {
         check()?;
         validate_persona_id(persona_id)?;
-        validate_bundle_shape(snapshot, items, check)?;
-        let snapshot_json = bounded_json(
-            snapshot,
-            MAX_SNAPSHOT_PAYLOAD_BYTES as usize,
-            SNAPSHOT_BUDGET,
-        )?;
-        let mut remaining = MAX_BUNDLE_PAYLOAD_BYTES as usize - snapshot_json.len();
-        let mut item_jsons = Vec::with_capacity(items.len());
-        for item in items {
-            check()?;
-            let cap = remaining.min(MAX_ITEM_PAYLOAD_BYTES as usize);
-            let error = if cap < MAX_ITEM_PAYLOAD_BYTES as usize {
-                BUNDLE_BUDGET
-            } else {
-                ITEM_BUDGET
-            };
-            let json = bounded_json(item, cap, error)?;
-            remaining -= json.len();
-            item_jsons.push(json);
-        }
+        let prepared = prepare_bundle(snapshot, items, check)?;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(sql_error)?;
         check()?;
-        // The original corpus snapshot must exist and verify; deletion or
-        // corruption of a source never yields access through memory.
-        let source = read_snapshot_checked(&tx, &snapshot.corpus_snapshot_id, check)?;
-        validate_span_membership(&source, items, check)?;
-        check()?;
-        validate_contradiction_references(
-            &tx,
-            &snapshot.corpus_snapshot_id,
-            persona_id,
-            items,
-            check,
-        )?;
-        check()?;
-        let bundle = if snapshot_exists(&tx, &snapshot.id)? {
-            // Idempotent replay is allowed only for the exact same bundle and
-            // owner; anything else conflicts and must not overwrite.
-            let stored = load_bundle(&tx, &snapshot.id, persona_id, check)?;
-            if stored.snapshot != *snapshot || stored.items != items {
-                return Err(CONFLICTING_SNAPSHOT.into());
-            }
-            stored
-        } else {
-            insert_bundle(
-                &tx,
-                persona_id,
-                &snapshot_json,
-                &item_jsons,
-                snapshot,
-                items,
-                check,
-            )?;
-            let stored = load_bundle(&tx, &snapshot.id, persona_id, check)?;
-            if stored.snapshot != *snapshot || stored.items != items {
-                return Err(INVALID.into());
-            }
-            stored
-        };
+        let bundle = publish_bundle(&tx, persona_id, snapshot, items, &prepared, check)?;
         check()?;
         tx.commit().map_err(sql_error)?;
         Ok(bundle)
@@ -602,6 +551,82 @@ fn item_exists(connection: &Connection, id: &str) -> Result<bool, String> {
         .optional()
         .map_err(sql_error)?;
     Ok(found.is_some())
+}
+
+fn prepare_bundle(
+    snapshot: &MemorySnapshot,
+    items: &[MemoryItem],
+    check: &dyn Fn() -> Result<(), String>,
+) -> Result<(String, Vec<String>), String> {
+    validate_bundle_shape(snapshot, items, check)?;
+    let snapshot_json = bounded_json(
+        snapshot,
+        MAX_SNAPSHOT_PAYLOAD_BYTES as usize,
+        SNAPSHOT_BUDGET,
+    )?;
+    let mut remaining = MAX_BUNDLE_PAYLOAD_BYTES as usize - snapshot_json.len();
+    let mut item_jsons = Vec::with_capacity(items.len());
+    for item in items {
+        check()?;
+        let cap = remaining.min(MAX_ITEM_PAYLOAD_BYTES as usize);
+        let error = if cap < MAX_ITEM_PAYLOAD_BYTES as usize {
+            BUNDLE_BUDGET
+        } else {
+            ITEM_BUDGET
+        };
+        let json = bounded_json(item, cap, error)?;
+        remaining -= json.len();
+        item_jsons.push(json);
+    }
+    Ok((snapshot_json, item_jsons))
+}
+
+fn publish_bundle(
+    connection: &Connection,
+    persona_id: &str,
+    snapshot: &MemorySnapshot,
+    items: &[MemoryItem],
+    prepared: &(String, Vec<String>),
+    check: &dyn Fn() -> Result<(), String>,
+) -> Result<MemoryBundle, String> {
+    // The original corpus snapshot must exist and verify; deletion or
+    // corruption of a source never yields access through memory.
+    let source = read_snapshot_checked(connection, &snapshot.corpus_snapshot_id, check)?;
+    validate_span_membership(&source, items, check)?;
+    check()?;
+    validate_contradiction_references(
+        connection,
+        &snapshot.corpus_snapshot_id,
+        persona_id,
+        items,
+        check,
+    )?;
+    check()?;
+    let bundle = if snapshot_exists(connection, &snapshot.id)? {
+        // Idempotent replay is allowed only for the exact same bundle and
+        // owner; anything else conflicts and must not overwrite.
+        let stored = load_bundle(connection, &snapshot.id, persona_id, check)?;
+        if stored.snapshot != *snapshot || stored.items != items {
+            return Err(CONFLICTING_SNAPSHOT.into());
+        }
+        stored
+    } else {
+        insert_bundle(
+            connection,
+            persona_id,
+            &prepared.0,
+            &prepared.1,
+            snapshot,
+            items,
+            check,
+        )?;
+        let stored = load_bundle(connection, &snapshot.id, persona_id, check)?;
+        if stored.snapshot != *snapshot || stored.items != items {
+            return Err(INVALID.into());
+        }
+        stored
+    };
+    Ok(bundle)
 }
 
 #[cfg(test)]

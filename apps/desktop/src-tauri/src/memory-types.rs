@@ -311,7 +311,7 @@ pub(super) fn validate_unique_host_ids(
 /// Structural span check only. The unit is `utf8Bytes` at the type level and
 /// no character alignment is inferred here; UTF8 boundary alignment against
 /// original source bytes stays with the native authority.
-fn validate_span(span: &ChunkSpan, label: &str) -> Result<(), String> {
+pub(super) fn validate_span(span: &ChunkSpan, label: &str) -> Result<(), String> {
     validate_host_id(&span.document_id, label)?;
     validate_host_id(&span.revision_id, label)?;
     match span.unit {

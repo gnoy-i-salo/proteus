@@ -182,3 +182,4 @@ export type {
 export { decodeOpenResearchSessionRequest, decodeResearchSession } from './research-memory-codec';
 export { decodeRetrievalReceipt } from './memory-retrieval-codec';
 export { decodeResearchRetrieval } from './research-retrieval-codec';
+export { decodeResearchContext } from './research-context-codec';

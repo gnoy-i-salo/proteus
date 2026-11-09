@@ -22,6 +22,13 @@ export type { PreparedStoredResult } from './history/prepare-stored-result';
 
 export type { LegacySeriesResult } from './history/legacy-series-types';
 export { prepareMemoryPersona } from './memory/prepare-memory-persona';
+export { runMemoryTrials } from './memory/run-memory-trials';
+export type {
+  MemoryTrialParticipant,
+  MemoryTrialsInput,
+  MemoryTrialRun,
+  MemoryTrialsResult,
+} from './memory/run-memory-trials';
 export type {
   PrepareMemoryPersonaInput,
   PrepareMemoryPersonaLimits,

@@ -1,4 +1,5 @@
-import type { ExperimentProtocol } from '@proteus-int/contracts';
+import type { IntelligenceProvider } from '@proteus-int/intelligence';
+import type { IntelligenceResult, ExperimentProtocol } from '@proteus-int/contracts';
 import { personRuntime } from '@proteus-int/person';
 import { scoreTrial } from '@proteus-int/brain-scoring';
 import { evaluateAnswers } from '@proteus-int/brain-analyzator';
@@ -7,12 +8,20 @@ import type { PreparedPerson } from './prepare-people';
 import type { TrialResult, ExperimentResult } from './result';
 import type { RunOptions } from './run-options';
 
+export type TrialSolver = (
+  participant: PreparedPerson,
+  trial: TrialResult,
+  provider: IntelligenceProvider,
+) => Promise<IntelligenceResult>;
+
 export async function runTrials(
   task: string,
   protocol: ExperimentProtocol,
   prepared: readonly PreparedPerson[],
   execution: ReturnType<typeof createStageRunner>,
   options: Pick<RunOptions, 'signal'>,
+  solve: TrialSolver = (participant, _trial, provider) =>
+    personRuntime.solve(participant.profile, task, provider, options.signal),
 ) {
   const { repetitions, participantOrder: order } = protocol;
   const stage = execution.runStage;
@@ -44,7 +53,7 @@ export async function runTrials(
           'person',
           index,
           `Решение · прогон ${round}`,
-          (provider) => personRuntime.solve(participant.profile, task, provider, options.signal),
+          (provider) => solve(participant, planned, provider),
         );
         replace({ ...planned, status: 'answered', attempt });
         activeTrial = undefined;

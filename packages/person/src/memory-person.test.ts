@@ -661,3 +661,31 @@ it('passes precise repair feedback as data under the fixed persona instructions'
   expect(second.systemPrompt).not.toContain('failed validation: Invalid JSON syntax');
   expect(second.systemPrompt).toContain('formatFeedback');
 });
+
+it.each(['mode', 'budget', 'model'])(
+  'rejects a changed expected manifest %s before model invocation',
+  async (field) => {
+    const expectedManifest = structuredClone(memory.session.manifest);
+    if (field === 'mode') Object.assign(expectedManifest, { mode: 'fixedContext' });
+    if (field === 'budget') Object.assign(expectedManifest.modelCallBudget, { maxCalls: 20 });
+    if (field === 'model')
+      Object.assign(expectedManifest.modelSettings[0]!, { requestedModel: 'other-model' });
+    await expect(solveMemory({ ...input, expectedManifest }, provider, open)).rejects.toThrow(
+      /манифест/i,
+    );
+    expect(run).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledOnce();
+  },
+);
+
+it('pins the caller expected manifest before opening a native session', async () => {
+  const expectedManifest = structuredClone(memory.session.manifest);
+  open.mockImplementationOnce(() => {
+    Object.assign(expectedManifest.modelCallBudget, { maxCalls: 20 });
+    return Promise.resolve(memory);
+  });
+  const result = await solveMemory({ ...input, expectedManifest }, provider, open);
+  expect(result.reply?.messages).toEqual(messages);
+  expect(run).toHaveBeenCalledOnce();
+  expect(close).toHaveBeenCalledOnce();
+});

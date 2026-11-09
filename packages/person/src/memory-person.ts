@@ -9,6 +9,7 @@ import type {
   PersonaSimulationScope,
   SimulationMemoryEntry,
   PersonaTaskAdaptation,
+  PersonaManifest,
 } from '@proteus-int/contracts';
 import {
   decodeOpenPersonaSessionRequest,
@@ -17,6 +18,7 @@ import {
   parseMemoryAction,
   decodePersonaSimulationScope,
   decodePersonaTaskAdaptation,
+  decodePersonaManifest,
 } from '@proteus-int/contracts';
 import type { IntelligenceProvider } from '@proteus-int/intelligence';
 import { structured } from '@proteus-int/intelligence';
@@ -31,6 +33,7 @@ export interface MemoryPersonInput {
   readonly maxRetrievalSteps: number;
   readonly simulation: PersonaSimulationScope;
   readonly adaptation?: PersonaTaskAdaptation;
+  readonly expectedManifest?: Extract<PersonaManifest, { readonly schemaVersion: 2 }>;
 }
 export type OpenPersonaMemory = (
   request: OpenPersonaSessionRequest,
@@ -56,6 +59,17 @@ function validate(input: MemoryPersonInput) {
   const request = decodeOpenPersonaSessionRequest(input.request);
   const simulation = decodePersonaSimulationScope(input.simulation);
   const profile = structuredClone(input.profile);
+  const expectedManifest =
+    input.expectedManifest === undefined
+      ? undefined
+      : decodePersonaManifest(input.expectedManifest);
+  if (
+    expectedManifest &&
+    (expectedManifest.schemaVersion !== 2 ||
+      expectedManifest.id !== request.manifestId ||
+      expectedManifest.personaId !== request.personaId)
+  )
+    throw new Error('Ожидаемый манифест относится к другой персоне.');
   if (
     !profile.memory ||
     profile.memory.schemaVersion !== 1 ||
@@ -105,6 +119,7 @@ function validate(input: MemoryPersonInput) {
   exactText(JSON.stringify(data), 150000);
   return {
     request,
+    expectedManifest,
     profile,
     snapshot,
     skills,
@@ -165,6 +180,11 @@ export async function solveMemory(
     controller.signal.throwIfAborted();
     const model = createPersonaModel(selected.request, selected.itemIds, memory, provider);
     const manifest = model.session.manifest;
+    if (
+      selected.expectedManifest &&
+      JSON.stringify(selected.expectedManifest) !== JSON.stringify(manifest)
+    )
+      throw new Error('Манифест Person отличается от утверждённого протокола.');
     if (
       manifest.profileVersion !== 'person-memory-profile:2' ||
       manifest.promptVersion !== 'person-fabric-memory:2' ||

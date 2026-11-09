@@ -262,6 +262,56 @@ fn duplicate_record_attachment_is_rejected_even_with_fresh_hash() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 #[test]
+fn duplicate_revisions_are_rejected_within_and_across_batches_but_not_across_jobs() {
+    let (mut db, dir) = setup();
+    for id in ["job-1", "job-2"] {
+        db.create_job(&job_input(id)).unwrap();
+        db.start_job(id).unwrap();
+    }
+    for (id, source) in [("first", "same"), ("alias", "same"), ("other", "other")] {
+        db.save(&record(id, source, "  Exact é😀\r\n")).unwrap();
+    }
+    let original = db.job("job-1").unwrap().unwrap();
+    let error = db
+        .commit_job_batch("job-1", &original.hash, &batch(1, &["first", "alias"]))
+        .unwrap_err();
+    assert_eq!(error, "Документ повторяется в порции.");
+    assert_eq!(db.job("job-1").unwrap().unwrap(), original);
+    assert!(db.job_record_ids("job-1").unwrap().is_empty());
+    db.commit_job_batch("job-1", &original.hash, &batch(1, &["first"]))
+        .unwrap();
+    let before = db.job("job-1").unwrap().unwrap();
+    // The repeated revision is last: a failed batch must not attach its earlier
+    // distinct record or advance any coverage/checkpoint state.
+    let error = db
+        .commit_job_batch("job-1", &before.hash, &batch(2, &["other", "alias"]))
+        .unwrap_err();
+    assert_eq!(error, "Документ уже загружен этой задачей.");
+    assert_eq!(db.job("job-1").unwrap().unwrap(), before);
+    assert_eq!(db.job_record_ids("job-1").unwrap(), vec!["first"]);
+    db.commit_job_batch(
+        "job-2",
+        &hash_of(&db, "job-2"),
+        &batch(1, &["alias", "other"]),
+    )
+    .unwrap();
+    assert_eq!(db.job_record_ids("job-2").unwrap(), vec!["alias", "other"]);
+    db.commit_job_batch("job-1", &before.hash, &batch(2, &["other"]))
+        .unwrap();
+    assert_eq!(
+        db.job("job-1")
+            .unwrap()
+            .unwrap()
+            .state
+            .coverage
+            .loaded_documents,
+        2
+    );
+    drop(db);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn per_batch_and_cumulative_budget_limits_are_enforced() {
     let (mut db, dir) = setup();
     let mut input = job_input("job-1");

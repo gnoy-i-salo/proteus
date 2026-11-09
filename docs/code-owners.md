@@ -52,6 +52,9 @@ wrappers; [connection-session.rs](../apps/desktop/src-tauri/src/connection-sessi
 и legacy import; [CorpusDatabase](../apps/desktop/src-tauri/src/corpus-database.rs)
 — SQLCipher, immutable revisions и транзакциями. Нативные ingestion-сценарии
 проверяют текущие разрешения; storage API не становится авторизацией.
+[Лимиты порций](../apps/desktop/src-tauri/src/corpus-job-budget.rs) измеряют
+сохранённые UTF-8 байты средствами SQLCipher без повторной загрузки текстов;
+регрессионный тест проверяет план чтения колонок и точность подсчёта.
 [FTS](../apps/desktop/src-tauri/src/corpus-search.rs),
 [подготовка](local-tokenizer.md) и [CPU inference](local-embedding.md) имеют
 разные обязанности. Это общие реализации для RAG и UX, без второго MemoryPort.

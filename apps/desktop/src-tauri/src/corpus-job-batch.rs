@@ -182,8 +182,17 @@ fn batch_records(
             if !seen.insert(reference.revision_id.clone()) {
                 return Err("Документ повторяется в порции.".into());
             }
-            let staged: i64 = connection.query_row("SELECT count(*) FROM job_records JOIN record_revisions ON record_revisions.record_id=job_records.record_id WHERE job_records.job_id=?1 AND record_revisions.revision_id=?2", params![job_id, reference.revision_id], |row| row.get(0)).map_err(sql_error)?;
-            if staged != 0 {
+        }
+    }
+    if !seen.is_empty() {
+        // Scan retained IDs once per batch, not once per new document. Keep
+        // only the already-bounded incoming set in memory; stream old IDs and
+        // stop at the first duplicate. No payload or persistent cache is added.
+        let mut query = connection.prepare("SELECT record_revisions.revision_id FROM job_records JOIN record_revisions ON record_revisions.record_id=job_records.record_id WHERE job_records.job_id=?1").map_err(sql_error)?;
+        let mut retained = query.query([job_id]).map_err(sql_error)?;
+        while let Some(row) = retained.next().map_err(sql_error)? {
+            let id: String = row.get(0).map_err(sql_error)?;
+            if seen.contains(&id) {
                 return Err("Документ уже загружен этой задачей.".into());
             }
         }

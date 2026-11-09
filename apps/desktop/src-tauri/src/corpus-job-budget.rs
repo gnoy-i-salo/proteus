@@ -32,19 +32,21 @@ pub(super) fn encode_state(state: &JobState) -> Result<String, String> {
     serde_json::to_string(state).map_err(|_| INVALID.into())
 }
 
-// Include opaque record metadata as well as document/provenance bodies. BLOB
-// length measures UTF-8 bytes; SQLite TEXT length would count Unicode characters.
+// Include opaque metadata as well as document/provenance bodies. octet_length
+// on a direct column reads its byte size from the record header without loading
+// the payload. TEXT length counts characters; casting to BLOB loads the payload
+// again for every retained record on every batch. The corpus uses UTF-8.
 const RECORD_BYTES: &str = r#"
-    length(CAST(records.state_json AS BLOB))
-    + length(CAST(records.id AS BLOB))
-    + length(CAST(records.provider AS BLOB))
-    + length(CAST(records.namespace AS BLOB))
+    octet_length(records.state_json)
+    + octet_length(records.id)
+    + octet_length(records.provider)
+    + octet_length(records.namespace)
     + COALESCE((
         SELECT sum(
-            length(CAST(revisions.document_json AS BLOB))
-            + length(CAST(revisions.provenance_json AS BLOB))
-            + length(CAST(revisions.source_key AS BLOB))
-            + length(CAST(revisions.document_id AS BLOB))
+            octet_length(revisions.document_json)
+            + octet_length(revisions.provenance_json)
+            + octet_length(revisions.source_key)
+            + octet_length(revisions.document_id)
         )
         FROM record_revisions JOIN revisions ON revisions.id=record_revisions.revision_id
         WHERE record_revisions.record_id=records.id
@@ -92,3 +94,7 @@ pub(super) fn validate_payloads(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "corpus-job-budget-tests.rs"]
+mod tests;

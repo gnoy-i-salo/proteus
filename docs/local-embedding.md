@@ -457,8 +457,30 @@ CLI. Сохранённые MemoryItem даты RFC3339 читаются с ис
 текст, whitespace и Unicode не нормализуются. Общие wire/input/usage проверки
 контекста выполняются одним владельцем для research и Fabric. UI-компоненты не
 могут напрямую импортировать эти adapters: это обязанность scenario models.
-Task-free Fabric controller/profile и native freeze с проверкой завершённых
-контекстов ещё требуется подключить.
+Task-free Fabric controller/profile и JS reader/adapter команды freeze ещё
+требуется подключить.
+
+`freeze_memory_manifest` принимает host draft с `contextLeaseIds`, но без
+caller-authored persona/corpus/source/split/preparation identity. Native требует
+завершённые Fabric-контексты одного снимка памяти, проверяет живые разрешения и
+индекс, сопоставляет настройки Fabric и STALKER с реально выполненными вызовами.
+Навыки могут ссылаться только на выбранную завершёнными контекстами память;
+вложенные spans должны сохранять границы UTF-8. Наблюдаемые навыки требуют
+непротиворечивых наблюдаемых процедур; образцы — наблюдаемые собственные
+`styleExample`. Предложения сохраняют явные ограничения. Версии split,
+tokenizer/chunking preparation и доступный embedding fingerprint берутся из
+native-хранилища. Source refs фиксируют источники завершённых Fabric-контекстов,
+а immutable corpus snapshot — версию корпуса. Budgets и настройки Person/judge
+задают будущий запуск, а не утверждают, что он уже выполнялся.
+
+Манифест и его навыки получают native IDs и время и сохраняются атомарно.
+Повтор того же draft в живой сессии возвращает тот же результат; другой draft
+после успешной записи отклоняется. Неуспешная проверка не занимает слот манифеста.
+После commit повторно проверяется право раскрытия: отмена/истечение срока не
+возвращает receipt, даже если сама запись уже состоялась. Манифест не заменяет
+разрешения источников. Предыдущая декларация TS draft не имела writer/reader;
+новый native V1 требует context IDs и сам выводит preparation version. Формат
+сохранённых `PersonaManifest`/`SkillDefinition` V1 и схема базы 7 не менялись.
 
 `CorpusDatabase::freeze_manifest_checked` атомарно сохраняет `PersonaManifest`
 и ровно перечисленные в нём навыки в существующей схеме 7. Повтор идентичен

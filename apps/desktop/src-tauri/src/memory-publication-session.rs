@@ -43,7 +43,7 @@ impl MemorySession {
             Some(value) if value.input_sha256 == hash => value.clone(),
             Some(_) => return Err("Сессия уже опубликовала другой черновик исследования.".into()),
             None => {
-                let time = self.ledger.verify(|| checked_time(&self.scope, &now))?;
+                let time = self.ledger.verify(|| self.scope.checked_time(&now))?;
                 identity(&self.scope, draft, hash, time)?
             }
         };
@@ -76,7 +76,7 @@ impl MemorySession {
         let stored = scope
             .sources
             .with_ingestion_database(&scope.operation, |db| {
-                let clock = || checked_time(scope, &now);
+                let clock = || scope.checked_time(&now);
                 let check = || {
                     ledger.borrow_mut().verify(clock)?;
                     models.borrow_mut().verify(&clock)?;
@@ -132,15 +132,6 @@ impl MemorySession {
     }
 }
 
-fn checked_time(scope: &MemoryScope, now: &dyn Fn() -> i64) -> Result<i64, String> {
-    scope.operation.check()?;
-    let time = now();
-    scope.operation.check()?;
-    if time < 0 || time >= scope.deadline {
-        return Err("Разрешение источника истекло.".into());
-    }
-    Ok(time)
-}
 fn identity(
     scope: &MemoryScope,
     draft: &ResearchPublicationDraft,

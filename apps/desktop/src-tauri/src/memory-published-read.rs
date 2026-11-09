@@ -89,15 +89,7 @@ impl MemorySession {
         scope
             .sources
             .with_ingestion_database(&scope.operation, |db| {
-                let clock = || {
-                    scope.operation.check()?;
-                    let time = now();
-                    scope.operation.check()?;
-                    if time < 0 || time >= scope.deadline {
-                        return Err("Разрешение источника истекло.".into());
-                    }
-                    Ok(time)
-                };
+                let clock = || scope.checked_time(now);
                 let check = || {
                     ledger.borrow_mut().verify(clock)?;
                     if let Some(models) = models.borrow_mut().as_mut() {

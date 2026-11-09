@@ -6,6 +6,8 @@ pub use catalog_session::ResearchCatalogResponse;
 #[path = "memory-fabric-session.rs"]
 mod fabric_session;
 pub use fabric_session::FabricContextRequest;
+#[path = "memory-manifest-session.rs"]
+mod manifest_session;
 #[path = "memory-model-session.rs"]
 mod model_session;
 #[path = "memory-published-read.rs"]
@@ -48,6 +50,7 @@ pub struct MemorySession {
     history: super::receipt_history::ReceiptHistory,
     models: Option<super::model_contexts::ModelContexts>,
     publication: Option<publication_session::PublicationMemo>,
+    manifest: Option<manifest_session::ManifestMemo>,
 }
 struct MemoryScope {
     deadline: i64,
@@ -164,6 +167,7 @@ impl MemorySession {
             history: Default::default(),
             models: None,
             publication: None,
+            manifest: None,
         })
     }
     pub fn read_episode(
@@ -220,6 +224,16 @@ impl MemorySession {
     }
 }
 impl MemoryScope {
+    // Use while the caller already holds the source gate; never reacquire it.
+    fn checked_time(&self, now: &dyn Fn() -> i64) -> Result<i64, String> {
+        self.operation.check()?;
+        let time = now();
+        self.operation.check()?;
+        if time < 0 || time >= self.deadline {
+            return Err("Разрешение источника истекло.".into());
+        }
+        Ok(time)
+    }
     fn policy_version(&self) -> Result<&str, String> {
         let policy = &self
             .authority

@@ -84,6 +84,18 @@ pub async fn reserve_fabric_memory_context(
     .await
 }
 #[tauri::command]
+pub async fn freeze_memory_manifest(
+    session_id: String,
+    draft: super::manifest_draft::PersonaManifestDraft,
+    sessions: tauri::State<'_, Arc<MemorySessions>>,
+) -> Result<super::manifest_draft::ManifestFreezeReceipt, String> {
+    draft.validate()?;
+    in_session(sessions.inner().clone(), session_id, move |session| {
+        session.freeze_manifest(&draft, now)
+    })
+    .await
+}
+#[tauri::command]
 pub fn close_memory_session(
     session_id: String,
     sessions: tauri::State<'_, Arc<MemorySessions>>,

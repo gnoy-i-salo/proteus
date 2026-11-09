@@ -8,6 +8,8 @@ pub mod commands;
 mod context_input;
 #[path = "memory-context-wire.rs"]
 pub mod context_wire;
+#[path = "memory-manifest-draft.rs"]
+pub mod manifest_draft;
 #[path = "memory-model-budget.rs"]
 pub mod model_budget;
 #[path = "memory-model-contexts.rs"]

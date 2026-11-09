@@ -73,6 +73,26 @@ impl CorpusDatabase {
         // when the immutable publication has already been committed.
         Ok(stored)
     }
+    pub fn read_research_for_memory_checked(
+        &self,
+        memory_snapshot_id: &str,
+        persona_id: &str,
+        check: &dyn Fn() -> Result<(), String>,
+    ) -> Result<StoredResearchPublication, String> {
+        check()?;
+        validate_persona_id(memory_snapshot_id)?;
+        let id: Option<String> = self.connection.query_row(
+            "SELECT CASE WHEN length(CAST(id AS BLOB)) BETWEEN 1 AND 256 THEN id END FROM memory_publications WHERE memory_snapshot_id=?1",
+            [memory_snapshot_id], |row| row.get(0),
+        ).optional().map_err(sql_error)?.flatten();
+        let stored =
+            self.read_research_publication_checked(&id.ok_or(MISSING)?, persona_id, check)?;
+        if stored.bundle.snapshot.id != memory_snapshot_id {
+            return Err(INVALID.into());
+        }
+        check()?;
+        Ok(stored)
+    }
     pub fn read_research_publication_checked(
         &self,
         publication_id: &str,

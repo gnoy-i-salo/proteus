@@ -1,5 +1,7 @@
 use super::*;
 use crate::memory::session::FabricContextRequest;
+#[path = "memory-manifest-session-tests.rs"]
+mod manifest_session_tests;
 fn fabric_binding() -> InvocationBinding {
     InvocationBinding {
         provider: "codex".into(),

@@ -92,7 +92,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:pages
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/trunk' && github.event_name != 'pull_request'
         with:
           path: .cache/pages

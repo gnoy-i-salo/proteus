@@ -15,7 +15,7 @@
     "@proteus-int/contracts": "workspace:*",
     "@proteus-int/intelligence": "workspace:*",
     "@tauri-apps/api": "^2.10.1",
-    "solid-js": "^1.9.18",
+    "solid-js": "^1.9.19",
     "@proteus-int/pipeline": "workspace:*"
   },
   "devDependencies": {
